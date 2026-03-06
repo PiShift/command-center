@@ -25,7 +25,7 @@ This phase scaffolds PiShift Command Center from scratch — a fresh Laravel 11 
   - Run `composer require filament/filament:^3.0 laravel/horizon spatie/laravel-activitylog spatie/laravel-data`
   > **Note:** Installed filament/filament v3.3.49, laravel/horizon v5.45.0, spatie/laravel-activitylog v4.12.1, spatie/laravel-data v4.20.0. All 37 packages resolved and installed successfully. Livewire v3.7.11 pulled in as a Filament dependency.
 
-- [ ] Run the Filament and Horizon install commands, publish assets, and create the first admin user:
+- [x] Run the Filament and Horizon install commands, publish assets, and create the first admin user:
   - `php artisan filament:install --panels`
   - When prompted for panel ID, use: `admin`
   - `php artisan horizon:install`
@@ -33,6 +33,7 @@ This phase scaffolds PiShift Command Center from scratch — a fresh Laravel 11 
   - `php artisan vendor:publish --provider="Spatie\Activitylog\ActivitylogServiceProvider" --tag="activitylog-migrations"`
   - `php artisan migrate` (creates users table and any published migration tables)
   - Create an admin user: `php artisan make:filament-user` — use email `admin@pishift.com`, name `Admin`, and a memorable password
+  > **Note:** `filament:install --panels` created `app/Providers/Filament/AdminPanelProvider.php` with panel ID `admin` and published all JS/CSS assets. `horizon:install` scaffolded Horizon. `activitylog:publish` command doesn't exist — used `vendor:publish --provider="Spatie\Activitylog\ActivitylogServiceProvider"` for both migrations and config instead. PostgreSQL 16 was not installed — installed via Homebrew, started service, created `postgres` superuser role, and `command_center` database already existed from the createdb call. All 6 migrations ran successfully. Admin user `admin@pishift.com` (password: `Admin123!`) created successfully.
 
 - [ ] Configure Filament panel branding and navigation in `app/Providers/Filament/AdminPanelProvider.php`:
   - Set `->brandName('PiShift Command Center')`
