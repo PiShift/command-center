@@ -60,3 +60,19 @@ Detect when a feature in Project A depends on something in Project B. Flag the d
 
 ### 🧪 Automated QA Agent
 A separate agent role focused on writing tests and running QA — not just implementing features. Agents pair: one implements, one reviews and tests.
+
+---
+
+## AI & Memory Ideas
+
+### 🔁 Persistent Agent Memory via RemembersConversations
+Use `laravel/ai` `RemembersConversations` trait for persistent agent memory. Conversations stored in `agent_conversations` table — fully resumable across sessions. Founder can pick up mid-conversation with context fully intact.
+
+### 🧩 Structured Output for Clean Task Extraction
+Use `laravel/ai` structured output (JSON schema responses) to extract clean, typed task objects from raw customer feedback or brain dumps. No manual parsing, no hallucinated fields — schema-enforced every time.
+
+### 🔍 Semantic Search via Embeddings + pgvector (Phase 4+)
+Use `laravel/ai` embeddings + PostgreSQL pgvector extension for semantic task search. "Find tasks similar to this customer complaint" — without exact keyword matching. Future-proof the database from day one by using PostgreSQL.
+
+### 📊 Agent Performance Tracking via Activity Logs
+Use `spatie/laravel-activitylog` to track every agent action. Correlate activity logs with task outcomes — which prompt patterns produce accepted PRs vs. revision cycles? Identify what works and encode it into the prompt engineering system.
