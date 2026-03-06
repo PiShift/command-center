@@ -7,8 +7,26 @@
 
 ## Captured Ideas
 
+### 🗣️ Task AI Chat
+Conversation-to-tasks pipeline with human confirmation. Customer sends chaos (screenshot, voice, vague text) → AI interprets → founder discusses and corrects → founder confirms → tasks created. AI never auto-creates — always confirm first.
+
+### 📱 Flutter Mobile App for Quick Task Creation
+Same Task AI Chat on mobile. Customer sends screenshot → founder opens Flutter app → 30 seconds → tasks created. Optimised for on-the-go task creation, not deep work. Same backend API, lightweight Flutter frontend.
+
+### 🤖 AI Interpretation of Screenshots
+Drag a screenshot into Task AI Chat. Vision model analyses it — identifies the bug, UI issue, or design feedback — and presents an interpretation for founder to confirm before any tasks are created.
+
+### 🎙️ Voice-to-Task with Discussion Loop
+Record a voice note on your phone. Whisper transcribes it. AI interprets and presents what it understood. Founder discusses and corrects until tasks are confirmed. Not auto-parse — discussion loop required.
+
+### 📋 Log Original Customer Input Alongside Tasks
+Every task created through Task AI Chat stores the original customer input (screenshot, voice transcript, raw text) alongside the final task. Full traceability: months later you can see exactly what the customer said.
+
+### 🧠 AI Learns Project Context Over Time
+Task AI Chat gets better with each session. As more customer feedback is interpreted for a project, AI builds familiarity with the project's domain, common issues, and terminology. Better interpretations, fewer correction rounds.
+
 ### 🎙️ Voice-to-Task Pipeline
-Record a voice note on your phone while walking. Transcribed by Whisper, structured by LLM, and turned into a GitHub issue automatically. No typing required.
+*(Superseded by Task AI Chat's voice input with discussion loop — see above. The original idea was full auto-parse, but the confirmed approach requires human discussion and confirmation before tasks are created.)*
 
 ### 📸 Screenshot Analysis for Bug Reports
 Drag a screenshot into Command Center. Vision model analyses it, identifies the bug or UI issue, and creates a properly formatted GitHub issue with reproduction steps.

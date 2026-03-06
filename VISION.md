@@ -64,6 +64,18 @@ One screen. All projects. Real-time. You see:
 
 No tab switching. No digging through Slack. One dashboard, full picture.
 
+### 🗣️ Task AI Chat
+Customer feedback comes in as chaos — screenshots, voice notes, vague texts. Task AI Chat is a conversation-to-tasks pipeline that turns that chaos into structured, actionable tasks.
+
+How it works:
+- Founder pastes screenshot / records voice / types customer message
+- AI interprets: "Here's what I understood..."
+- Founder discusses and corrects: "No, they meant X not Y"
+- AI adjusts until founder is satisfied
+- Founder confirms → tasks are created
+
+**AI NEVER auto-creates tasks** — the founder is always in the loop before anything is committed. Everything is logged: the original customer input, the full discussion, and the final tasks. Available on web first (Phase 2), then Flutter mobile app (Phase 6).
+
 ### 🤖 Agent Autonomy with Guardrails
 Agents are autonomous but not unsupervised. They:
 - Open PRs — never push directly to `main`
