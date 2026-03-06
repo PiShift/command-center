@@ -17,12 +17,13 @@ This phase scaffolds PiShift Command Center from scratch — a fresh Laravel 11 
   - Copy `.env` to `.env.example` (strip secrets, keep structure)
   > **Note:** Updated `.env` with pgsql (DB_USERNAME=postgres, DB_PASSWORD empty), Redis for cache/session/queue, APP_NAME and APP_URL. `.env.example` synced with APP_KEY stripped.
 
-- [ ] Install Filament v3 and all required packages via Composer:
+- [x] Install Filament v3 and all required packages via Composer:
   - `filament/filament:^3.0`
   - `laravel/horizon`
   - `spatie/laravel-activitylog`
   - `spatie/laravel-data`
   - Run `composer require filament/filament:^3.0 laravel/horizon spatie/laravel-activitylog spatie/laravel-data`
+  > **Note:** Installed filament/filament v3.3.49, laravel/horizon v5.45.0, spatie/laravel-activitylog v4.12.1, spatie/laravel-data v4.20.0. All 37 packages resolved and installed successfully. Livewire v3.7.11 pulled in as a Filament dependency.
 
 - [ ] Run the Filament and Horizon install commands, publish assets, and create the first admin user:
   - `php artisan filament:install --panels`
