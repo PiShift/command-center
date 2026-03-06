@@ -124,6 +124,25 @@ After the PR is merged (or closed), the agent updates `PROJECT.md`:
 
 ---
 
+## ✂️ Edit Task Protocol
+
+When the task is an edit or fix (not a greenfield feature), the standard workflow applies **plus** these additional steps. Editing is where agents most commonly break things — this protocol prevents that.
+
+1. **Read the task scope carefully** — what EXACTLY needs to change. Write it down. If it's not explicit in the issue, ask before starting.
+2. **Read `PROJECT.md` for context** — understand the project stack, conventions, and any relevant decisions.
+3. **Read the specific file(s) being modified** — understand the existing code before touching it. Don't assume. Don't skim.
+4. **Identify what to change AND what to preserve** — make a mental list (or write it in the PR) of what is in scope and what must not be touched.
+5. **Make ONLY the requested changes** — do not refactor, reformat, rename, or "improve" anything that wasn't in the task scope.
+6. **Self-validate: diff your changes against the task scope** — review every changed line. For each change, answer: "Was I asked to change this?"
+7. **If the diff touches anything outside scope → revert those changes** — no exceptions. If you noticed a bug while you were in there, log it as a separate issue. Don't fix it now.
+8. **Open a small, focused PR** — one concern per PR. A PR that changes 3 files for one reason is good. A PR that changes 20 files for various reasons is not reviewable.
+9. **PR description must list:**
+   - ✅ What changed (and why)
+   - 🚫 What was intentionally NOT changed (and why)
+   - 🔗 Reference to the original issue
+
+---
+
 ## Rules (Non-Negotiable)
 
 | Rule | Detail |

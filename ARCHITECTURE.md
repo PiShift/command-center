@@ -140,6 +140,51 @@ How a task goes from idea to merged code:
 
 ---
 
+## 🧩 Prompt Engineering System
+
+Command Center is fundamentally a **structured prompt engineering system**. Every task given to an agent is NOT just "hey fix this" — it's a carefully assembled prompt built from multiple sources of context.
+
+A task prompt is constructed from:
+
+- **Project context** — sourced from `PROJECT.md`: stack, conventions, decisions, current state
+- **Task scope** — what exactly needs to change (and nothing else)
+- **Boundaries** — what NOT to change, what to preserve
+- **Decision history** — what was already decided and confirmed, so the agent doesn't relitigate
+- **Guardrails and rules** — the non-negotiable constraints every agent follows
+
+This structured approach is what separates Command Center from just "chatting with an AI". The quality of the output is a direct function of the quality of the context provided.
+
+---
+
+## 🛡️ Edit Guardrails
+
+AI tools break things when editing because they assume and change things they weren't asked to change. Command Center enforces strict edit discipline:
+
+- **🎯 Scoped changes only:** Agent NEVER touches what it wasn't asked to touch. If the task says "fix the login bug", the agent does not refactor the auth module while it's in there.
+- **✅ Pre-PR self-validation:** Before opening a PR, agent checks: "Did I only change what was asked? Did I break anything?" A diff is compared against the task scope. If anything is outside scope, it gets reverted.
+- **📦 Small, scoped PRs:** Every PR should be reviewable in 60 seconds. No 50-file dumps. One concern per PR. If a task requires touching 20 files, it's probably too broad — break it down.
+- **📖 Context-first:** Before any edit, agent reads `PROJECT.md`, the specific files being changed, and the task scope. No cold starts, no assumptions.
+
+---
+
+## 🔍 Review Pipeline
+
+Every change goes through two layers of review before it's considered done:
+
+**Layer 1 — Before PR (automated):**
+- Agent self-validates against task scope
+- Checks: did I only change what was asked?
+- Checks: does anything obviously break?
+- If validation fails → agent reverts out-of-scope changes and re-validates
+
+**Layer 2 — After PR (human):**
+- Founder reviews the diff in GitHub
+- This is the power of Git — you see exactly what changed, line by line
+- Approve → merge, or request changes → agent updates
+- Nothing reaches `main` without human sign-off
+
+---
+
 ## Key Decisions Log
 
 | # | Decision | Rationale | Date |
@@ -149,3 +194,5 @@ How a task goes from idea to merged code:
 | 3 | Laravel as backend framework | PHP ecosystem, strong queue support, team familiarity | Phase 0 |
 | 4 | Agents open PRs, never push to main | Human always in the loop for final merge decision | Phase 0 |
 | 5 | One agent per project (not shared) | Isolation prevents cross-project context contamination | Phase 0 |
+| 6 | Structured prompt engineering over ad-hoc prompts | Consistent, context-rich prompts produce reliable agent output | Phase 0 |
+| 7 | Phase 1 = CRUD first, not GitHub integration | Build what's useful from day one; layer complexity later | Phase 0 |
