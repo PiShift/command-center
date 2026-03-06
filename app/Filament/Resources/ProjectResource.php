@@ -29,7 +29,7 @@ class ProjectResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
-    public function form(Form $form): Form
+    public static function form(Form $form): Form
     {
         return $form->schema([
             Select::make('customer_id')
@@ -59,7 +59,7 @@ class ProjectResource extends Resource
         ]);
     }
 
-    public function table(Table $table): Table
+    public static function table(Table $table): Table
     {
         return $table
             ->modifyQueryUsing(fn ($query) => $query->withCount('tasks'))

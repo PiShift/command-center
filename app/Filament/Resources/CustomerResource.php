@@ -26,7 +26,7 @@ class CustomerResource extends Resource
 
     protected static ?int $navigationSort = 20;
 
-    public function form(Form $form): Form
+    public static function form(Form $form): Form
     {
         return $form->schema([
             TextInput::make('name')
@@ -42,7 +42,7 @@ class CustomerResource extends Resource
         ]);
     }
 
-    public function table(Table $table): Table
+    public static function table(Table $table): Table
     {
         return $table
             ->modifyQueryUsing(fn ($query) => $query->withCount('projects'))

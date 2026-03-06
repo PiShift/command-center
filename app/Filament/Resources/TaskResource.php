@@ -29,7 +29,7 @@ class TaskResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
-    public function form(Form $form): Form
+    public static function form(Form $form): Form
     {
         return $form->schema([
             Select::make('project_id')
@@ -78,7 +78,7 @@ class TaskResource extends Resource
         ]);
     }
 
-    public function table(Table $table): Table
+    public static function table(Table $table): Table
     {
         return $table
             ->defaultSort('id', 'desc')
