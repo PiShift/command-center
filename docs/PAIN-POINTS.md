@@ -45,3 +45,10 @@
 **Problem:** Something is ambiguous. Instead of pausing and asking, the agent picks an interpretation and runs with it for two hours. The interpretation is wrong. Two hours of work is thrown away. The agent didn't ask because it was optimizing for completion, not correctness.
 
 **Feature this drives:** Clear escalation rules baked into every agent. When ambiguous: stop, write the question to `PROJECT.md` under "Open Questions", surface it to the developer. Never proceed on an assumption. Never.
+
+---
+
+### ✂️ "AI tools suck at editing"
+**Problem:** If I don't explain everything point by point they fix one thing and break another. They change things they weren't asked to change. They assume instead of asking. Every edit task needs explicit scope: what to change AND what not to change.
+
+**Feature this drives:** Edit Guardrails and the Edit Task Protocol. Every edit task has a defined scope, and agents self-validate their diff against that scope before opening a PR. Out-of-scope changes are reverted automatically.
