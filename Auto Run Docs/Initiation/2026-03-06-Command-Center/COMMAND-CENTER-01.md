@@ -10,11 +10,12 @@ This phase scaffolds PiShift Command Center from scratch — a fresh Laravel 11 
   - Run `php artisan key:generate`
   > **Note:** `--force` flag does not exist in composer create-project. Used a temp directory + rsync approach to scaffold into the existing git repo. Laravel 12.x (v12.53.0) was installed — Laravel 11 is no longer the default release. `php artisan key:generate` completed successfully.
 
-- [ ] Configure the environment for PostgreSQL and Redis:
+- [x] Configure the environment for PostgreSQL and Redis:
   - Update `.env` with database settings: `DB_CONNECTION=pgsql`, `DB_HOST=127.0.0.1`, `DB_PORT=5432`, `DB_DATABASE=command_center`, `DB_USERNAME` and `DB_PASSWORD` set to local defaults
   - Update `.env` with Redis settings: `REDIS_HOST=127.0.0.1`, `CACHE_STORE=redis`, `SESSION_DRIVER=redis`, `QUEUE_CONNECTION=redis`
   - Update `.env`: `APP_NAME="PiShift Command Center"`, `APP_URL=http://localhost:8000`
   - Copy `.env` to `.env.example` (strip secrets, keep structure)
+  > **Note:** Updated `.env` with pgsql (DB_USERNAME=postgres, DB_PASSWORD empty), Redis for cache/session/queue, APP_NAME and APP_URL. `.env.example` synced with APP_KEY stripped.
 
 - [ ] Install Filament v3 and all required packages via Composer:
   - `filament/filament:^3.0`
