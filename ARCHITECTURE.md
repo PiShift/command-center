@@ -38,7 +38,42 @@
 
 ---
 
+## 🤖 Two AI Layers
+
+Command Center uses two distinct AI layers, introduced at different phases:
+
+### AI Layer 1 — Lightweight (Phase 2)
+- Simple LLM API calls for interpreting text, images, and voice
+- Used by **Task AI Chat** to understand customer feedback
+- Request/response pattern: input → AI interprets → discuss → confirm → store tasks
+- No agent engine, no GitHub automation, no PROJECT.md reading
+- Fast, cheap, and scoped to conversation
+
+### AI Layer 2 — Full Agent Engine (Phase 4)
+- Context-aware prompt engineering system
+- Reads `PROJECT.md`, understands the codebase, generates code, opens PRs
+- Structured prompts assembled from: project context + task scope + boundaries + decision history
+- Complex orchestration with guardrails and self-validation
+- The full autonomous agent experience
+
+---
+
 ## Components
+
+### 🗣️ Task AI Chat
+- Conversation interface for translating customer feedback into structured tasks
+- Accepts: text, images/screenshots, voice (transcribed via Whisper)
+- Uses **AI Layer 1** for interpretation (lightweight LLM API calls)
+- Supports back-and-forth discussion until tasks are confirmed by the founder
+- AI NEVER auto-creates tasks — always shows interpretation first, waits for confirmation
+- Stores: original input, full conversation history, final confirmed tasks
+- All tasks are linked to a specific project
+
+### 📱 Flutter Mobile App
+- Lightweight mobile client (Phase 6) — same backend API, same Task AI Chat
+- Optimised for quick on-the-go task creation from customer feedback
+- Core use case: customer sends screenshot → founder opens app → 30 seconds → tasks created
+- No agent engine on mobile — just Task AI Chat and task review
 
 ### 📋 Project Registry
 - Maintains a list of all managed projects

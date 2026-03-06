@@ -21,7 +21,7 @@
 
 ## Phase 1 — Projects & Tasks Management (CRUD) *(Next)*
 
-**Goal:** Create projects, link to GitHub repos, manage tasks. This is the foundation. Useful from day one — no AI required.
+**Goal:** Create projects, link to GitHub repos, manage tasks. Fast and easy. Pure Laravel, no AI yet. Useful from day one.
 
 - [ ] Laravel project scaffolding and initial setup
 - [ ] Basic project creation — name, description, linked GitHub repo
@@ -35,23 +35,25 @@
 
 ---
 
-## Phase 2 — Quick Task Updates & Input
+## Phase 2 — Task AI Chat (Web)
 
-**Goal:** Fast input methods so updating a task takes seconds, not minutes.
+**Goal:** Introduces AI Layer 1 (lightweight LLM API calls). Translate customer chaos into structured tasks through conversation. Web version in Laravel dashboard.
 
-- [ ] Text input → structured task update via LLM
-- [ ] Voice summary → AI-assisted task update ("record what I just did")
-- [ ] One-click status changes from the task list
-- [ ] AI-assisted task summaries — turn a brain dump into a clean task entry
-- [ ] Input review step — developer confirms before changes are applied
+- [ ] Task AI Chat interface in the Laravel dashboard
+- [ ] Text input → AI interprets → founder discusses → confirms → tasks stored
+- [ ] Image/screenshot input → Vision model interprets → discuss → confirm
+- [ ] Voice input → Whisper transcription → AI interprets → discuss → confirm
+- [ ] Full conversation history logged per session (input + discussion + tasks)
+- [ ] Input review step — founder always confirms before tasks are created
+- [ ] Tasks linked to specific project at session start
 
-**Milestone:** Record what you just worked on in under 30 seconds.
+**Milestone:** Customer sends vague feedback → founder opens Task AI Chat → 60 seconds of discussion → clean tasks created. Nothing auto-created without confirmation.
 
 ---
 
 ## Phase 3 — GitHub Sync
 
-**Goal:** Bidirectional sync between Command Center tasks and GitHub activity.
+**Goal:** Bidirectional sync between Command Center tasks and GitHub activity. No new AI needed — just API integration.
 
 - [ ] GitHub OAuth / Personal Access Token authentication
 - [ ] Sync tasks ↔ GitHub Issues (create, update, close)
@@ -64,9 +66,9 @@
 
 ---
 
-## Phase 4 — AI Agent Layer
+## Phase 4 — AI Agent Layer (Full)
 
-**Goal:** Context-aware prompt engineering system that acts on projects intelligently.
+**Goal:** AI Layer 2 — context-aware prompt engineering system. Agent reads PROJECT.md, understands the codebase, generates code, opens PRs. Complex orchestration.
 
 - [ ] `PROJECT.md` parser — read and structure project context
 - [ ] Structured prompt builder: project context + task scope + rules + guardrails
@@ -83,7 +85,7 @@
 
 ## Phase 5 — War Room Dashboard
 
-**Goal:** Real-time view of all projects, agent status, blockers, and progress. One screen to rule them all.
+**Goal:** Real-time view of all projects, agents, tasks, and blockers. The full picture. One screen to rule them all.
 
 - [ ] Real-time dashboard built with Livewire or Vue
 - [ ] Per-project cards: status, agent state, open PRs, blockers
@@ -96,6 +98,21 @@
 
 ---
 
+## Phase 6 — Flutter Mobile App
+
+**Goal:** Same Task AI Chat on mobile. Customer sends screenshot → open app → 30 seconds → tasks created. Same backend API, lightweight Flutter frontend.
+
+- [ ] Flutter app scaffolding
+- [ ] Task AI Chat — same conversation-to-tasks flow as web
+- [ ] Image input from camera roll or direct camera capture
+- [ ] Voice input — record and transcribe customer feedback on the go
+- [ ] Push notifications for PR reviews and task updates
+- [ ] Lightweight task review and status updates
+
+**Milestone:** Founder receives customer screenshot on phone → opens Flutter app → tasks created in under 30 seconds.
+
+---
+
 ## Future / Backlog
 
 See [`docs/IDEAS.md`](docs/IDEAS.md) for the raw ideas list.
@@ -105,4 +122,4 @@ Notable future directions:
 - Slack / Discord integration for notifications
 - Client-facing project status reports (auto-generated)
 - Agent performance scoring and improvement loops
-- Mobile dashboard for reviewing PRs on the go
+
