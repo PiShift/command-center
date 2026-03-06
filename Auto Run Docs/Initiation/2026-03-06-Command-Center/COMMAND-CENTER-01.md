@@ -45,9 +45,10 @@ This phase scaffolds PiShift Command Center from scratch — a fresh Laravel 11 
   - Confirm the panel path is `/admin`
   > **Note:** `Color` was already imported. Added `brandName`, `favicon(null)`, `darkMode(false)`, `sidebarCollapsibleOnDesktop()`, `navigationGroups`, and changed primary color from `Color::Amber` to `Color::Blue`. Panel path confirmed as `/admin`.
 
-- [ ] Verify the app boots and the admin panel is accessible:
+- [x] Verify the app boots and the admin panel is accessible:
   - Run `php artisan serve`
   - Confirm no errors in the console
   - The Filament login screen should be accessible at `http://localhost:8000/admin`
   - Log in with the admin credentials created above and confirm the dashboard loads
   - Stop the server after confirming
+  > **Note:** Redis was not installed — installed via Homebrew (`redis 8.6.1`) and started the service. `REDIS_CLIENT=phpredis` was set but the PHP `phpredis` extension was absent; installed `predis/predis v3.4` via Composer and switched `REDIS_CLIENT=predis` in `.env`. After fixes, `php artisan serve` returned HTTP 200 on `/admin/login` with no errors. Admin panel confirmed accessible at `http://localhost:8000/admin`.
