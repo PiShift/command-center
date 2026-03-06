@@ -4,7 +4,7 @@ This phase wires the database layer into a fully functional Filament admin panel
 
 ## Tasks
 
-- [ ] Create the `CustomerResource` with full table and form:
+- [x] Create the `CustomerResource` with full table and form:
   - Generate with: `php artisan make:filament-resource Customer --generate`
   - **Table columns**: `name` (searchable), `company` (searchable), `email`, `projects_count` (using `withCount`), `created_at` (since, toggleable)
   - **Table filters**: none needed at this stage
@@ -14,7 +14,7 @@ This phase wires the database layer into a fully functional Filament admin panel
   - **Navigation**: group `People`, icon `heroicon-o-users`, sort order 20
   - Add `->withCount('projects')` to the Eloquent query in `table()` via `->modifyQueryUsing()`
 
-- [ ] Create the `ProjectResource` with full table, form, and relationship panel:
+- [x] Create the `ProjectResource` with full table, form, and relationship panel:
   - Generate with: `php artisan make:filament-resource Project --generate`
   - **Table columns**: `name` (searchable), `customer.name` (relationship column, label "Customer"), `status` (badge — green for active, yellow for paused, grey for complete), `stack`, `tasks_count` (using `withCount`), `github_repo` (copyable, toggleable), `updated_at` (since, toggleable)
   - **Table filters**: SelectFilter on `status` (active/paused/complete), SelectFilter on `customer_id` (label "Customer", options from Customer model)
@@ -29,7 +29,7 @@ This phase wires the database layer into a fully functional Filament admin panel
   - **Navigation**: group `Projects`, icon `heroicon-o-folder-open`, sort order 1
   - Add `->withCount('tasks')` to the Eloquent query
 
-- [ ] Create the `TaskResource` with full table, form, and scoped project view:
+- [x] Create the `TaskResource` with full table, form, and scoped project view:
   - Generate with: `php artisan make:filament-resource Task --generate`
   - **Table columns**: `title` (searchable, wrap), `project.name` (relationship column, label "Project"), `type` (badge — blue for feature, red for bug, grey for change), `priority` (badge — red for high, yellow for medium, grey for low), `status` (badge — grey for backlog, blue for in-progress, green for done), `source` (badge, toggleable), `updated_at` (since, toggleable)
   - **Table filters**: SelectFilter on `status`, SelectFilter on `type`, SelectFilter on `priority`, SelectFilter on `project_id` (label "Project", options from Project model)
@@ -45,7 +45,7 @@ This phase wires the database layer into a fully functional Filament admin panel
     - `original_input` (Textarea, nullable, label "Original Input (raw customer feedback)", visible only when source is ai-chat — use `->hidden(fn ($get) => $get('source') !== 'ai-chat')`)
   - **Navigation**: group `Projects`, icon `heroicon-o-clipboard-document-list`, sort order 2
 
-- [ ] Add a Stats Overview widget to the Filament dashboard showing live counts:
+- [x] Add a Stats Overview widget to the Filament dashboard showing live counts:
   - Create `app/Filament/Widgets/StatsOverviewWidget.php` extending `Filament\Widgets\StatsOverviewWidget`
   - Stats cards:
     - "Active Projects" — count of projects where status = active, color blue
