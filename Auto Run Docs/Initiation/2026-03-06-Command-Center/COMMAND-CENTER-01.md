@@ -35,7 +35,7 @@ This phase scaffolds PiShift Command Center from scratch — a fresh Laravel 11 
   - Create an admin user: `php artisan make:filament-user` — use email `admin@pishift.com`, name `Admin`, and a memorable password
   > **Note:** `filament:install --panels` created `app/Providers/Filament/AdminPanelProvider.php` with panel ID `admin` and published all JS/CSS assets. `horizon:install` scaffolded Horizon. `activitylog:publish` command doesn't exist — used `vendor:publish --provider="Spatie\Activitylog\ActivitylogServiceProvider"` for both migrations and config instead. PostgreSQL 16 was not installed — installed via Homebrew, started service, created `postgres` superuser role, and `command_center` database already existed from the createdb call. All 6 migrations ran successfully. Admin user `admin@pishift.com` (password: `Admin123!`) created successfully.
 
-- [ ] Configure Filament panel branding and navigation in `app/Providers/Filament/AdminPanelProvider.php`:
+- [x] Configure Filament panel branding and navigation in `app/Providers/Filament/AdminPanelProvider.php`:
   - Set `->brandName('PiShift Command Center')`
   - Set `->colors(['primary' => Color::Blue])` (import `Filament\Support\Colors\Color`)
   - Set `->favicon(null)` (placeholder, can be updated later)
@@ -43,6 +43,7 @@ This phase scaffolds PiShift Command Center from scratch — a fresh Laravel 11 
   - Set `->sidebarCollapsibleOnDesktop()`
   - Set `->navigationGroups(['Projects', 'People', 'Settings'])`
   - Confirm the panel path is `/admin`
+  > **Note:** `Color` was already imported. Added `brandName`, `favicon(null)`, `darkMode(false)`, `sidebarCollapsibleOnDesktop()`, `navigationGroups`, and changed primary color from `Color::Amber` to `Color::Blue`. Panel path confirmed as `/admin`.
 
 - [ ] Verify the app boots and the admin panel is accessible:
   - Run `php artisan serve`
