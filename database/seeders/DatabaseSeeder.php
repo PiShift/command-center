@@ -14,6 +14,11 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
+        $this->call([
+            PermissionSeeder::class,
+            RoleSeeder::class,
+        ]);
+
         $customers = [
             ['name' => 'Acme Corp', 'email' => 'contact@acmecorp.com', 'company' => 'Acme Corp', 'notes' => 'Long-standing client. Prefers weekly check-ins on Thursdays.'],
             ['name' => 'Nova Labs', 'email' => 'hello@novalabs.io', 'company' => 'Nova Labs', 'notes' => 'Fast-moving startup. High priority. CEO communicates directly.'],

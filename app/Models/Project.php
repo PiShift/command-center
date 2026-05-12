@@ -14,7 +14,18 @@ class Project extends Model
         'description',
         'github_repo',
         'stack',
+        'color',
         'status',
+        'start_date',
+        'deadline',
+        'budget',
+        'health',
+    ];
+
+    protected $casts = [
+        'start_date' => 'date',
+        'deadline'   => 'date',
+        'budget'     => 'decimal:2',
     ];
 
     public function customer(): BelongsTo
@@ -30,5 +41,15 @@ class Project extends Model
     public function conversations(): HasMany
     {
         return $this->hasMany(Conversation::class);
+    }
+
+    public function isOverdue(): bool
+    {
+        return $this->deadline && $this->deadline->isPast() && $this->status !== 'complete';
+    }
+
+    public function openTasksCount(): int
+    {
+        return $this->tasks()->where('status', '!=', 'done')->count();
     }
 }

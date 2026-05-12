@@ -1,11 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 @import 'tailwindcss';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
 @source '../**/*.js';
+@source '../**/*.vue';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    /* ── Font ─────────────────────────────────────────── */
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* ── Backgrounds ─────────────────────────────────── */
+    --color-canvas:  #faf9f5;
+    --color-surface: #F5F4EF;
+    --color-card:    #ffffff;
+
+    /* ── Text ────────────────────────────────────────── */
+    --color-ink:   #141413;
+    --color-dim:   #5c5c5a;
+    --color-muted: #8c8c8a;
+
+    /* ── Borders ─────────────────────────────────────── */
+    --color-line:     #e5e4df;
+    --color-hairline: #eeeee9;
+
+    /* ── Accent (brand orange) ───────────────────────── */
+    --color-accent:       #D97757;
+    --color-accent-hover: #c4684a;
+    --color-accent-light: #fdf3ee;
+
+    /* ── Semantic: Success ───────────────────────────── */
+    --color-success:       #3d9970;
+    --color-success-light: #edf7f2;
+    --color-success-text:  #2e7d55;
+
+    /* ── Semantic: Info ──────────────────────────────── */
+    --color-info:       #4a90d9;
+    --color-info-light: #eef3fb;
+    --color-info-text:  #3a6fba;
+
+    /* ── Semantic: Warn ──────────────────────────────── */
+    --color-warn:       #e07b39;
+    --color-warn-light: #fef9ec;
+    --color-warn-text:  #9a7a1a;
+
+    /* ── Semantic: Danger ────────────────────────────── */
+    --color-danger:        #b94040;
+    --color-danger-light:  #fdf0f0;
+    --color-danger-border: #ffd0d0;
+
+    /* ── Semantic: Purple ────────────────────────────── */
+    --color-purple:       #7b5ea7;
+    --color-purple-light: #f3eefb;
+    --color-purple-text:  #5c3d8f;
+
+    /* ── Border Radius ───────────────────────────────── */
+    --radius-xs:  4px;
+    --radius-sm:  6px;
+    --radius-md:  8px;
+    --radius-lg:  10px;
+    --radius-xl:  12px;
+    --radius-2xl: 14px;
+    --radius-3xl: 16px;
+
+    /* ── Shadows ─────────────────────────────────────── */
+    --shadow-card:       0 1px 3px rgba(20, 20, 19, 0.04);
+    --shadow-card-hover: 0 4px 14px rgba(20, 20, 19, 0.08);
+    --shadow-modal:      0 20px 60px rgba(0, 0, 0, 0.18);
+    --shadow-viewer:     0 24px 80px rgba(0, 0, 0, 0.22);
+    --shadow-toast:      0 4px 20px rgba(0, 0, 0, 0.15);
+
+    /* ── Font Sizes ──────────────────────────────────── */
+    --text-xxs:                  11px;
+    --text-xxs--line-height:     1.4;
+    --text-xxs--letter-spacing:  0.02em;
+    --text-xs:                   12px;
+    --text-xs--line-height:      1.5;
+    --text-sm:                   13px;
+    --text-sm--line-height:      1.5;
+    --text-smx:                  13.5px;
+    --text-smx--line-height:     1.5;
+    --text-base:                 14px;
+    --text-base--line-height:    1.5;
+    --text-md:                   15px;
+    --text-md--line-height:      1.5;
+    --text-lg:                   16px;
+    --text-lg--line-height:      1.4;
+    --text-xl:                   20px;
+    --text-xl--line-height:      1.4;
+    --text-2xl:                  1.5rem;
+    --text-2xl--line-height:     1.3;
+    --text-2xl--letter-spacing:  -0.02em;
+
+    /* ── Transitions ─────────────────────────────────── */
+    --default-transition-duration: 150ms;
+}
+
+@layer base {
+    html, body {
+        @apply font-sans bg-canvas text-ink antialiased;
+    }
+
+    * {
+        @apply box-border;
+    }
+
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { @apply bg-line rounded-full; }
+    ::-webkit-scrollbar-thumb:hover { @apply bg-muted; }
 }

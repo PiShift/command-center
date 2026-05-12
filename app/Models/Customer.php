@@ -11,11 +11,26 @@ class Customer extends Model
         'name',
         'email',
         'company',
+        'phone',
+        'website',
+        'status',
+        'industry',
+        'avatar_url',
         'notes',
+    ];
+
+    protected $casts = [
+        'status' => 'string',
     ];
 
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class);
+    }
+
+    public function activeTasks(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    {
+        return $this->hasManyThrough(Task::class, Project::class)
+            ->where('tasks.status', '!=', 'done');
     }
 }
