@@ -14,6 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
         ]);
+
+        $middleware->alias([
+            'auth'       => \App\Http\Middleware\Authenticate::class,
+            'war-room'   => \App\Http\Middleware\RequireWarRoomAccess::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

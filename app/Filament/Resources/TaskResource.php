@@ -38,6 +38,13 @@ class TaskResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
+    public static function canAccess(): bool   { return auth()->user()?->hasPermission('tasks.view') ?? false; }
+    public static function canViewAny(): bool   { return auth()->user()?->hasPermission('tasks.view') ?? false; }
+    public static function canCreate(): bool    { return auth()->user()?->hasPermission('tasks.create') ?? false; }
+    public static function canEdit($r): bool    { return auth()->user()?->hasPermission('tasks.edit_any') ?? false; }
+    public static function canDelete($r): bool  { return auth()->user()?->hasPermission('tasks.delete') ?? false; }
+    public static function canView($r): bool    { return auth()->user()?->hasPermission('tasks.view') ?? false; }
+
     public static function getNavigationBadge(): ?string
     {
         $count = Task::where('status', '!=', 'done')

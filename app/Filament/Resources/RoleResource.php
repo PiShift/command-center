@@ -26,6 +26,13 @@ class RoleResource extends Resource
     protected static ?string $navigationGroup = 'Administration';
     protected static ?int $navigationSort = 1;
 
+    public static function canAccess(): bool   { return auth()->user()?->hasPermission('roles.view') ?? false; }
+    public static function canViewAny(): bool   { return auth()->user()?->hasPermission('roles.view') ?? false; }
+    public static function canCreate(): bool    { return auth()->user()?->hasPermission('roles.create') ?? false; }
+    public static function canEdit($r): bool    { return auth()->user()?->hasPermission('roles.edit') ?? false; }
+    public static function canDelete($r): bool  { return auth()->user()?->hasPermission('roles.delete') ?? false; }
+    public static function canView($r): bool    { return auth()->user()?->hasPermission('roles.view') ?? false; }
+
     public static function form(Form $form): Form
     {
         $permissionsByGroup = Permission::with('parent')

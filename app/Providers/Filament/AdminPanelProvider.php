@@ -82,6 +82,8 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+                \App\Http\Middleware\RequirePanelAccess::class,
+            ])
+            ->authGuard('web');
     }
 }

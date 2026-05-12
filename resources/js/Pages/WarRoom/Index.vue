@@ -51,6 +51,7 @@
         >{{ auth.user.initials || auth.user.name.charAt(0) }}</div>
 
         <button
+          v-if="can.create"
           @click="openAddModal()"
           class="text-white font-medium cursor-pointer transition-colors duration-150"
           style="background:#D97757;font-size:13px;padding:8px 16px;border-radius:8px;border:none"
@@ -93,6 +94,7 @@
             @dragend="dragOverStatus = null"
           />
           <button
+            v-if="can.create"
             @click="openAddModal(status.slug)"
             class="w-full font-medium cursor-pointer transition-colors duration-150"
             style="border:2px dashed #e5e4df;color:#8c8c8a;font-size:13px;padding:10px;border-radius:8px;background:transparent;margin-top:4px"

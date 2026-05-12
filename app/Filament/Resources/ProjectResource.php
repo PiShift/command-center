@@ -34,6 +34,13 @@ class ProjectResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
+    public static function canAccess(): bool   { return auth()->user()?->hasPermission('projects.view_all') ?? false; }
+    public static function canViewAny(): bool   { return auth()->user()?->hasPermission('projects.view_all') ?? false; }
+    public static function canCreate(): bool    { return auth()->user()?->hasPermission('projects.create') ?? false; }
+    public static function canEdit($r): bool    { return auth()->user()?->hasPermission('projects.edit') ?? false; }
+    public static function canDelete($r): bool  { return auth()->user()?->hasPermission('projects.delete') ?? false; }
+    public static function canView($r): bool    { return auth()->user()?->hasPermission('projects.view_all') ?? false; }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

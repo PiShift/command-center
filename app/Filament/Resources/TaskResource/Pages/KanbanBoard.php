@@ -29,6 +29,11 @@ class KanbanBoard extends Page
 
     protected static ?string $navigationLabel = 'Kanban';
 
+    public function getBreadcrumbs(): array
+    {
+        return [];
+    }
+
     protected static ?string $navigationIcon = 'heroicon-o-view-columns';
 
     #[Url]

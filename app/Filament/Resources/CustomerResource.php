@@ -31,6 +31,13 @@ class CustomerResource extends Resource
 
     protected static ?int $navigationSort = 20;
 
+    public static function canAccess(): bool   { return auth()->user()?->hasPermission('customers.view') ?? false; }
+    public static function canViewAny(): bool   { return auth()->user()?->hasPermission('customers.view') ?? false; }
+    public static function canCreate(): bool    { return auth()->user()?->hasPermission('customers.create') ?? false; }
+    public static function canEdit($r): bool    { return auth()->user()?->hasPermission('customers.edit') ?? false; }
+    public static function canDelete($r): bool  { return auth()->user()?->hasPermission('customers.delete') ?? false; }
+    public static function canView($r): bool    { return auth()->user()?->hasPermission('customers.view') ?? false; }
+
     public static function form(Form $form): Form
     {
         return $form->schema([

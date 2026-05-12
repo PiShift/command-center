@@ -44,7 +44,6 @@ class RoleSeeder extends Seeder
                 'tasks.view', 'tasks.create', 'tasks.edit_own', 'tasks.change_status',
                 'projects.view',
                 'customers.view',
-                'users.view',
             ])->pluck('id')
         );
 
