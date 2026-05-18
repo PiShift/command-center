@@ -1,20 +1,15 @@
 import './bootstrap';
-import { createApp, h } from 'vue'
-import { createInertiaApp } from '@inertiajs/vue3'
-import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
-import { ZiggyVue } from '../../vendor/tightenco/ziggy'
 
-createInertiaApp({
-    title: (title) => title ? `${title} — PiShift` : 'PiShift Command Center',
-    resolve: (name) =>
-        resolvePageComponent(
-            `./Pages/${name}.vue`,
-            import.meta.glob('./Pages/**/*.vue'),
-        ),
-    setup({ el, App, props, plugin }) {
-        return createApp({ render: () => h(App, props) })
-            .use(plugin)
-            .use(ZiggyVue)
-            .mount(el)
-    },
-})
+// Sidebar store — registered via alpine:init so Livewire's bundled Alpine
+// picks it up (importing a second Alpine instance causes $store to be undefined).
+document.addEventListener('alpine:init', () => {
+    Alpine.store('sidebar', {
+        isOpen: localStorage.getItem('sidebar_open') !== 'false',
+        toggle() {
+            this.isOpen = !this.isOpen;
+            localStorage.setItem('sidebar_open', this.isOpen);
+        },
+        open()  { this.isOpen = true;  localStorage.setItem('sidebar_open', true); },
+        close() { this.isOpen = false; localStorage.setItem('sidebar_open', false); },
+    });
+});

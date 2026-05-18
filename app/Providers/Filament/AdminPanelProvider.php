@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Dashboard;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -30,26 +31,20 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
-            ->brandName('PiShift Command Center')
-            ->favicon(null)
+            ->brandName('PiShift')
+            ->brandLogo(new \Illuminate\Support\HtmlString(
+                '<img src="' . asset('images/logo.svg') . '" alt="PiShift" class="wr-logo-full" style="height:26px;width:auto;">'
+                . '<img src="' . asset('images/icon-wb-round.webp') . '" alt="PiShift" class="wr-logo-icon" style="height:30px;width:30px;">'
+            ))
+            ->favicon(asset('images/icon-wb-round.webp'))
             ->darkMode(false)
             ->sidebarCollapsibleOnDesktop()
-            ->sidebarWidth('15rem')
-            ->navigationGroups(['Projects', 'People', 'Settings'])
-            ->renderHook('panels::head.end', fn () => "
-                <style>
-                    /* Full-width — override any remaining max-width */
-                    .fi-main { max-width: 100% !important; padding-left: 1rem !important; padding-right: 1rem !important; }
-                    /* Tighter dashboard grid */
-                    .fi-wi { gap: 0.75rem !important; }
-                    /* Tight section header and body */
-                    .fi-section-header-ctn { padding: 0.5rem 1rem !important; }
-                    /* Compact stats widget */
-                    .fi-wi-stats-overview-stat { padding: 0.625rem 0.875rem !important; }
-                    .fi-wi-stats-overview-stat-label { font-size: 0.7rem !important; }
-                    .fi-wi-stats-overview-stat-value { font-size: 1.1rem !important; }
-                </style>
-            ")
+            ->sidebarWidth('13.5rem')
+            ->collapsedSidebarWidth('3.75rem')
+            ->navigationGroups(['Workspace'])
+            ->renderHook('panels::sidebar.nav.end', fn () => view('filament.sidebar.projects'))
+            ->renderHook('panels::sidebar.footer', fn () => view('filament.sidebar.footer'))
+            ->renderHook('panels::head.end', fn () => view('filament.sidebar.styles'))
             ->colors([
                 'primary' => Color::hex('#D97757'),
                 'gray'    => Color::hex('#5c5c5a'),
@@ -60,7 +55,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
-                Pages\Dashboard::class,
+                Dashboard::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([

@@ -3,22 +3,16 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Filament\Models\Contracts\FilamentUser;
-use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable implements FilamentUser
+class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
-
-    public function canAccessPanel(Panel $panel): bool
-    {
-        return true; // All users can log in; homeUrl redirects non-admins to the War Room
-    }
 
     protected $fillable = [
         'name',
@@ -38,6 +32,11 @@ class User extends Authenticatable implements FilamentUser
     public function roleModel(): BelongsTo
     {
         return $this->belongsTo(Role::class, 'role_id');
+    }
+
+    public function teams(): BelongsToMany
+    {
+        return $this->belongsToMany(Team::class, 'team_members')->withTimestamps();
     }
 
     public function hasPermission(string $slug): bool

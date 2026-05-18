@@ -27,9 +27,14 @@ class RoleSeeder extends Seeder
                 'tasks.view', 'tasks.view_all', 'tasks.create',
                 'tasks.edit_own', 'tasks.edit_any', 'tasks.delete',
                 'tasks.reassign', 'tasks.change_status',
-                'projects.view', 'projects.view_all', 'projects.create', 'projects.edit',
+                'tasks.edit_meta', 'tasks.edit_priority', 'tasks.edit_project', 'tasks.edit_dates',
+                'tasks.comments.delete',
+                'projects.view', 'projects.view_all', 'projects.create', 'projects.edit', 'projects.manage',
                 'customers.view', 'customers.create', 'customers.edit',
                 'users.view', 'users.create', 'users.edit', 'users.assign_role',
+                'invoices.view', 'invoices.manage',
+                'payments.view',
+                'teams.view', 'teams.manage',
                 'roles.view',
             ])->pluck('id')
         );
@@ -37,13 +42,12 @@ class RoleSeeder extends Seeder
         // ── Developer ─────────────────────────────────────────────────────
         $developer = Role::firstOrCreate(
             ['slug' => 'developer'],
-            ['name' => 'Developer', 'color' => '#27AE60', 'description' => 'Works on assigned tasks and projects.']
+            ['name' => 'Developer', 'color' => '#27AE60', 'description' => 'Board-only access. Sees only assigned tasks, projects, and team.']
         );
         $developer->permissions()->sync(
             Permission::whereIn('slug', [
-                'tasks.view', 'tasks.create', 'tasks.edit_own', 'tasks.change_status',
-                'projects.view',
-                'customers.view',
+                'tasks.view',
+                'tasks.change_status',
             ])->pluck('id')
         );
 
@@ -58,6 +62,8 @@ class RoleSeeder extends Seeder
                 'projects.view',
                 'customers.view',
                 'users.view',
+                'invoices.view',
+                'payments.view',
             ])->pluck('id')
         );
     }

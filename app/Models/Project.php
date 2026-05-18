@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Project extends Model
@@ -12,6 +13,7 @@ class Project extends Model
         'customer_id',
         'name',
         'description',
+        'guide',
         'github_repo',
         'stack',
         'color',
@@ -41,6 +43,21 @@ class Project extends Model
     public function conversations(): HasMany
     {
         return $this->hasMany(Conversation::class);
+    }
+
+    public function teams(): BelongsToMany
+    {
+        return $this->belongsToMany(Team::class, 'project_team');
+    }
+
+    public function sprints(): HasMany
+    {
+        return $this->hasMany(Sprint::class)->orderBy('sort_order');
+    }
+
+    public function backlogItems(): HasMany
+    {
+        return $this->hasMany(BacklogItem::class)->orderBy('sort_order');
     }
 
     public function isOverdue(): bool

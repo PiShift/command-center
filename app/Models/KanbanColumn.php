@@ -60,4 +60,21 @@ class KanbanColumn extends Model
             'teal'    => 'Teal',
         ];
     }
+
+    /** Resolve a colour slug to a hex value for inline styles. */
+    public function getColorHexAttribute(): string
+    {
+        return match($this->color) {
+            'blue'    => '#4a90d9',
+            'amber'   => '#e07b39',
+            'emerald' => '#3d9970',
+            'purple'  => '#7b5ea7',
+            'rose'    => '#e05a7a',
+            'cyan'    => '#0891b2',
+            'indigo'  => '#6366f1',
+            'orange'  => '#D97757',
+            'teal'    => '#0d9488',
+            default   => '#8c8c8a', // slate / fallback
+        };
+    }
 }

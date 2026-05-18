@@ -12,7 +12,7 @@ class RequireWarRoomAccess
         $user = $request->user();
 
         if (! $user || ! $user->hasPermission('tasks.view')) {
-            return redirect('/admin/login');
+            return redirect('/login');
         }
 
         return $next($request);

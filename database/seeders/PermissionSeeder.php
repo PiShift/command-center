@@ -21,6 +21,11 @@ class PermissionSeeder extends Seeder
         ['tasks.delete',        'Delete tasks',         'Tasks',     'Permanently remove tasks',                                'tasks.edit_any'],
         ['tasks.reassign',      'Reassign tasks',       'Tasks',     'Change the assignee of a task',                           'tasks.edit_any'],
         ['tasks.change_status', 'Move tasks on board',  'Tasks',     'Drag tasks between Kanban columns',                       'tasks.view'],
+        ['tasks.edit_meta',     'Edit title & desc',    'Tasks',     'Edit the title and description of a task',                'tasks.edit_own'],
+        ['tasks.edit_priority', 'Edit priority',        'Tasks',     'Change the priority of a task',                           'tasks.edit_own'],
+        ['tasks.edit_project',  'Move to project',      'Tasks',     'Change which project a task belongs to',                  'tasks.edit_own'],
+        ['tasks.edit_dates',    'Edit dates & hours',   'Tasks',     'Change due date and estimated hours',                     'tasks.edit_own'],
+        ['tasks.comments.delete','Delete any comment',  'Tasks',     'Remove any comment on any task',                          'tasks.view'],
 
         // ── Projects ───────────────────────────────────────────────────────
         ['projects.view',       'View own projects',    'Projects',  'See projects the user has tasks in',                      null],
@@ -28,6 +33,7 @@ class PermissionSeeder extends Seeder
         ['projects.create',     'Create projects',      'Projects',  'Add new projects',                                        'projects.view'],
         ['projects.edit',       'Edit projects',        'Projects',  'Update project name, stack, color etc.',                  'projects.view'],
         ['projects.delete',     'Delete projects',      'Projects',  'Permanently remove projects',                             'projects.edit'],
+        ['projects.manage',     'Manage projects',      'Projects',  'Manage backlog, sprints, teams, budget',                  'projects.view'],
 
         // ── Customers ──────────────────────────────────────────────────────
         ['customers.view',      'View customers',       'Customers', 'Browse the customer list',                                null],
@@ -41,6 +47,17 @@ class PermissionSeeder extends Seeder
         ['users.edit',          'Edit user profiles',   'Users',     'Change name, initials, color, role',                      'users.view'],
         ['users.delete',        'Delete users',         'Users',     'Remove members from the workspace',                       'users.edit'],
         ['users.assign_role',   'Assign roles',         'Users',     'Change which role a user holds',                          'users.edit'],
+
+        // ── Invoices ───────────────────────────────────────────────────────
+        ['invoices.view',       'View invoices',        'Invoices',  'Browse invoice list and view invoice details',             null],
+        ['invoices.manage',     'Manage invoices',      'Invoices',  'Create, edit, publish, delete invoices and record payments', 'invoices.view'],
+
+        // ── Payments ───────────────────────────────────────────────────────
+        ['payments.view',       'View payments',        'Payments',  'Browse the global payments list',                         null],
+
+        // ── Teams ──────────────────────────────────────────────────────────
+        ['teams.view',          'View teams',           'Teams',     'Browse teams and see their members',                      null],
+        ['teams.manage',        'Manage teams',         'Teams',     'Create, edit, delete teams and manage members',           'teams.view'],
 
         // ── Roles ──────────────────────────────────────────────────────────
         ['roles.view',          'View roles',           'Roles',     'Browse role definitions',                                 null],

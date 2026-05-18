@@ -1,12 +1,104 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\WarRoomController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoicePaymentController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\CreditController;
+use App\Http\Controllers\TeamController;
+use App\Http\Controllers\TeamMemberController;
+use App\Http\Controllers\ProjectTeamController;
+use App\Http\Controllers\SprintController;
+use App\Http\Controllers\BacklogItemController;
+use App\Http\Controllers\TaskChecklistController;
+use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth', 'war-room'])->group(function () {
-    Route::get('/war-room', [WarRoomController::class, 'index'])->name('war-room');
-    Route::post('/tasks', [TaskController::class, 'store'])->name('tasks.store');
-    Route::patch('/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
-    Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
+// ── Auth ──────────────────────────────────────────────────────────────────────
+Route::get('/login',  [LoginController::class, 'showLogin'])->name('login');
+Route::post('/login', [LoginController::class, 'login']);
+Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+
+// ── Authenticated app ─────────────────────────────────────────────────────────
+Route::middleware('auth')->group(function () {
+
+    Route::get('/', function () {
+        $role = auth()->user()?->roleModel?->slug;
+        return $role === 'developer'
+            ? redirect()->route('board')
+            : redirect()->route('dashboard');
+    });
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Board (Kanban) — Livewire component mounted in a Blade view
+    Route::get('/board', fn () => view('board.index'))->name('board');
+
+    // Projects
+    Route::resource('projects', ProjectController::class)->names('projects');
+    Route::post('projects/{project}/teams/sync', [ProjectController::class, 'assignTeams'])->name('projects.assign-teams');
+
+    // Sprints (scoped under project)
+    Route::post('projects/{project}/sprints', [SprintController::class, 'store'])->name('sprints.store');
+    Route::patch('projects/{project}/sprints/{sprint}', [SprintController::class, 'update'])->name('sprints.update');
+    Route::delete('projects/{project}/sprints/{sprint}', [SprintController::class, 'destroy'])->name('sprints.destroy');
+    Route::post('projects/{project}/sprints/{sprint}/publish', [SprintController::class, 'publish'])->name('sprints.publish');
+    Route::post('projects/{project}/sprints/{sprint}/unpublish', [SprintController::class, 'unpublish'])->name('sprints.unpublish');
+    Route::post('projects/{project}/sprints/{sprint}/complete', [SprintController::class, 'complete'])->name('sprints.complete');
+
+    // Backlog items (scoped under project)
+    Route::post('projects/{project}/backlog', [BacklogItemController::class, 'store'])->name('backlog.store');
+    // Bulk routes must come before the {backlogItem} wildcard routes
+    Route::patch('projects/{project}/backlog/bulk-sprint', [BacklogItemController::class, 'bulkSprint'])->name('backlog.bulk-sprint');
+    Route::post('projects/{project}/backlog/bulk-promote', [BacklogItemController::class, 'bulkPromote'])->name('backlog.bulk-promote');
+    Route::delete('projects/{project}/backlog/bulk-delete', [BacklogItemController::class, 'bulkDelete'])->name('backlog.bulk-delete');
+    Route::patch('projects/{project}/backlog/{backlogItem}', [BacklogItemController::class, 'update'])->name('backlog.update');
+    Route::delete('projects/{project}/backlog/{backlogItem}', [BacklogItemController::class, 'destroy'])->name('backlog.destroy');
+    Route::post('projects/{project}/backlog/{backlogItem}/promote', [BacklogItemController::class, 'promote'])->name('backlog.promote');
+
+    // Tasks
+    Route::resource('tasks', TaskController::class)->names('tasks');
+    Route::patch('/tasks/{task}/advance', [TaskController::class, 'advance'])->name('tasks.advance');
+    Route::post('/tasks/{task}/claim', [TaskController::class, 'claim'])->name('tasks.claim');
+    // Checklists
+    Route::post('/tasks/{task}/checklists', [TaskChecklistController::class, 'store'])->name('checklists.store');
+    Route::patch('/tasks/{task}/checklists/{item}', [TaskChecklistController::class, 'update'])->name('checklists.update');
+    Route::delete('/tasks/{task}/checklists/{item}', [TaskChecklistController::class, 'destroy'])->name('checklists.destroy');
+
+    // Customers
+    Route::resource('customers', CustomerController::class)->names('customers');
+
+    // Users
+    Route::resource('users', UserController::class)->names('users')->parameters(['users' => 'user']);
+
+    // Roles
+    Route::resource('roles', RoleController::class)->names('roles');
+
+    // Invoices
+    Route::resource('invoices', InvoiceController::class)->names('invoices');
+    Route::post('invoices/{invoice}/publish',       [InvoiceController::class, 'publish'])->name('invoices.publish');
+    Route::patch('invoices/{invoice}/cancel',       [InvoiceController::class, 'cancel'])->name('invoices.cancel');
+    Route::patch('invoices/{invoice}/reset-draft',  [InvoiceController::class, 'resetToDraft'])->name('invoices.reset-draft');
+    Route::get('invoices/{invoice}/preview',        [InvoiceController::class, 'preview'])->name('invoices.preview');
+    Route::get('invoices/{invoice}/download',       [InvoiceController::class, 'download'])->name('invoices.download');
+    Route::post('invoices/bulk-action',             [InvoiceController::class, 'bulkAction'])->name('invoices.bulk-action');
+
+    // Invoice payments
+    Route::post('invoices/{invoice}/payments',      [InvoicePaymentController::class, 'store'])->name('invoices.payments.store');
+    Route::get('payments',                          [PaymentController::class, 'index'])->name('payments.index');
+
+    // Credits
+    Route::get('customers/{customer}/credits',      [CreditController::class, 'index'])->name('credits.index');
+    Route::post('invoices/{invoice}/apply-credit',  [CreditController::class, 'apply'])->name('invoices.apply-credit');
+
+    // Teams
+    Route::resource('teams', TeamController::class)->names('teams');
+    Route::post('teams/{team}/members',             [TeamMemberController::class, 'store'])->name('teams.members.store');
+    Route::delete('teams/{team}/members/{user}',    [TeamMemberController::class, 'destroy'])->name('teams.members.destroy');
+    Route::post('projects/{project}/teams',         [ProjectTeamController::class, 'store'])->name('projects.teams.store');
+    Route::delete('projects/{project}/teams/{team}',[ProjectTeamController::class, 'destroy'])->name('projects.teams.destroy');
 });
