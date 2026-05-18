@@ -12,16 +12,21 @@ return new class extends Migration
     public function up(): void
     {
         // PostgreSQL: drop the enum-style check constraint that was added earlier
-        DB::statement('ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_status_check');
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_status_check');
+        }
+        // MySQL: no check constraint was ever added, nothing to drop.
     }
 
     public function down(): void
     {
         // Restore a minimal constraint (current known values only)
-        DB::statement("
-            ALTER TABLE tasks
-            ADD CONSTRAINT tasks_status_check
-            CHECK (status IN ('backlog','in-progress','in-review','done'))
-        ");
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement("
+                ALTER TABLE tasks
+                ADD CONSTRAINT tasks_status_check
+                CHECK (status IN ('backlog','in-progress','in-review','done'))
+            ");
+        }
     }
 };
