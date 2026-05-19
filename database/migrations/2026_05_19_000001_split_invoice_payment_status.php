@@ -16,7 +16,7 @@ return new class extends Migration
                   ->after('amount_paid');
         });
 
-        // 2. Migrate existing data: derive payment_status from the old combined status
+        // 2. Derive payment_status from old combined status
         DB::statement("
             UPDATE invoices
             SET payment_status = CASE
@@ -26,28 +26,34 @@ return new class extends Migration
             END
         ");
 
-        // 3. Normalise status — 'paid' and 'partially_paid' become 'published'
+        // 3. Collapse payment values in status → 'published'
         DB::statement("
             UPDATE invoices
             SET status = 'published'
             WHERE status IN ('paid', 'partially_paid')
         ");
 
-        // 4. Tighten the status check constraint to lifecycle values only.
-        //    Laravel's enum() creates a VARCHAR + check constraint in PostgreSQL.
-        DB::statement('ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_status_check');
-        DB::statement("
-            ALTER TABLE invoices
-            ADD CONSTRAINT invoices_status_check
-            CHECK (status IN ('draft', 'published', 'cancelled'))
-        ");
+        // 4. Narrow status to lifecycle values only (driver-specific)
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_status_check');
+            DB::statement("ALTER TABLE invoices ADD CONSTRAINT invoices_status_check CHECK (status IN ('draft', 'published', 'cancelled'))");
+        } else {
+            // MySQL: ENUM is the column type itself
+            DB::statement("ALTER TABLE invoices MODIFY COLUMN status ENUM('draft','published','cancelled') NOT NULL DEFAULT 'draft'");
+        }
     }
 
     public function down(): void
     {
-        // Restore combined status from the two columns
-        DB::statement('ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_status_check');
+        // 1. Widen status first so the data restore doesn't violate the constraint
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_status_check');
+            DB::statement("ALTER TABLE invoices ADD CONSTRAINT invoices_status_check CHECK (status IN ('draft', 'published', 'partially_paid', 'paid', 'cancelled'))");
+        } else {
+            DB::statement("ALTER TABLE invoices MODIFY COLUMN status ENUM('draft','published','partially_paid','paid','cancelled') NOT NULL DEFAULT 'draft'");
+        }
 
+        // 2. Restore combined status values from the two columns
         DB::statement("
             UPDATE invoices
             SET status = CASE
@@ -57,12 +63,7 @@ return new class extends Migration
             END
         ");
 
-        DB::statement("
-            ALTER TABLE invoices
-            ADD CONSTRAINT invoices_status_check
-            CHECK (status IN ('draft', 'published', 'partially_paid', 'paid', 'cancelled'))
-        ");
-
+        // 3. Drop the payment_status column
         Schema::table('invoices', function (Blueprint $table) {
             $table->dropColumn('payment_status');
         });
