@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Task;
 use App\Models\TaskComment;
+use App\Notifications\TaskCommentNotification;
 use Illuminate\Http\Request;
 
 class TaskCommentController extends Controller
@@ -48,6 +49,28 @@ class TaskCommentController extends Controller
                     'url'       => route('comment-attachments.destroy', ['task' => $task->id, 'comment' => $comment->id]),
                 ] : null,
             ]);
+        }
+
+        // Notify assignee and previous commenters (excluding commenter)
+        $commenter = auth()->user();
+        $recipients = collect();
+
+        if ($task->assigned_to && $task->assigned_to !== $commenter->id) {
+            $recipients->push($task->assignee);
+        }
+
+        $prevCommenters = $task->comments()
+            ->where('user_id', '!=', $commenter->id)
+            ->where('id', '!=', $comment->id)
+            ->pluck('user_id')
+            ->unique()
+            ->map(fn($id) => \App\Models\User::find($id))
+            ->filter();
+
+        $recipients = $recipients->merge($prevCommenters)->unique('id');
+
+        foreach ($recipients as $recipient) {
+            $recipient->notify(new TaskCommentNotification($task->load('project'), $comment, $commenter));
         }
 
         return back()->with('success', 'Comment added.');

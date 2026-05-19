@@ -36,6 +36,10 @@
     if ($user->hasPermission('expenses.view')) {
         $nav[] = ['route' => 'expenses.monthly-overview', 'label' => 'Expenses', 'icon' => 'wallet'];
     }
+    if ($user->hasPermission('settings.manage')) {
+        $nav[] = ['_group' => 'Admin'];
+        $nav[] = ['route' => 'settings.notifications', 'label' => 'Settings', 'icon' => 'shield'];
+    }
     $projects = \App\Models\Project::orderBy('name')->get(['id', 'name', 'color']);
 @endphp
 
@@ -210,7 +214,7 @@
             <a href="{{ route($item['route']) }}"
                @mouseenter="$store.sidebarTip.open($el, '{{ $item['label'] }}')"
                @mouseleave="$store.sidebarTip.close()"
-               class="nav-item {{ request()->routeIs($item['route']) ? 'active' : '' }}">
+               class="nav-item {{ request()->routeIs($item['route']) || request()->routeIs($item['route'].'.*') ? 'active' : '' }}">
                 @include('components.icon', ['name' => $item['icon']])
                 <span class="sidebar-label flex-1">{{ $item['label'] }}</span>
                 @if (!empty($item['badge']) && $item['badge'] > 0)

@@ -66,6 +66,11 @@ class Invoice extends Model
         return $this->hasMany(CreditAllocation::class);
     }
 
+    public function reminders(): HasMany
+    {
+        return $this->hasMany(InvoiceReminder::class)->orderBy('scheduled_date');
+    }
+
     // ── Scopes ───────────────────────────────────────────────────────────────
     public function scopeDraft($q)          { return $q->where('status', 'draft'); }
     public function scopePublished($q)      { return $q->where('status', 'published'); }

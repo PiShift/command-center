@@ -26,6 +26,9 @@ use App\Http\Controllers\TaskCommentController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\MonthlyBudgetController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\InvoiceReminderController;
+use App\Http\Controllers\SettingsNotificationController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -164,4 +167,18 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::get('/monthly-budgets',              [MonthlyBudgetController::class, 'index'])->name('monthly-budgets.index');
     Route::post('/monthly-budgets',             [MonthlyBudgetController::class, 'store'])->name('monthly-budgets.store');
     Route::delete('/monthly-budgets/{budget}',  [MonthlyBudgetController::class, 'destroy'])->name('monthly-budgets.destroy');
+
+    // Invoice reminders
+    Route::post('/invoices/{invoice}/reminders',              [InvoiceReminderController::class, 'store'])->name('invoices.reminders.store');
+    Route::delete('/invoices/{invoice}/reminders/{reminder}', [InvoiceReminderController::class, 'destroy'])->name('invoices.reminders.destroy');
+
+    // In-app notifications
+    Route::get('/notifications',             [NotificationController::class, 'index'])->name('notifications.index');
+    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('/notifications/read-all',   [NotificationController::class, 'readAll'])->name('notifications.read-all');
+
+    // Admin notification settings
+    Route::get('/settings/notifications',              [SettingsNotificationController::class, 'show'])->name('settings.notifications');
+    Route::patch('/settings/notifications',            [SettingsNotificationController::class, 'update'])->name('settings.notifications.update');
+    Route::post('/settings/notifications/test-slack',  [SettingsNotificationController::class, 'testSlack'])->name('settings.notifications.test-slack');
 });

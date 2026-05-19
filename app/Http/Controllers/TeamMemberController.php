@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Team;
 use App\Models\User;
+use App\Notifications\TeamMemberAddedNotification;
 use Illuminate\Http\Request;
 
 class TeamMemberController extends Controller
@@ -22,6 +23,11 @@ class TeamMemberController extends Controller
         }
 
         $team->members()->attach($data['user_id']);
+
+        $addedUser = User::find($data['user_id']);
+        if ($addedUser) {
+            $addedUser->notify(new TeamMemberAddedNotification($team));
+        }
 
         return back()->with('success', 'Member added.');
     }

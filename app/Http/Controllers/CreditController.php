@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ApplyCreditRequest;
+use App\Mail\CreditAppliedMailable;
 use App\Models\Customer;
 use App\Models\CustomerCredit;
 use App\Models\Invoice;
 use App\Services\InvoiceService;
+use Illuminate\Support\Facades\Mail;
 
 class CreditController extends Controller
 {
@@ -29,11 +31,19 @@ class CreditController extends Controller
     public function apply(ApplyCreditRequest $request, Invoice $invoice)
     {
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
+        $creditAmount = (float) $request->input('amount');
+
         $this->service->applyCredit(
             $invoice,
             $request->integer('credit_id'),
-            (float) $request->input('amount'),
+            $creditAmount,
         );
+
+        if ($request->boolean('notify_customer') && $invoice->customer?->email) {
+            $invoice->refresh();
+            Mail::to($invoice->customer->email)
+                ->queue(new CreditAppliedMailable($invoice->load('customer'), $creditAmount));
+        }
 
         return back()->with('success', 'Credit applied successfully.');
     }

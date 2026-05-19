@@ -29,13 +29,15 @@ class Task extends Model implements HasMedia
         'source',
         'original_input',
         'guide',
+        'overdue_notified_at',
     ];
 
     protected $casts = [
-        'due_date'     => 'date',
-        'completed_at' => 'datetime',
-        'labels'       => 'array',
-        'weight'       => 'integer',
+        'due_date'             => 'date',
+        'completed_at'         => 'datetime',
+        'overdue_notified_at'  => 'datetime',
+        'labels'               => 'array',
+        'weight'               => 'integer',
     ];
 
     public function project(): BelongsTo

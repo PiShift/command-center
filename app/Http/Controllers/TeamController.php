@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Team;
 use App\Models\User;
+use App\Notifications\TeamLeadAssignedNotification;
 use Illuminate\Http\Request;
 
 class TeamController extends Controller
@@ -98,6 +99,8 @@ class TeamController extends Controller
             'members.*'    => 'exists:users,id',
         ]);
 
+        $oldLeadId = $team->lead_user_id;
+
         $team->update([
             'name'         => $data['name'],
             'description'  => $data['description'] ?? null,
@@ -105,6 +108,14 @@ class TeamController extends Controller
         ]);
 
         $team->members()->sync($data['members'] ?? []);
+
+        // Notify new lead if changed
+        if (! empty($data['lead_user_id']) && $data['lead_user_id'] != $oldLeadId) {
+            $newLead = User::find($data['lead_user_id']);
+            if ($newLead) {
+                $newLead->notify(new TeamLeadAssignedNotification($team));
+            }
+        }
 
         return redirect()->route('teams.show', $team)->with('success', 'Team updated.');
     }

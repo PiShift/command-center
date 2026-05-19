@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\Project;
 use App\Models\Task;
+use App\Models\User;
+use App\Notifications\ProjectHealthChangedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -158,7 +160,16 @@ class ProjectController extends Controller
             'health'      => 'required|in:on-track,at-risk,blocked',
         ]);
 
+        $oldHealth = $project->health;
         $project->update($data);
+
+        if (isset($data['health']) && in_array($data['health'], ['at-risk', 'blocked']) && $data['health'] !== $oldHealth) {
+            $managers = User::whereHas('roleModel', fn($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
+            foreach ($managers as $manager) {
+                $manager->notify(new ProjectHealthChangedNotification($project, $data['health']));
+            }
+        }
+
         return redirect()->route('projects.show', $project)->with('success', 'Project updated.');
     }
 

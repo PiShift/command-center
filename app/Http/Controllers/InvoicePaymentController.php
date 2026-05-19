@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\RecordPaymentRequest;
+use App\Mail\PaymentReceivedMailable;
 use App\Models\Invoice;
 use App\Services\InvoiceService;
+use Illuminate\Support\Facades\Mail;
 
 class InvoicePaymentController extends Controller
 {
@@ -18,7 +20,13 @@ class InvoicePaymentController extends Controller
             $data['proof'] = $request->file('proof');
         }
 
-        $this->service->recordPayment($invoice, $data);
+        $payment = $this->service->recordPayment($invoice, $data);
+
+        if ($request->boolean('notify_customer') && $invoice->customer?->email) {
+            $invoice->refresh();
+            Mail::to($invoice->customer->email)
+                ->queue(new PaymentReceivedMailable($invoice->load('customer'), $payment));
+        }
 
         return back()->with('success', 'Payment recorded.');
     }

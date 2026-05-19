@@ -265,25 +265,77 @@
                 </div>
 
                 {{-- Notification Preferences Card --}}
+                @php
+                $defaultPrefs = [
+                    'email_enabled'        => true,
+                    'task_assigned'        => true,
+                    'task_status_changed'  => true,
+                    'task_comment'         => true,
+                    'task_overdue'         => true,
+                    'sprint_published'     => true,
+                    'sprint_deadline'      => true,
+                    'sprint_completed'     => true,
+                    'project_health'       => true,
+                    'team_member_added'    => true,
+                    'team_lead_assigned'   => true,
+                ];
+                $savedPrefs = $user->notification_preferences ?? [];
+                $mergedPrefs = array_merge($defaultPrefs, $savedPrefs);
+                @endphp
                 <div
                     x-data="{
-                        prefs: {{ json_encode($user->notification_preferences ?? ['email_enabled' => true]) }},
+                        prefs: {{ json_encode($mergedPrefs) }},
+                        saved: false,
                         save() {
                             fetch('{{ route('profile.notifications') }}', {
                                 method: 'PATCH',
                                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
                                 body: JSON.stringify({ notification_preferences: this.prefs })
-                            });
+                            }).then(() => { this.saved = true; setTimeout(() => this.saved = false, 2000); });
                         }
                     }"
                     style="background:#fff;border:1px solid #e5e4df;border-radius:14px;padding:28px"
                 >
-                    <h2 style="margin:0 0 16px;font-size:16px;font-weight:700;color:#141413">Notification Preferences</h2>
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 style="margin:0;font-size:16px;font-weight:700;color:#141413">Notification Preferences</h2>
+                        <span x-show="saved" x-cloak style="font-size:12px;color:#22a559;font-weight:500">Saved!</span>
+                    </div>
 
-                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                    {{-- Email master toggle --}}
+                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid #e5e4df">
                         <input type="checkbox" x-model="prefs.email_enabled" @change="save()" style="accent-color:#D97757;width:16px;height:16px">
-                        <span style="font-size:13px;color:#141413">Email notifications</span>
+                        <div>
+                            <span style="font-size:13px;font-weight:600;color:#141413">Email notifications</span>
+                            <p style="font-size:12px;color:#5c5c5a;margin:1px 0 0">Master toggle — disabling this turns off all email notifications below.</p>
+                        </div>
                     </label>
+
+                    {{-- Per-type toggles --}}
+                    <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;margin:0 0 10px">Email me when...</p>
+
+                    <div class="flex flex-col gap-2" :class="prefs.email_enabled ? '' : 'opacity-50 pointer-events-none'">
+                        @foreach([
+                            ['key' => 'task_assigned',       'label' => 'A task is assigned to me'],
+                            ['key' => 'task_status_changed', 'label' => 'A task\'s status changes'],
+                            ['key' => 'task_comment',        'label' => 'Someone comments on a task'],
+                            ['key' => 'task_overdue',        'label' => 'A task I own becomes overdue'],
+                            ['key' => 'sprint_published',    'label' => 'A sprint is published'],
+                            ['key' => 'sprint_deadline',     'label' => 'A sprint deadline is approaching'],
+                            ['key' => 'sprint_completed',    'label' => 'A sprint is completed'],
+                            ['key' => 'project_health',      'label' => 'A project\'s health changes to at-risk or blocked'],
+                            ['key' => 'team_member_added',   'label' => 'I am added to a team'],
+                            ['key' => 'team_lead_assigned',  'label' => 'I am assigned as team lead'],
+                        ] as $pref)
+                        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 0">
+                            <input type="checkbox" x-model="prefs.{{ $pref['key'] }}" @change="save()" style="accent-color:#D97757;width:15px;height:15px">
+                            <span style="font-size:13px;color:#141413">{{ $pref['label'] }}</span>
+                        </label>
+                        @endforeach
+                    </div>
+
+                    <p style="font-size:11px;color:#8c8c8a;margin-top:14px;border-top:1px solid #eeeee9;padding-top:12px">
+                        Slack notifications are managed by your administrator.
+                    </p>
                 </div>
 
             </div>

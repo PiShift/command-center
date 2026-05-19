@@ -4,8 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\KanbanColumn;
 use App\Models\Project;
+use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
+use App\Notifications\TaskAssignedNotification;
+use App\Notifications\TaskClaimedNotification;
+use App\Notifications\TaskStatusChangedNotification;
 use Illuminate\Http\Request;
 
 class TaskController extends Controller
@@ -55,7 +59,16 @@ class TaskController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('tasks.create'), 403);
 
-        $task = Task::create($this->validated($request));
+        $data = $this->validated($request);
+        $task = Task::create($data);
+
+        if (! empty($data['assigned_to'])) {
+            $assignee = User::find($data['assigned_to']);
+            if ($assignee) {
+                $assignee->notify(new TaskAssignedNotification($task->load('project'), auth()->user()));
+            }
+        }
+
         return redirect()->route('tasks.show', $task)->with('success', 'Task created.');
     }
 
@@ -81,7 +94,36 @@ class TaskController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('tasks.edit_any'), 403);
 
-        $task->update($this->validated($request));
+        $oldAssignedTo = $task->assigned_to;
+        $oldStatus     = $task->status;
+        $data          = $this->validated($request);
+
+        $task->update($data);
+
+        // Notify new assignee
+        if (! empty($data['assigned_to']) && $data['assigned_to'] != $oldAssignedTo) {
+            $assignee = User::find($data['assigned_to']);
+            if ($assignee) {
+                $assignee->notify(new TaskAssignedNotification($task->load('project'), auth()->user()));
+            }
+        }
+
+        // Notify on status change
+        if (isset($data['status']) && $data['status'] !== $oldStatus) {
+            $recipients = collect();
+
+            if ($task->assigned_to && $task->assigned_to !== auth()->id()) {
+                $recipients->push($task->assignee);
+            }
+
+            $managers = User::whereHas('roleModel', fn($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
+            $recipients = $recipients->merge($managers)->unique('id')->filter(fn($u) => $u->id !== auth()->id());
+
+            foreach ($recipients as $recipient) {
+                $recipient->notify(new TaskStatusChangedNotification($task->load('project'), $oldStatus, $data['status'], auth()->user()));
+            }
+        }
+
         return redirect()->route('tasks.show', $task)->with('success', 'Task updated.');
     }
 
@@ -127,6 +169,11 @@ class TaskController extends Controller
             ->performedOn($task)
             ->causedBy($user)
             ->log("Task claimed by {$user->name} — status changed to todo");
+
+        $managers = User::whereHas('roleModel', fn($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
+        foreach ($managers as $manager) {
+            $manager->notify(new TaskClaimedNotification($task->load('project'), $user));
+        }
 
         return back()->with('success', 'You are now assigned to this task.');
     }

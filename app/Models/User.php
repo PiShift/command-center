@@ -82,6 +82,21 @@ class User extends Authenticatable
         return in_array($slug, ['super-admin', 'manager']);
     }
 
+    public function wantsEmailNotification(string $type): bool
+    {
+        $prefs = $this->notification_preferences ?? [];
+
+        if (isset($prefs['email_enabled']) && ! $prefs['email_enabled']) {
+            return false;
+        }
+
+        if (isset($prefs[$type]) && $prefs[$type] === false) {
+            return false;
+        }
+
+        return true;
+    }
+
     /**
      * The attributes that should be hidden for serialization.
      *

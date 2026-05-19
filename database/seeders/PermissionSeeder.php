@@ -70,6 +70,9 @@ class PermissionSeeder extends Seeder
         ['expenses.create',     'Create expenses',      'Expenses',  'Create manual expense records',                           'expenses.view'],
         ['expenses.confirm',    'Confirm expenses',     'Expenses',  'Confirm draft expenses and bulk confirm',                 'expenses.view'],
         ['expenses.manage',     'Manage expenses',      'Expenses',  'Manage recurring charges, monthly budgets, categories, delete expenses', 'expenses.confirm'],
+
+        // ── Settings ───────────────────────────────────────────────────────
+        ['settings.manage',     'Manage settings',      'Settings',  'Configure system-wide settings (Slack, notifications, etc.)',  null],
     ];
 
     public function run(): void

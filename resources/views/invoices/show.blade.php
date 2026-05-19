@@ -34,11 +34,35 @@
             <a href="{{ route('invoices.edit', $invoice) }}"
                style="display:inline-flex;align-items:center;padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;text-decoration:none;transition:background 150ms ease"
                onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Edit</a>
-            <form method="POST" action="{{ route('invoices.publish', $invoice) }}" class="inline">@csrf
-                <button type="submit"
+            {{-- Publish with notify_customer confirmation --}}
+            <div x-data="{ open: false, notify: true }">
+                <button @click="open = true"
                         style="padding:8px 16px;font-size:13px;font-weight:500;background:#D97757;color:#fff;border:none;border-radius:8px;cursor:pointer;transition:background 150ms ease"
                         onmouseover="this.style.background='#c4684a'" onmouseout="this.style.background='#D97757'">Publish</button>
-            </form>
+                <div x-show="open" x-cloak @keydown.escape.window="open = false"
+                     style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(20,20,19,0.4)">
+                    <div @click.outside="open = false" style="background:#fff;border-radius:12px;padding:24px;width:340px;border:1px solid #e5e4df;box-shadow:0 8px 32px rgba(20,20,19,0.12)">
+                        <p style="font-size:15px;font-weight:600;color:#141413;margin-bottom:8px">Publish Invoice?</p>
+                        <p style="font-size:13px;color:#5c5c5a;margin-bottom:16px">This will make the invoice visible and lock editing.</p>
+                        @if($invoice->customer?->email)
+                        <label class="flex items-center gap-2 mb-4" style="font-size:13px;color:#5c5c5a;cursor:pointer">
+                            <input type="checkbox" x-model="notify" style="accent-color:#D97757">
+                            Notify customer by email
+                        </label>
+                        @endif
+                        <div class="flex gap-2 justify-end">
+                            <button @click="open = false"
+                                    style="padding:8px 16px;font-size:13px;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer">Cancel</button>
+                            <form method="POST" action="{{ route('invoices.publish', $invoice) }}" id="publish-form-{{ $invoice->id }}">
+                                @csrf
+                                <input type="hidden" name="notify_customer" :value="notify ? '1' : '0'">
+                                <button type="submit"
+                                        style="padding:8px 16px;font-size:13px;font-weight:500;background:#D97757;color:#fff;border:none;border-radius:8px;cursor:pointer">Publish</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
         @endif
         @if($invoice->status === 'published')
             <form method="POST" action="{{ route('invoices.reset-draft', $invoice) }}" class="inline" onsubmit="return confirm('Reset to draft? This will allow editing.')">@csrf @method('PATCH')
@@ -261,6 +285,12 @@
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Proof (optional)</label>
                     <input type="file" name="proof" accept=".jpg,.jpeg,.png,.pdf" class="text-[12px]" style="color:#5c5c5a">
                 </div>
+                @if($invoice->customer?->email)
+                <label class="flex items-center gap-2" style="font-size:13px;color:#5c5c5a;cursor:pointer">
+                    <input type="checkbox" name="notify_customer" value="1" checked style="accent-color:#D97757">
+                    Notify customer by email
+                </label>
+                @endif
                 <button type="submit"
                         style="padding:8px 16px;font-size:13px;font-weight:500;background:#D97757;color:#fff;border:none;border-radius:8px;cursor:pointer;transition:background 150ms ease;width:100%"
                         onmouseover="this.style.background='#c4684a'" onmouseout="this.style.background='#D97757'">Record Payment</button>
@@ -310,6 +340,12 @@
                         Max: MRU <span x-text="Math.min(credits.find(c => String(c.id) === String(selectedCredit))?.remaining ?? 0, {{ $invoice->amount_due }}).toFixed(2)"></span>
                     </p>
                 </div>
+                @if($invoice->customer?->email)
+                <label class="flex items-center gap-2" style="font-size:13px;color:#5c5c5a;cursor:pointer">
+                    <input type="checkbox" name="notify_customer" value="1" style="accent-color:#D97757">
+                    Notify customer by email
+                </label>
+                @endif
                 <button type="submit"
                         style="padding:8px 16px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer;transition:background 150ms ease;width:100%"
                         onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Apply Credit</button>
@@ -322,6 +358,59 @@
         <div class="rounded-xl p-5" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)">
             <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;margin-bottom:8px">Payment Info / Notes</p>
             <p style="font-size:13px;color:#5c5c5a;white-space:pre-wrap;line-height:1.5">{{ $invoice->notes }}</p>
+        </div>
+        @endif
+
+        {{-- Scheduled Reminders --}}
+        @if($invoice->status === 'published' && $invoice->payment_status !== 'paid')
+        <div class="rounded-xl p-5" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)">
+            <p style="font-size:13px;font-weight:600;color:#141413;margin-bottom:12px">Scheduled Reminders</p>
+
+            @if($invoice->reminders->isNotEmpty())
+            <div class="flex flex-col gap-2 mb-4">
+                @foreach($invoice->reminders as $reminder)
+                <div class="flex items-center justify-between rounded-lg px-3 py-2" style="background:#F5F4EF;border:1px solid #e5e4df">
+                    <div>
+                        <span style="font-size:13px;color:#141413;font-weight:500">{{ $reminder->scheduled_date->format('M d, Y') }}</span>
+                        @if($reminder->sent)
+                            <span style="margin-left:8px;font-size:11px;color:#2e7d55;background:#eafaf1;border:1px solid #b7eacf;padding:1px 7px;border-radius:20px">Sent</span>
+                        @else
+                            <span style="margin-left:8px;font-size:11px;color:#5c5c5a;background:#F5F4EF;border:1px solid #e5e4df;padding:1px 7px;border-radius:20px">Pending</span>
+                        @endif
+                    </div>
+                    @if(! $reminder->sent)
+                    <form method="POST" action="{{ route('invoices.reminders.destroy', [$invoice, $reminder]) }}">
+                        @csrf @method('DELETE')
+                        <button type="submit" style="font-size:12px;color:#b94040;background:none;border:none;cursor:pointer;padding:0"
+                                onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Cancel</button>
+                    </form>
+                    @endif
+                </div>
+                @endforeach
+            </div>
+            @endif
+
+            @if($invoice->reminders->where('sent', false)->count() < 2)
+            <form method="POST" action="{{ route('invoices.reminders.store', $invoice) }}" class="flex gap-2 items-end">
+                @csrf
+                <div class="flex-1">
+                    <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Reminder Date</label>
+                    <input type="date" name="scheduled_date"
+                           min="{{ now()->addDay()->toDateString() }}"
+                           class="w-full rounded-lg text-[13px] px-3 py-2"
+                           style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none"
+                           onfocus="this.style.borderColor='#D97757';this.style.background='#fff'"
+                           onblur="this.style.borderColor='#e5e4df';this.style.background='#F5F4EF'"
+                           value="{{ old('scheduled_date') }}">
+                    @error('scheduled_date')<p style="font-size:11px;color:#b94040;margin-top:3px">{{ $message }}</p>@enderror
+                </div>
+                <button type="submit"
+                        style="padding:8px 16px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer;transition:background 150ms ease;white-space:nowrap"
+                        onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Schedule Reminder</button>
+            </form>
+            @else
+            <p style="font-size:12px;color:#8c8c8a">Maximum 2 pending reminders reached.</p>
+            @endif
         </div>
         @endif
 

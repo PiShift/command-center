@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Task;
 use App\Models\TaskChecklist;
+use App\Notifications\TaskChecklistCompletedNotification;
 use Illuminate\Http\Request;
 
 class TaskChecklistController extends Controller
@@ -35,6 +36,16 @@ class TaskChecklistController extends Controller
         ]);
 
         $item->update($data);
+
+        // If all checklist items are now checked, notify the assignee
+        if (isset($data['is_checked']) && $data['is_checked']) {
+            $total   = $task->checklists()->count();
+            $checked = $task->checklists()->where('is_checked', true)->count();
+
+            if ($total > 0 && $total === $checked && $task->assignee) {
+                $task->assignee->notify(new TaskChecklistCompletedNotification($task->load('project')));
+            }
+        }
 
         return back();
     }

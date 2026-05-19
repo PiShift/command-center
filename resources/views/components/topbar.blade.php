@@ -9,6 +9,9 @@
     {{-- Right side: user menu --}}
     <div class="flex items-center gap-3">
         @auth
+            {{-- Notification Bell --}}
+            <livewire:notification-bell />
+
             <div class="relative" x-data="{ open: false }">
                 <button @click="open = !open" class="flex items-center gap-2 text-[13px] text-dim hover:text-ink transition-colors">
                     <span class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white"

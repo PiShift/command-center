@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\Sprint;
+use App\Models\User;
+use App\Notifications\SprintCompletedNotification;
+use App\Notifications\SprintPublishedNotification;
 use Illuminate\Http\Request;
 
 class SprintController extends Controller
@@ -75,6 +78,21 @@ class SprintController extends Controller
 
         $sprint->publish();
 
+        $taskCount = $sprint->tasks()->count();
+        $sprint->load('project');
+
+        // Notify all team members of the project
+        $project->load('teams.members');
+        $notified = collect();
+        foreach ($project->teams as $team) {
+            foreach ($team->members as $member) {
+                if (! $notified->contains('id', $member->id)) {
+                    $member->notify(new SprintPublishedNotification($sprint, $taskCount));
+                    $notified->push($member);
+                }
+            }
+        }
+
         return redirect()->route('projects.show', $project)
             ->with('success', 'Sprint published. Tasks are now visible to developers.');
     }
@@ -105,6 +123,12 @@ class SprintController extends Controller
         }
 
         $sprint->complete();
+
+        $doneCount = $sprint->tasks()->where('status', 'done')->count();
+        $managers  = User::whereHas('roleModel', fn($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
+        foreach ($managers as $manager) {
+            $manager->notify(new SprintCompletedNotification($sprint->load('project'), $doneCount));
+        }
 
         return redirect()->route('projects.show', $project)
             ->with('success', 'Sprint marked as completed.');

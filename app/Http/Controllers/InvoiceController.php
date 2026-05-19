@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreInvoiceRequest;
 use App\Http\Requests\UpdateInvoiceRequest;
+use App\Mail\InvoicePublishedMailable;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Project;
 use App\Services\InvoiceService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class InvoiceController extends Controller
 {
@@ -69,7 +71,7 @@ class InvoiceController extends Controller
     public function show(Invoice $invoice)
     {
         abort_unless(auth()->user()->hasPermission('invoices.view'), 403);
-        $invoice->load(['customer', 'project', 'items.task', 'payments', 'creditAllocations.credit']);
+        $invoice->load(['customer', 'project', 'items.task', 'payments', 'creditAllocations.credit', 'reminders']);
         $credits = \App\Models\CustomerCredit::where('customer_id', $invoice->customer_id)
             ->where('currency', $invoice->currency)
             ->available()
@@ -109,6 +111,12 @@ class InvoiceController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
         $this->service->publish($invoice);
+
+        if (request()->boolean('notify_customer') && $invoice->customer?->email) {
+            Mail::to($invoice->customer->email)
+                ->queue(new InvoicePublishedMailable($invoice->load(['customer', 'items'])));
+        }
+
         return back()->with('success', 'Invoice published.');
     }
 
