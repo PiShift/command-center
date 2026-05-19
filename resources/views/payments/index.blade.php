@@ -151,8 +151,8 @@
 
                 {{-- Proof --}}
                 <td class="px-4 py-3 text-center">
-                    @if($payment->proof_path)
-                        <a href="{{ asset('storage/' . $payment->proof_path) }}" target="_blank"
+                    @if($payment->getFirstMediaUrl('proof'))
+                        <a href="{{ $payment->getFirstMediaUrl('proof') }}" target="_blank"
                            title="View proof" style="color:#3a6fba;text-decoration:none;font-size:12px"
                            onmouseover="this.style.color='#D97757'" onmouseout="this.style.color='#3a6fba'">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline-block;vertical-align:middle"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>

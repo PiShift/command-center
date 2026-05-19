@@ -61,7 +61,7 @@ class InvoiceService
 
             // Handle proof upload
             if (!empty($data['proof'])) {
-                $data['proof_path'] = $data['proof']->store('invoices/payments', 'local');
+                $proofFile = $data['proof'];
             }
             unset($data['proof']);
 
@@ -70,6 +70,10 @@ class InvoiceService
                 'customer_id' => $invoice->customer_id,
                 'currency'    => $invoice->currency,
             ]));
+
+            if (!empty($proofFile)) {
+                $payment->addMedia($proofFile)->toMediaCollection('proof');
+            }
 
             return $payment;
         });

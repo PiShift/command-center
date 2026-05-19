@@ -4,12 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
-class InvoicePayment extends Model
+class InvoicePayment extends Model implements HasMedia
 {
+    use InteractsWithMedia;
+
     protected $fillable = [
         'invoice_id', 'customer_id', 'amount', 'currency',
-        'payment_date', 'method', 'reference', 'proof_path', 'notes',
+        'payment_date', 'method', 'reference', 'notes',
     ];
 
     protected $casts = [
