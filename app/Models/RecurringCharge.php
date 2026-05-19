@@ -13,14 +13,18 @@ class RecurringCharge extends Model
 
     protected $fillable = [
         'name', 'category_id', 'project_id', 'amount', 'frequency',
-        'start_date', 'next_due_date', 'is_active', 'notes',
+        'start_date', 'next_due_date', 'end_date', 'max_occurrences', 'occurrences_count',
+        'is_active', 'notes',
     ];
 
     protected $casts = [
-        'amount'        => 'decimal:2',
-        'start_date'    => 'date',
-        'next_due_date' => 'date',
-        'is_active'     => 'boolean',
+        'amount'            => 'decimal:2',
+        'start_date'        => 'date',
+        'next_due_date'     => 'date',
+        'end_date'          => 'date',
+        'max_occurrences'   => 'integer',
+        'occurrences_count' => 'integer',
+        'is_active'         => 'boolean',
     ];
 
     public function category(): BelongsTo

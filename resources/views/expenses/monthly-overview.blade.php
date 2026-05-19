@@ -108,10 +108,10 @@
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:28px">
             @php
                 $summaryCards = [
-                    ['label' => 'Budget', 'value' => $totals['budget_amount'], 'color' => '#3a6fba'],
+                    ['label' => 'Expected',  'value' => $totals['expected_amount'],  'color' => '#3a6fba'],
                     ['label' => 'Recurring', 'value' => $totals['recurring_amount'], 'color' => '#8c8c8a'],
-                    ['label' => 'Actual Spend', 'value' => $totals['actual_amount'], 'color' => '#D97757'],
-                    ['label' => 'Variance', 'value' => $totals['variance'], 'color' => $totals['variance'] >= 0 ? '#2e7d55' : '#b94040'],
+                    ['label' => 'Actual',    'value' => $totals['actual_amount'],    'color' => '#D97757'],
+                    ['label' => 'Variance',  'value' => $totals['variance'],         'color' => $totals['variance'] >= 0 ? '#2e7d55' : '#b94040'],
                 ];
             @endphp
             @foreach($summaryCards as $card)
@@ -184,12 +184,19 @@
                 <tbody>
                     @foreach($rows as $row)
                         @php
-                            $cat        = $row['category'];
-                            $budget     = $row['budget_amount'];
-                            $actual     = $row['actual_amount'];
-                            $variance   = $row['variance'];
-                            $pct        = $budget > 0 ? min(100, round(($actual / $budget) * 100)) : 0;
-                            $barColor   = $pct >= 100 ? '#b94040' : ($pct >= 80 ? '#e67e22' : '#2e7d55');
+                            $cat      = $row['category'];
+                            $budget   = $row['budget_amount'];
+                            $rec      = $row['recurring_amount'];
+                            $actual   = $row['actual_amount'];
+                            $expected = $row['expected_total'];
+                            $variance = $row['variance'];
+                            $state    = $row['state'];
+                            if ($state === 'planned' && $expected > 0) {
+                                $pct      = min(100, round(($actual / $expected) * 100));
+                                $barColor = $pct >= 100 ? '#b94040' : ($pct >= 80 ? '#e67e22' : '#2e7d55');
+                            } else {
+                                $pct = 0; $barColor = '#2e7d55';
+                            }
                         @endphp
                         <tr style="border-bottom:1px solid #eeeee9"
                             onmouseover="this.style.background='#faf9f5'" onmouseout="this.style.background=''">
@@ -197,16 +204,25 @@
                                 <div style="display:flex;align-items:center;gap:8px">
                                     <span style="width:10px;height:10px;border-radius:50%;background:{{ $cat->color }};display:inline-block;flex-shrink:0"></span>
                                     <span style="font-size:14px;font-weight:500;color:#141413">{{ $cat->name }}</span>
+                                    @if($state === 'unplanned')
+                                        <span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;background:#F5F4EF;color:#8c8c8a">Unplanned</span>
+                                    @endif
                                 </div>
                             </td>
                             <td style="padding:13px 16px;text-align:right;font-size:13px;color:#5c5c5a">{{ $budget > 0 ? number_format($budget, 2) : '—' }}</td>
-                            <td style="padding:13px 16px;text-align:right;font-size:13px;color:#5c5c5a">{{ $row['recurring_amount'] > 0 ? number_format($row['recurring_amount'], 2) : '—' }}</td>
+                            <td style="padding:13px 16px;text-align:right;font-size:13px;color:#5c5c5a">{{ $rec > 0 ? number_format($rec, 2) : '—' }}</td>
                             <td style="padding:13px 16px;text-align:right;font-size:14px;font-weight:600;color:#141413">{{ number_format($actual, 2) }}</td>
-                            <td style="padding:13px 16px;text-align:right;font-size:13px;font-weight:500;color:{{ $variance >= 0 ? '#2e7d55' : '#b94040' }}">
-                                {{ $variance >= 0 ? '+' : '' }}{{ number_format($variance, 2) }}
+                            <td style="padding:13px 16px;text-align:right;font-size:13px;font-weight:500">
+                                @if($state === 'planned')
+                                    <span style="color:{{ $variance >= 0 ? '#2e7d55' : '#b94040' }}">
+                                        {{ $variance >= 0 ? '+' : '' }}{{ number_format($variance, 2) }}
+                                    </span>
+                                @else
+                                    <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:#F5F4EF;color:#8c8c8a">—</span>
+                                @endif
                             </td>
                             <td style="padding:13px 16px;min-width:140px">
-                                @if($budget > 0)
+                                @if($state === 'planned' && $expected > 0)
                                     <div style="display:flex;align-items:center;gap:8px">
                                         <div style="flex:1;height:6px;background:#eeeee9;border-radius:3px;overflow:hidden">
                                             <div style="height:100%;width:{{ $pct }}%;background:{{ $barColor }};border-radius:3px;transition:width .3s"></div>
@@ -214,7 +230,7 @@
                                         <span style="font-size:11px;color:#8c8c8a;min-width:32px;text-align:right">{{ $pct }}%</span>
                                     </div>
                                 @else
-                                    <span style="font-size:12px;color:#c0bfba">No budget</span>
+                                    <span style="font-size:12px;color:#c0bfba">—</span>
                                 @endif
                             </td>
                         </tr>
@@ -430,18 +446,13 @@
                             </td>
                             <td style="padding:13px 16px;text-align:center">
                                 {{-- Activate / deactivate toggle --}}
-                                <form method="POST" action="{{ route('recurring-charges.update', $charge) }}">
-                                    @csrf @method('PUT')
-                                    <input type="hidden" name="name"          value="{{ $charge->name }}">
-                                    <input type="hidden" name="amount"        value="{{ $charge->amount }}">
-                                    <input type="hidden" name="frequency"     value="{{ $charge->frequency }}">
-                                    <input type="hidden" name="start_date"    value="{{ $charge->start_date->format('Y-m-d') }}">
-                                    <input type="hidden" name="next_due_date" value="{{ $charge->next_due_date->format('Y-m-d') }}">
-                                    <input type="hidden" name="is_active"     value="{{ $charge->is_active ? '0' : '1' }}">
+                                <form method="POST" action="{{ route('recurring-charges.toggle', $charge) }}">
+                                    @csrf
                                     <button type="submit"
-                                            style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;cursor:pointer;border:none;
-                                                   {{ $charge->is_active ? 'background:#edf7f2;color:#2e7d55' : 'background:#F5F4EF;color:#8c8c8a' }}">
-                                        {{ $charge->is_active ? 'Active' : 'Paused' }}
+                                            onclick="{{ $charge->is_active ? 'return confirm(\'Stop this recurring charge?\')' : '' }}"
+                                            style="font-size:11px;font-weight:600;padding:4px 12px;border-radius:20px;cursor:pointer;border:none;
+                                                   {{ $charge->is_active ? 'background:#fff0f0;color:#b94040;border:1px solid #ffd0d0' : 'background:#F5F4EF;color:#8c8c8a;border:1px solid #e5e4df' }}">
+                                        {{ $charge->is_active ? 'Stop' : 'Resume' }}
                                     </button>
                                 </form>
                             </td>

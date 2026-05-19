@@ -21,10 +21,24 @@ class ExpenseService
         $start = $month->copy()->startOfMonth();
         $count = 0;
 
+        $today = Carbon::today();
+
         RecurringCharge::active()->dueInMonth($month)
             ->with(['category'])
             ->get()
-            ->each(function (RecurringCharge $charge) use ($start, &$count) {
+            ->each(function (RecurringCharge $charge) use ($start, $today, &$count) {
+                // Stop: end_date has passed
+                if ($charge->end_date && $charge->end_date->lt($today)) {
+                    $charge->update(['is_active' => false]);
+                    return;
+                }
+
+                // Stop: max occurrences reached
+                if ($charge->max_occurrences !== null && $charge->occurrences_count >= $charge->max_occurrences) {
+                    $charge->update(['is_active' => false]);
+                    return;
+                }
+
                 // Skip if a draft already exists for this charge + month
                 $exists = Expense::where('recurring_charge_id', $charge->id)
                     ->where('month', $start->toDateString())
@@ -44,6 +58,7 @@ class ExpenseService
                     'status'              => 'draft',
                 ]);
 
+                $charge->increment('occurrences_count');
                 $charge->computeNextDueDate();
                 $count++;
             });
@@ -78,7 +93,7 @@ class ExpenseService
             'budget_amount'    => 0,
             'recurring_amount' => 0,
             'actual_amount'    => 0,
-            'expected_total'   => 0,
+            'expected_amount'  => 0,
             'variance'         => 0,
         ];
 
@@ -95,22 +110,42 @@ class ExpenseService
                 ->where('status', 'confirmed')
                 ->sum('amount');
 
-            $expectedTotal = $budgetAmount + (float) $recurringAmount;
-            $variance      = $expectedTotal - (float) $actualAmount;
+            $recurringAmount = (float) $recurringAmount;
+            $actualAmount    = (float) $actualAmount;
+            $hasExpectation  = $budgetAmount > 0 || $recurringAmount > 0;
+            $hasActual       = $actualAmount > 0;
+
+            // State C: nothing to show — skip
+            if (!$hasExpectation && !$hasActual) {
+                continue;
+            }
+
+            $expectedTotal = $budgetAmount + $recurringAmount;
+
+            // State A: planned (has budget or recurring)
+            // State B: unplanned (actual spend with no budget/recurring)
+            if ($hasExpectation) {
+                $state    = 'planned';
+                $variance = $expectedTotal - $actualAmount;
+            } else {
+                $state    = 'unplanned';
+                $variance = 0;
+            }
 
             $rows[] = [
                 'category'         => $category,
                 'budget_amount'    => $budgetAmount,
-                'recurring_amount' => (float) $recurringAmount,
-                'actual_amount'    => (float) $actualAmount,
+                'recurring_amount' => $recurringAmount,
+                'actual_amount'    => $actualAmount,
                 'expected_total'   => $expectedTotal,
                 'variance'         => $variance,
+                'state'            => $state,
             ];
 
             $totals['budget_amount']    += $budgetAmount;
-            $totals['recurring_amount'] += (float) $recurringAmount;
-            $totals['actual_amount']    += (float) $actualAmount;
-            $totals['expected_total']   += $expectedTotal;
+            $totals['recurring_amount'] += $recurringAmount;
+            $totals['actual_amount']    += $actualAmount;
+            $totals['expected_amount']  += $expectedTotal;
             $totals['variance']         += $variance;
         }
 

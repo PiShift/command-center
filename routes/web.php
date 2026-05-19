@@ -22,7 +22,6 @@ use App\Http\Controllers\TaskAttachmentController;
 use App\Http\Controllers\TaskCommentAttachmentController;
 use App\Http\Controllers\TaskCommentController;
 use App\Http\Controllers\ExpenseCategoryController;
-use App\Http\Controllers\RecurringChargeController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\MonthlyBudgetController;
 use Illuminate\Support\Facades\Route;
@@ -132,7 +131,7 @@ Route::middleware('auth')->group(function () {
 
     // Expense Management
     Route::resource('expense-categories', ExpenseCategoryController::class)->only(['index', 'store', 'update', 'destroy']);
-    Route::resource('recurring-charges', RecurringChargeController::class);
+    Route::post('/recurring-charges/{recurringCharge}/toggle', [ExpenseController::class, 'toggleRecurring'])->name('recurring-charges.toggle');
     // Named routes with conflicts must come before resource (monthlyOverview, bulk, generateDrafts)
     Route::get('/expenses/monthly-overview',    [ExpenseController::class, 'monthlyOverview'])->name('expenses.monthly-overview');
     Route::post('/expenses/bulk-confirm',       [ExpenseController::class, 'bulkConfirm'])->name('expenses.bulk-confirm');

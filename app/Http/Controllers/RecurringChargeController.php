@@ -38,15 +38,17 @@ class RecurringChargeController extends Controller
         Gate::authorize('manageRecurring', Expense::class);
 
         $validated = $request->validate([
-            'name'          => 'required|string|max:255',
-            'category_id'   => 'nullable|exists:expense_categories,id',
-            'project_id'    => 'nullable|exists:projects,id',
-            'amount'        => 'required|numeric|min:0',
-            'frequency'     => 'required|in:monthly,quarterly,annual',
-            'start_date'    => 'required|date',
-            'next_due_date' => 'required|date',
-            'is_active'     => 'nullable|boolean',
-            'notes'         => 'nullable|string',
+            'name'             => 'required|string|max:255',
+            'category_id'      => 'nullable|exists:expense_categories,id',
+            'project_id'       => 'nullable|exists:projects,id',
+            'amount'           => 'required|numeric|min:0',
+            'frequency'        => 'required|in:monthly,quarterly,annual',
+            'start_date'       => 'required|date',
+            'next_due_date'    => 'required|date',
+            'end_date'         => 'nullable|date',
+            'max_occurrences'  => 'nullable|integer|min:1',
+            'is_active'        => 'nullable|boolean',
+            'notes'            => 'nullable|string',
         ]);
 
         $validated['is_active'] = $request->boolean('is_active', true);
@@ -80,15 +82,17 @@ class RecurringChargeController extends Controller
         Gate::authorize('manageRecurring', Expense::class);
 
         $validated = $request->validate([
-            'name'          => 'required|string|max:255',
-            'category_id'   => 'nullable|exists:expense_categories,id',
-            'project_id'    => 'nullable|exists:projects,id',
-            'amount'        => 'required|numeric|min:0',
-            'frequency'     => 'required|in:monthly,quarterly,annual',
-            'start_date'    => 'required|date',
-            'next_due_date' => 'required|date',
-            'is_active'     => 'nullable|boolean',
-            'notes'         => 'nullable|string',
+            'name'             => 'required|string|max:255',
+            'category_id'      => 'nullable|exists:expense_categories,id',
+            'project_id'       => 'nullable|exists:projects,id',
+            'amount'           => 'required|numeric|min:0',
+            'frequency'        => 'required|in:monthly,quarterly,annual',
+            'start_date'       => 'required|date',
+            'next_due_date'    => 'required|date',
+            'end_date'         => 'nullable|date',
+            'max_occurrences'  => 'nullable|integer|min:1',
+            'is_active'        => 'nullable|boolean',
+            'notes'            => 'nullable|string',
         ]);
 
         $validated['is_active'] = $request->boolean('is_active');
@@ -96,6 +100,10 @@ class RecurringChargeController extends Controller
 
         $recurringCharge->update($validated);
 
+        $redirectTo = $request->input('_redirect', 'expenses.monthly-overview');
+        if ($redirectTo === 'expenses.monthly-overview') {
+            return redirect()->route('expenses.monthly-overview', ['tab' => 'recurring'])->with('success', 'Recurring charge updated.');
+        }
         return redirect()->route('recurring-charges.index')->with('success', 'Recurring charge updated.');
     }
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Project;
+use App\Models\RecurringCharge;
 use App\Services\ExpenseService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -66,16 +67,20 @@ class ExpenseController extends Controller
             'expense_date'   => 'required|date',
             'status'         => 'nullable|in:draft,confirmed',
             'notes'          => 'nullable|string',
-            'is_recurring'   => 'nullable|boolean',
-            'rec_frequency'  => 'nullable|in:monthly,quarterly,annual',
-            'rec_start_date' => 'nullable|date',
+            'is_recurring'        => 'nullable|boolean',
+            'rec_frequency'       => 'nullable|in:monthly,quarterly,annual',
+            'rec_start_date'      => 'nullable|date',
+            'rec_end_date'        => 'nullable|date',
+            'rec_max_occurrences' => 'nullable|integer|min:1',
         ]);
 
-        $isRecurring = $request->boolean('is_recurring');
-        $recFrequency  = $validated['rec_frequency'] ?? 'monthly';
-        $recStartDate  = $validated['rec_start_date'] ?? $validated['expense_date'];
+        $isRecurring     = $request->boolean('is_recurring');
+        $recFrequency    = $validated['rec_frequency'] ?? 'monthly';
+        $recStartDate    = $validated['rec_start_date'] ?? $validated['expense_date'];
+        $recEndDate      = $validated['rec_end_date'] ?? null;
+        $recMaxOccurrences = $validated['rec_max_occurrences'] ?? null;
 
-        unset($validated['is_recurring'], $validated['rec_frequency'], $validated['rec_start_date']);
+        unset($validated['is_recurring'], $validated['rec_frequency'], $validated['rec_start_date'], $validated['rec_end_date'], $validated['rec_max_occurrences']);
         $validated['currency'] = 'MRU';
 
         $expense = Expense::create($validated);
@@ -87,15 +92,17 @@ class ExpenseController extends Controller
 
         if ($isRecurring) {
             $charge = \App\Models\RecurringCharge::create([
-                'name'          => $expense->title,
-                'category_id'   => $expense->category_id,
-                'project_id'    => $expense->project_id,
-                'amount'        => $expense->amount,
-                'frequency'     => $recFrequency,
-                'start_date'    => $recStartDate,
-                'next_due_date' => $recStartDate,
-                'is_active'     => true,
-                'currency'      => 'MRU',
+                'name'            => $expense->title,
+                'category_id'     => $expense->category_id,
+                'project_id'      => $expense->project_id,
+                'amount'          => $expense->amount,
+                'frequency'       => $recFrequency,
+                'start_date'      => $recStartDate,
+                'next_due_date'   => $recStartDate,
+                'end_date'        => $recEndDate,
+                'max_occurrences' => $recMaxOccurrences,
+                'is_active'       => true,
+                'currency'        => 'MRU',
             ]);
             $expense->update(['recurring_charge_id' => $charge->id]);
         }
@@ -125,16 +132,20 @@ class ExpenseController extends Controller
             'expense_date'   => 'required|date',
             'status'         => 'nullable|in:draft,confirmed',
             'notes'          => 'nullable|string',
-            'is_recurring'   => 'nullable|boolean',
-            'rec_frequency'  => 'nullable|in:monthly,quarterly,annual',
-            'rec_start_date' => 'nullable|date',
+            'is_recurring'        => 'nullable|boolean',
+            'rec_frequency'       => 'nullable|in:monthly,quarterly,annual',
+            'rec_start_date'      => 'nullable|date',
+            'rec_end_date'        => 'nullable|date',
+            'rec_max_occurrences' => 'nullable|integer|min:1',
         ]);
 
-        $isRecurring  = $request->boolean('is_recurring');
-        $recFrequency = $validated['rec_frequency'] ?? 'monthly';
-        $recStartDate = $validated['rec_start_date'] ?? $validated['expense_date'];
+        $isRecurring       = $request->boolean('is_recurring');
+        $recFrequency      = $validated['rec_frequency'] ?? 'monthly';
+        $recStartDate      = $validated['rec_start_date'] ?? $validated['expense_date'];
+        $recEndDate        = $validated['rec_end_date'] ?? null;
+        $recMaxOccurrences = $validated['rec_max_occurrences'] ?? null;
 
-        unset($validated['is_recurring'], $validated['rec_frequency'], $validated['rec_start_date']);
+        unset($validated['is_recurring'], $validated['rec_frequency'], $validated['rec_start_date'], $validated['rec_end_date'], $validated['rec_max_occurrences']);
         $validated['currency'] = 'MRU';
 
         $expense->update($validated);
@@ -147,25 +158,29 @@ class ExpenseController extends Controller
         if ($isRecurring) {
             if ($expense->recurringCharge) {
                 $expense->recurringCharge->update([
-                    'name'        => $expense->title,
-                    'category_id' => $expense->category_id,
-                    'project_id'  => $expense->project_id,
-                    'amount'      => $expense->amount,
-                    'frequency'   => $recFrequency,
-                    'start_date'  => $recStartDate,
-                    'is_active'   => true,
+                    'name'            => $expense->title,
+                    'category_id'     => $expense->category_id,
+                    'project_id'      => $expense->project_id,
+                    'amount'          => $expense->amount,
+                    'frequency'       => $recFrequency,
+                    'start_date'      => $recStartDate,
+                    'end_date'        => $recEndDate,
+                    'max_occurrences' => $recMaxOccurrences,
+                    'is_active'       => true,
                 ]);
             } else {
                 $charge = \App\Models\RecurringCharge::create([
-                    'name'          => $expense->title,
-                    'category_id'   => $expense->category_id,
-                    'project_id'    => $expense->project_id,
-                    'amount'        => $expense->amount,
-                    'frequency'     => $recFrequency,
-                    'start_date'    => $recStartDate,
-                    'next_due_date' => $recStartDate,
-                    'is_active'     => true,
-                    'currency'      => 'MRU',
+                    'name'            => $expense->title,
+                    'category_id'     => $expense->category_id,
+                    'project_id'      => $expense->project_id,
+                    'amount'          => $expense->amount,
+                    'frequency'       => $recFrequency,
+                    'start_date'      => $recStartDate,
+                    'next_due_date'   => $recStartDate,
+                    'end_date'        => $recEndDate,
+                    'max_occurrences' => $recMaxOccurrences,
+                    'is_active'       => true,
+                    'currency'        => 'MRU',
                 ]);
                 $expense->update(['recurring_charge_id' => $charge->id]);
             }
@@ -199,6 +214,17 @@ class ExpenseController extends Controller
         $service->confirmExpense($expense);
 
         return back()->with('success', 'Expense confirmed.');
+    }
+
+    public function toggleRecurring(RecurringCharge $recurringCharge)
+    {
+        Gate::authorize('manageCategories', Expense::class);
+
+        $recurringCharge->update(['is_active' => !$recurringCharge->is_active]);
+
+        $msg = $recurringCharge->is_active ? 'Recurring charge resumed.' : 'Recurring charge stopped.';
+
+        return redirect()->route('expenses.monthly-overview', ['tab' => 'recurring'])->with('success', $msg);
     }
 
     public function bulkConfirm(Request $request, ExpenseService $service)

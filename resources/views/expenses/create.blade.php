@@ -158,19 +158,19 @@
 
             {{-- Recurring toggle --}}
             <div style="border-top:1px solid #eeeee9;padding-top:20px;margin-top:4px">
-                <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-                    <div @click="recurring = !recurring"
-                         :style="recurring ? 'background:#D97757' : 'background:#e5e4df'"
-                         style="width:40px;height:22px;border-radius:11px;transition:background 150ms ease;position:relative;cursor:pointer;flex-shrink:0">
+                <input type="hidden" name="is_recurring" :value="recurring ? '1' : '0'">
+                <div @click="recurring = !recurring"
+                     style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+                    <div :style="recurring ? 'background:#D97757' : 'background:#e5e4df'"
+                         style="width:40px;height:22px;border-radius:11px;transition:background 150ms ease;position:relative;flex-shrink:0">
                         <div :style="recurring ? 'left:20px' : 'left:2px'"
                              style="position:absolute;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left 150ms ease"></div>
                     </div>
-                    <input type="hidden" name="is_recurring" :value="recurring ? '1' : '0'">
                     <div>
                         <div style="font-size:14px;font-weight:500;color:#141413">Make Recurring</div>
                         <div style="font-size:12px;color:#8c8c8a">Automatically schedule this expense on a repeating basis</div>
                     </div>
-                </label>
+                </div>
 
                 <div x-show="recurring" x-cloak style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
                     <div>
@@ -190,6 +190,20 @@
                         <input type="date" name="rec_start_date" :value="expenseDate"
                                style="width:100%;padding:10px 12px;font-size:14px;border:1px solid #e5e4df;border-radius:8px;background:#faf9f5;color:#141413;outline:none;box-sizing:border-box"
                                onfocus="this.style.borderColor='#D97757'" onblur="this.style.borderColor='#e5e4df'">
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px">End Date</label>
+                        <input type="date" name="rec_end_date" value="{{ old('rec_end_date') }}"
+                               style="width:100%;padding:10px 12px;font-size:14px;border:1px solid #e5e4df;border-radius:8px;background:#faf9f5;color:#141413;outline:none;box-sizing:border-box"
+                               onfocus="this.style.borderColor='#D97757'" onblur="this.style.borderColor='#e5e4df'">
+                        <p style="font-size:11px;color:#8c8c8a;margin:4px 0 0">Stop after this date (optional).</p>
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px">Max Occurrences</label>
+                        <input type="number" name="rec_max_occurrences" min="1" step="1" value="{{ old('rec_max_occurrences') }}" placeholder="Unlimited"
+                               style="width:100%;padding:10px 12px;font-size:14px;border:1px solid #e5e4df;border-radius:8px;background:#faf9f5;color:#141413;outline:none;box-sizing:border-box"
+                               onfocus="this.style.borderColor='#D97757'" onblur="this.style.borderColor='#e5e4df'">
+                        <p style="font-size:11px;color:#8c8c8a;margin:4px 0 0">Stop after N drafts (optional).</p>
                     </div>
                 </div>
             </div>
