@@ -28,7 +28,7 @@ class SettingsNotificationController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('settings.manage'), 403);
 
-        $webhookUrl = Setting::get('slack_webhook_url') ?? config('services.slack.webhook_url');
+        $webhookUrl = config('services.slack.webhook_url');
 
         if (empty($webhookUrl)) {
             return back()->with('error', 'No Slack webhook URL configured.');
