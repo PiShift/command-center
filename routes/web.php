@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\CustomerController;
@@ -31,8 +33,13 @@ Route::get('/login',  [LoginController::class, 'showLogin'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
+// Multi-step verification
+Route::get('/login/verify',  [LoginController::class, 'showVerify'])->name('login.verify');
+Route::post('/login/verify', [LoginController::class, 'verify'])->name('login.verify.submit');
+Route::post('/login/resend-otp', [LoginController::class, 'resendOtp'])->name('login.resend-otp');
+
 // ── Authenticated app ─────────────────────────────────────────────────────────
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'require-2fa'])->group(function () {
 
     Route::get('/', function () {
         $role = auth()->user()?->roleModel?->slug;
@@ -44,6 +51,20 @@ Route::middleware('auth')->group(function () {
 
     // Board (Kanban) — Livewire component mounted in a Blade view
     Route::get('/board', fn () => view('board.index'))->name('board');
+
+    // Profile
+    Route::get('/profile',               [ProfileController::class, 'show'])->name('profile.show');
+    Route::patch('/profile',             [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('/profile/password',    [ProfileController::class, 'updatePassword'])->name('profile.password');
+    Route::patch('/profile/notifications', [ProfileController::class, 'updateNotifications'])->name('profile.notifications');
+    Route::delete('/profile/devices/{device}', [ProfileController::class, 'revokeDevice'])->name('profile.devices.revoke');
+    Route::delete('/profile/devices',    [ProfileController::class, 'revokeAllDevices'])->name('profile.devices.revoke-all');
+
+    // Two-Factor Authentication
+    Route::get('/profile/2fa/setup',              [TwoFactorController::class, 'setup'])->name('2fa.setup');
+    Route::post('/profile/2fa/enable',            [TwoFactorController::class, 'enable'])->name('2fa.enable');
+    Route::post('/profile/2fa/disable',           [TwoFactorController::class, 'disable'])->name('2fa.disable');
+    Route::post('/profile/2fa/regenerate-codes',  [TwoFactorController::class, 'regenerateCodes'])->name('2fa.regenerate-codes');
 
     // Projects
     Route::resource('projects', ProjectController::class)->names('projects');

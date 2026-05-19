@@ -21,6 +21,10 @@
 
                 <div x-show="open" @click.outside="open = false" x-cloak
                      class="absolute right-0 top-9 w-44 bg-white border border-line rounded-lg shadow-lg py-1 z-50">
+                    <a href="{{ route('profile.show') }}" class="flex items-center gap-2 w-full px-4 py-2 text-[13px] text-dim hover:bg-hairline hover:text-ink">
+                        @include('components.icon', ['name' => 'user'])
+                        My Profile
+                    </a>
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
                         <button type="submit" class="flex items-center gap-2 w-full text-left px-4 py-2 text-[13px] text-dim hover:bg-hairline hover:text-ink">

@@ -16,8 +16,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'auth'       => \App\Http\Middleware\Authenticate::class,
-            'war-room'   => \App\Http\Middleware\RequireWarRoomAccess::class,
+            'auth'        => \App\Http\Middleware\Authenticate::class,
+            'war-room'    => \App\Http\Middleware\RequireWarRoomAccess::class,
+            'require-2fa' => \App\Http\Middleware\RequiresTwoFactor::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

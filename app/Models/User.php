@@ -6,6 +6,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -21,9 +23,10 @@ class User extends Authenticatable
         'role_id',
         'color',
         'initials',
+        'notification_preferences',
     ];
 
-    public function tasks(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function tasks(): HasMany
     {
         return $this->hasMany(Task::class, 'assigned_to');
     }
@@ -36,6 +39,21 @@ class User extends Authenticatable
     public function teams(): BelongsToMany
     {
         return $this->belongsToMany(Team::class, 'team_members')->withTimestamps();
+    }
+
+    public function twoFactor(): HasOne
+    {
+        return $this->hasOne(UserTwoFactor::class);
+    }
+
+    public function devices(): HasMany
+    {
+        return $this->hasMany(UserDevice::class);
+    }
+
+    public function loginHistory(): HasMany
+    {
+        return $this->hasMany(UserLoginHistory::class)->orderByDesc('created_at');
     }
 
     public function hasPermission(string $slug): bool
@@ -51,6 +69,17 @@ class User extends Authenticatable
         }
 
         return $role->permissions->contains('slug', $slug);
+    }
+
+    public function isTwoFactorEnabled(): bool
+    {
+        return $this->twoFactor?->enabled === true;
+    }
+
+    public function requiresTwoFactor(): bool
+    {
+        $slug = $this->roleModel?->slug;
+        return in_array($slug, ['super-admin', 'manager']);
     }
 
     /**
@@ -71,8 +100,10 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'email_verified_at'        => 'datetime',
+            'password'                 => 'hashed',
+            'notification_preferences' => 'array',
         ];
     }
 }
+
