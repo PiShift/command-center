@@ -101,7 +101,9 @@ class ProjectController extends Controller
 
         $recentTasks = $allTasks->sortByDesc('updated_at')->take(5)->values();
 
-        $sprints = $project->sprints;
+        $sprints = $canManage
+            ? $project->sprints
+            : $project->sprints->whereIn('status', ['active', 'completed'])->values();
 
         $backlogItems = $project->backlogItems->where('promoted', false)->values();
 
