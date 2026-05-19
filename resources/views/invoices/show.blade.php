@@ -32,6 +32,11 @@
             </form>
         @endif
         @if(in_array($invoice->status, ['published','partially_paid','paid']))
+            <form method="POST" action="{{ route('invoices.reset-draft', $invoice) }}" class="inline" onsubmit="return confirm('Reset to draft? This will allow editing.')">@csrf @method('PATCH')
+                <button type="submit"
+                        style="display:inline-flex;align-items:center;padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer;transition:background 150ms ease"
+                        onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Reset to Draft</button>
+            </form>
             <a href="{{ route('invoices.preview', $invoice) }}" target="_blank"
                style="display:inline-flex;align-items:center;padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;text-decoration:none;transition:background 150ms ease"
                onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Preview PDF</a>
