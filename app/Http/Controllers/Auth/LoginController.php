@@ -172,7 +172,7 @@ class LoginController extends Controller
 
         if ($mode === 'totp' && $user->isTwoFactorEnabled()) {
             $google2fa = app(\PragmaRX\Google2FA\Google2FA::class);
-            $verified = $google2fa->verifyKey($user->twoFactor->secret, $code);
+            $verified = $google2fa->verifyKey($user->twoFactor->secret, $code, 4);
         } elseif ($mode === 'recovery' && $user->isTwoFactorEnabled()) {
             $hashed = hash('sha256', strtoupper($recoveryCode));
             $codes = $user->twoFactor->recovery_codes ?? [];

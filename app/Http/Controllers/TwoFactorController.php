@@ -46,7 +46,7 @@ class TwoFactorController extends Controller
         }
 
         $google2fa = new Google2FA();
-        if (!$google2fa->verifyKey($secret, $request->input('code'))) {
+        if (!$google2fa->verifyKey($secret, $request->input('code'), 4)) {
             return back()->withErrors(['code' => 'Invalid code. Please try again.']);
         }
 
