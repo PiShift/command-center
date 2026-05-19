@@ -21,18 +21,25 @@ class TwoFactorController extends Controller
     {
         $tfa = $this->tfa();
 
-        // Reuse the session secret so refreshing the page doesn't invalidate the QR
-        $secret = $request->session()->get('2fa.pending_secret') ?? $tfa->createSecret();
-        $request->session()->put('2fa.pending_secret', $secret);
+        // If returning from a failed verify, reuse the same secret so the QR stays valid
+        $secret = null;
+        if ($request->old('encrypted_secret')) {
+            try {
+                $secret = decrypt($request->old('encrypted_secret'));
+            } catch (\Exception) {}
+        }
 
-        $user = $request->user();
-        $qrUrl = $tfa->getQRText($user->email, $secret);
-        $qrDataUri = $tfa->getQRCodeImageAsDataUri($user->email, $secret, 200);
+        if (!$secret) {
+            $secret = $tfa->createSecret();
+        }
+
+        $user       = $request->user();
+        $qrDataUri  = $tfa->getQRCodeImageAsDataUri($user->email, $secret, 200);
 
         return view('profile.2fa-setup', [
-            'qrUrl'      => $qrUrl,
-            'qrDataUri'  => $qrDataUri,
-            'secret'     => $secret,
+            'qrDataUri'       => $qrDataUri,
+            'secret'          => $secret,
+            'encryptedSecret' => encrypt($secret),
         ]);
     }
 
@@ -46,14 +53,17 @@ class TwoFactorController extends Controller
             return back()->withErrors(['code' => 'Please enter the 6-digit code from your authenticator app.']);
         }
 
-        $secret = $request->session()->get('2fa.pending_secret');
-        if (!$secret) {
-            return redirect()->route('2fa.setup')->withErrors(['code' => 'Session expired. Please restart the setup process.']);
+        try {
+            $secret = decrypt($request->input('encrypted_secret', ''));
+        } catch (\Exception) {
+            return redirect()->route('2fa.setup')->withErrors(['code' => 'Session expired. Please restart setup.']);
         }
 
         $tfa = $this->tfa();
         if (!$tfa->verifyCode($secret, $code, 4)) {
-            return back()->withErrors(['code' => 'Invalid code. Please try again.']);
+            return back()
+                ->withInput(['encrypted_secret' => $request->input('encrypted_secret')])
+                ->withErrors(['code' => 'Invalid code. Please try again.']);
         }
 
         $user = $request->user();
@@ -61,7 +71,6 @@ class TwoFactorController extends Controller
             ['user_id' => $user->id],
             ['secret' => $secret, 'enabled' => true],
         );
-        $request->session()->forget('2fa.pending_secret');
 
         $plainCodes = $tf->generateRecoveryCodes();
 

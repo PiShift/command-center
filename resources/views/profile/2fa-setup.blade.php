@@ -24,6 +24,7 @@
 
         <form method="POST" action="{{ route('2fa.enable') }}">
             @csrf
+            <input type="hidden" name="encrypted_secret" value="{{ old('encrypted_secret', $encryptedSecret ?? '') }}">
             <div style="margin-bottom:20px">
                 <label style="display:block;font-size:12px;font-weight:600;color:#5c5c5a;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Confirmation Code</label>
                 <input
