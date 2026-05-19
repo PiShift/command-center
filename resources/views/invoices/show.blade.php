@@ -2,11 +2,14 @@
 
 @php
     $statusStyles = [
-        'draft'          => 'background:#F5F4EF; color:#8c8c8a',
-        'published'      => 'background:#eef3fb; color:#3a6fba',
-        'partially_paid' => 'background:#fef9ec; color:#9a7a1a',
-        'paid'           => 'background:#edf7f2; color:#2e7d55',
-        'cancelled'      => 'background:#fdf0f0; color:#b94040',
+        'draft'     => 'background:#F5F4EF; color:#8c8c8a',
+        'published' => 'background:#eef3fb; color:#3a6fba',
+        'cancelled' => 'background:#fdf0f0; color:#b94040',
+    ];
+    $paymentStyles = [
+        'unpaid'        => 'background:#fff8ee; color:#9a5a1a',
+        'partially_paid'=> 'background:#fef9ec; color:#9a7a1a',
+        'paid'          => 'background:#edf7f2; color:#2e7d55',
     ];
 @endphp
 
@@ -17,8 +20,14 @@
         <h1 style="font-size:24px; font-weight:600; color:#141413">{{ $invoice->invoice_number }}</h1>
         <span class="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold"
               style="{{ $statusStyles[$invoice->status] ?? '' }}">
-            {{ str_replace('_', ' ', ucfirst($invoice->status)) }}
+            {{ ucfirst($invoice->status) }}
         </span>
+        @if($invoice->status === 'published')
+        <span class="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold"
+              style="{{ $paymentStyles[$invoice->payment_status] ?? '' }}">
+            {{ str_replace('_', ' ', ucfirst($invoice->payment_status)) }}
+        </span>
+        @endif
     </div>
     <div class="flex items-center gap-2">
         @if($invoice->status === 'draft')
@@ -31,12 +40,14 @@
                         onmouseover="this.style.background='#c4684a'" onmouseout="this.style.background='#D97757'">Publish</button>
             </form>
         @endif
-        @if(in_array($invoice->status, ['published','partially_paid','paid']))
+        @if($invoice->status === 'published')
             <form method="POST" action="{{ route('invoices.reset-draft', $invoice) }}" class="inline" onsubmit="return confirm('Reset to draft? This will allow editing.')">@csrf @method('PATCH')
                 <button type="submit"
                         style="display:inline-flex;align-items:center;padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer;transition:background 150ms ease"
                         onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Reset to Draft</button>
             </form>
+        @endif
+        @if($invoice->status === 'published')
             <a href="{{ route('invoices.preview', $invoice) }}" target="_blank"
                style="display:inline-flex;align-items:center;padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;text-decoration:none;transition:background 150ms ease"
                onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Preview PDF</a>
@@ -44,7 +55,7 @@
                style="display:inline-flex;align-items:center;padding:8px 16px;font-size:13px;font-weight:500;background:#D97757;color:#fff;border-radius:8px;text-decoration:none;transition:background 150ms ease"
                onmouseover="this.style.background='#c4684a'" onmouseout="this.style.background='#D97757'">Download PDF</a>
         @endif
-        @if(!in_array($invoice->status, ['paid','cancelled']))
+        @if($invoice->status !== 'cancelled' && $invoice->payment_status !== 'paid')
             <form method="POST" action="{{ route('invoices.cancel', $invoice) }}" class="inline" onsubmit="return confirm('Cancel this invoice?')">@csrf @method('PATCH')
                 <button type="submit"
                         style="padding:8px 14px;font-size:13px;font-weight:500;background:#fff0f0;border:1px solid #ffd0d0;color:#b94040;border-radius:8px;cursor:pointer;transition:background 150ms ease"
@@ -59,13 +70,13 @@
 @php
     $walletBalance = \App\Models\CustomerCredit::getBalanceForCustomer($invoice->customer_id, 'MRU');
 @endphp
-@if($walletBalance > 0 && !in_array($invoice->status, ['paid','cancelled']))
+@if($walletBalance > 0 && $invoice->status !== 'cancelled' && $invoice->payment_status !== 'paid')
 <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;margin-bottom:16px;background:#edf7f2;border:1px solid #b8e0cb;border-radius:10px">
     <div style="display:flex;align-items:center;gap:10px">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2e7d55" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
         <span style="font-size:13px;color:#2e7d55;font-weight:500">
             {{ $invoice->customer->name }} has <strong>MRU {{ number_format($walletBalance, 2) }}</strong> in wallet credit available
-            @if(in_array($invoice->status, ['published','partially_paid']))
+            @if($invoice->status === 'published')
                 — use the <em>Apply Credit</em> panel on the right to apply it to this invoice.
             @else
                 — publish this invoice first to apply it.
@@ -213,7 +224,7 @@
     <div class="flex flex-col gap-5">
 
         {{-- Record payment --}}
-        @if(in_array($invoice->status, ['published','partially_paid']))
+        @if($invoice->status === 'published' && $invoice->payment_status !== 'paid')
         <div class="rounded-xl p-5" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)">
             <p style="font-size:13px;font-weight:600;color:#141413;margin-bottom:14px">Record Payment</p>
             <form method="POST" action="{{ route('invoices.payments.store', $invoice) }}" enctype="multipart/form-data" class="flex flex-col gap-3">
@@ -258,7 +269,7 @@
         @endif
 
         {{-- Apply credit --}}
-        @if(in_array($invoice->status, ['published','partially_paid']) && $credits->isNotEmpty())
+        @if($invoice->status === 'published' && $invoice->payment_status !== 'paid' && $credits->isNotEmpty())
         <div class="rounded-xl p-5" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)">
             <p style="font-size:13px;font-weight:600;color:#141413;margin-bottom:14px">Apply Credit</p>
             @if($errors->hasAny(['amount','credit_id','credit','invoice']))

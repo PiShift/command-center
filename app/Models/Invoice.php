@@ -17,7 +17,7 @@ class Invoice extends Model
         'issue_date', 'due_date', 'currency', 'exchange_rate',
         'subtotal', 'discount_type', 'discount_value', 'discount_amount',
         'tax_rate', 'tax_amount', 'total', 'amount_paid',
-        'status', 'notes',
+        'status', 'payment_status', 'notes',
     ];
 
     protected $casts = [
@@ -69,10 +69,11 @@ class Invoice extends Model
     // ── Scopes ───────────────────────────────────────────────────────────────
     public function scopeDraft($q)          { return $q->where('status', 'draft'); }
     public function scopePublished($q)      { return $q->where('status', 'published'); }
-    public function scopeUnpaid($q)         { return $q->whereIn('status', ['published', 'partially_paid']); }
+    public function scopeUnpaid($q)         { return $q->where('status', 'published')->whereIn('payment_status', ['unpaid', 'partially_paid']); }
     public function scopeOverdue($q)
     {
-        return $q->whereNotIn('status', ['paid', 'cancelled'])
+        return $q->where('status', 'published')
+                 ->where('payment_status', '!=', 'paid')
                  ->where('due_date', '<', now()->toDateString());
     }
 
@@ -85,6 +86,7 @@ class Invoice extends Model
     public function getIsOverdueAttribute(): bool
     {
         return $this->due_date < Carbon::today()
-            && !in_array($this->status, ['paid', 'cancelled']);
+            && $this->status === 'published'
+            && $this->payment_status !== 'paid';
     }
 }

@@ -31,6 +31,9 @@ class InvoiceController extends Controller
         if ($status = $request->status) {
             $query->where('status', $status);
         }
+        if ($paymentStatus = $request->payment_status) {
+            $query->where('payment_status', $paymentStatus);
+        }
         if ($request->overdue) {
             $query->overdue();
         }
@@ -119,7 +122,7 @@ class InvoiceController extends Controller
     public function resetToDraft(Invoice $invoice)
     {
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
-        $invoice->update(['status' => 'draft']);
+        $invoice->update(['status' => 'draft', 'payment_status' => 'unpaid']);
         return back()->with('success', 'Invoice reset to draft.');
     }
 
@@ -138,7 +141,7 @@ class InvoiceController extends Controller
         match ($action) {
             'delete'         => $invoices->each->delete(),
             'cancel'         => $invoices->each(fn($i) => $i->update(['status' => 'cancelled'])),
-            'reset_to_draft' => $invoices->each(fn($i) => $i->update(['status' => 'draft'])),
+            'reset_to_draft' => $invoices->each(fn($i) => $i->update(['status' => 'draft', 'payment_status' => 'unpaid'])),
             default          => null,
         };
 

@@ -28,12 +28,12 @@ class InvoicePolicy
 
     public function recordPayment(User $user, Invoice $invoice): bool
     {
-        return in_array($invoice->status, ['published', 'partially_paid']);
+        return $invoice->status === 'published' && $invoice->payment_status !== 'paid';
     }
 
     public function applyCredit(User $user, Invoice $invoice): bool
     {
-        return in_array($invoice->status, ['published', 'partially_paid']);
+        return $invoice->status === 'published' && $invoice->payment_status !== 'paid';
     }
 
     public function download(User $user, Invoice $invoice): bool

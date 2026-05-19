@@ -7,11 +7,14 @@
         'page'      => 1,
     ]);
     $statusStyles = [
-        'draft'          => 'background:#F5F4EF; color:#8c8c8a',
-        'published'      => 'background:#eef3fb; color:#3a6fba',
+        'draft'     => 'background:#F5F4EF; color:#8c8c8a',
+        'published' => 'background:#eef3fb; color:#3a6fba',
+        'cancelled' => 'background:#fdf0f0; color:#b94040',
+    ];
+    $paymentStyles = [
+        'unpaid'         => 'background:#fff8ee; color:#9a5a1a',
         'partially_paid' => 'background:#fef9ec; color:#9a7a1a',
         'paid'           => 'background:#edf7f2; color:#2e7d55',
-        'cancelled'      => 'background:#fdf0f0; color:#b94040',
     ];
 @endphp
 
@@ -117,8 +120,22 @@
                 class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer"
                 style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none">
             <option value="">All Statuses</option>
-            @foreach(['draft'=>'Draft','published'=>'Published','partially_paid'=>'Partial','paid'=>'Paid','cancelled'=>'Cancelled'] as $val=>$lab)
+            @foreach(['draft'=>'Draft','published'=>'Published','cancelled'=>'Cancelled'] as $val=>$lab)
                 <option value="{{ $val }}" {{ request('status')==$val?'selected':'' }}>{{ $lab }}</option>
+            @endforeach
+        </select>
+        <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style="color:#8c8c8a">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </span>
+    </div>
+
+    <div class="relative">
+        <select name="payment_status" onchange="this.form.submit()"
+                class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer"
+                style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none">
+            <option value="">All Payment Statuses</option>
+            @foreach(['unpaid'=>'Unpaid','partially_paid'=>'Partially Paid','paid'=>'Paid'] as $val=>$lab)
+                <option value="{{ $val }}" {{ request('payment_status')==$val?'selected':'' }}>{{ $lab }}</option>
             @endforeach
         </select>
         <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style="color:#8c8c8a">
@@ -132,7 +149,7 @@
         Overdue only
     </label>
 
-    @if(request()->hasAny(['search','status','overdue']))
+    @if(request()->hasAny(['search','status','payment_status','overdue']))
         <a href="{{ route('invoices.index') }}" style="display:flex;align-items:center;padding:8px 12px;font-size:13px;color:#8c8c8a;text-decoration:none"
            onmouseover="this.style.color='#141413'" onmouseout="this.style.color='#8c8c8a'">✕ Clear</a>
     @endif
@@ -220,8 +237,13 @@
 
                 <td class="px-4 py-3">
                     <span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;{{ $statusStyles[$invoice->status]??'' }}">
-                        {{ str_replace('_',' ',ucfirst($invoice->status)) }}
+                        {{ ucfirst($invoice->status) }}
                     </span>
+                    @if($invoice->status === 'published')
+                    <span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;margin-left:4px;{{ $paymentStyles[$invoice->payment_status]??'' }}">
+                        {{ str_replace('_',' ',ucfirst($invoice->payment_status)) }}
+                    </span>
+                    @endif
                 </td>
 
                 <td class="px-4 py-3" style="color:#5c5c5a;font-size:12px">{{ $invoice->issue_date->format('M d, Y') }}</td>
@@ -259,7 +281,7 @@
                             @if($invoice->status !== 'draft')
                             <form method="POST" action="{{ route('invoices.reset-draft', $invoice) }}">
                                 @csrf @method('PATCH')
-                                <button type="submit" class="menu-item" style="width:100%;text-align:left">
+                                <button type="submit" class="menu-item" style="width:100%;text-align:left" onclick="return confirm('Reset to draft? Payments already recorded will not be reversed.')">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
                                     Reset to Draft
                                 </button>
@@ -278,7 +300,7 @@
                                 Download PDF
                             </a>
 
-                            @if(in_array($invoice->status, ['published','partially_paid']))
+                            @if($invoice->status === 'published' && $invoice->payment_status !== 'paid')
                             <div style="border-top:1px solid #f0efeb;margin:4px 0"></div>
                             <button type="button" class="menu-item" style="width:100%;text-align:left"
                                     onclick="openPayModal({{ $invoice->id }},'{{ $invoice->invoice_number }}',{{ (float)$invoice->amount_due }},'{{ route('invoices.payments.store', $invoice) }}')">

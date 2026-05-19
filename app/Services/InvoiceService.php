@@ -55,7 +55,7 @@ class InvoiceService
     public function recordPayment(Invoice $invoice, array $data): InvoicePayment
     {
         return DB::transaction(function () use ($invoice, $data) {
-            if (in_array($invoice->status, ['draft', 'cancelled'])) {
+        if (in_array($invoice->status, ['draft', 'cancelled'])) {
                 throw ValidationException::withMessages(['invoice' => 'Cannot record payment on a draft or cancelled invoice.']);
             }
 
@@ -85,7 +85,7 @@ class InvoiceService
             $invoice->amount_paid = $totalPaid;
 
             if ($totalPaid >= $invoice->total) {
-                $invoice->status = 'paid';
+                $invoice->payment_status = 'paid';
 
                 $overpayment = $totalPaid - $invoice->total;
                 if ($overpayment > 0.001) {
@@ -101,9 +101,9 @@ class InvoiceService
                     ]);
                 }
             } elseif ($totalPaid > 0) {
-                $invoice->status = 'partially_paid';
+                $invoice->payment_status = 'partially_paid';
             } else {
-                $invoice->status = 'published';
+                $invoice->payment_status = 'unpaid';
             }
 
             $invoice->save();
@@ -146,9 +146,9 @@ class InvoiceService
 
             $invoice->amount_paid += $amount;
             if ($invoice->amount_paid >= $invoice->total) {
-                $invoice->status = 'paid';
+                $invoice->payment_status = 'paid';
             } elseif ($invoice->amount_paid > 0) {
-                $invoice->status = 'partially_paid';
+                $invoice->payment_status = 'partially_paid';
             }
             $invoice->save();
 
