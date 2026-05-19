@@ -5,26 +5,28 @@ namespace App\Http\Controllers;
 use App\Models\UserTwoFactor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use PragmaRX\Google2FA\Google2FA;
+use RobThree\Auth\TwoFactorAuth;
+use RobThree\Auth\Providers\Qr\QRServerProvider;
 
 class TwoFactorController extends Controller
 {
+    private function tfa(): TwoFactorAuth
+    {
+        return new TwoFactorAuth(new QRServerProvider(), config('app.name'));
+    }
+
     // ── Setup: show QR + manual entry ─────────────────────────────────────────
 
     public function setup(Request $request)
     {
-        $google2fa = new Google2FA();
+        $tfa = $this->tfa();
 
-        // Generate a new secret and hold it in session until confirmed
-        $secret = $google2fa->generateSecretKey();
+        // Reuse the session secret so refreshing the page doesn't invalidate the QR
+        $secret = $request->session()->get('2fa.pending_secret') ?? $tfa->createSecret();
         $request->session()->put('2fa.pending_secret', $secret);
 
         $user = $request->user();
-        $qrUrl = $google2fa->getQRCodeUrl(
-            config('app.name'),
-            $user->email,
-            $secret,
-        );
+        $qrUrl = $tfa->getQRText($user->email, $secret);
 
         return view('profile.2fa-setup', [
             'qrUrl'  => $qrUrl,
@@ -45,8 +47,8 @@ class TwoFactorController extends Controller
             return redirect()->route('2fa.setup')->withErrors(['code' => 'Session expired. Please restart the setup process.']);
         }
 
-        $google2fa = new Google2FA();
-        if (!$google2fa->verifyKey($secret, $request->input('code'), 4)) {
+        $tfa = $this->tfa();
+        if (!$tfa->verifyCode($secret, $request->input('code'), 4)) {
             return back()->withErrors(['code' => 'Invalid code. Please try again.']);
         }
 

@@ -15,8 +15,8 @@
         "laravel/slack-notification-channel": "^3.8",
         "laravel/tinker": "^2.10.1",
         "livewire/livewire": "*",
-        "pragmarx/google2fa-laravel": "^3.0",
         "predis/predis": "^3.4",
+        "robthree/twofactorauth": "^3.0",
         "spatie/laravel-activitylog": "^4.12",
         "spatie/laravel-medialibrary": "^11.0",
         "tightenco/ziggy": "^2.6"

@@ -171,8 +171,8 @@ class LoginController extends Controller
         $verified = false;
 
         if ($mode === 'totp' && $user->isTwoFactorEnabled()) {
-            $google2fa = app(\PragmaRX\Google2FA\Google2FA::class);
-            $verified = $google2fa->verifyKey($user->twoFactor->secret, $code, 4);
+            $tfa = new \RobThree\Auth\TwoFactorAuth(new \RobThree\Auth\Providers\Qr\QRServerProvider(), config('app.name'));
+            $verified = $tfa->verifyCode($user->twoFactor->secret, $code, 4);
         } elseif ($mode === 'recovery' && $user->isTwoFactorEnabled()) {
             $hashed = hash('sha256', strtoupper($recoveryCode));
             $codes = $user->twoFactor->recovery_codes ?? [];
