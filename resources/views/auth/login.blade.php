@@ -3,7 +3,7 @@
 
     {{-- Logo --}}
     <div style="display:flex;justify-content:center;margin-bottom:32px">
-        <img src="/images/logo.svg" alt="Command Center" style="height:36px;width:auto">
+        <img src="/images/logo.svg" alt="PiShift" style="height:36px;width:auto">
     </div>
 
     {{-- Card --}}

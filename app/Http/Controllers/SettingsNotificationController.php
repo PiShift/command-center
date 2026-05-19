@@ -36,7 +36,7 @@ class SettingsNotificationController extends Controller
 
         try {
             $response = \Illuminate\Support\Facades\Http::post($webhookUrl, [
-                'text' => '✅ PiShift Command Center — Slack integration is working!',
+                'text' => '✅ PiShift PiShift — Slack integration is working!',
             ]);
 
             if ($response->successful()) {

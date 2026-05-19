@@ -199,7 +199,7 @@
     {{-- Logo --}}
     <div class="flex items-center gap-2 px-3 py-0" style="min-height:56px">
         <img src="/images/icon-wb-round.webp" alt="CC" class="w-8 h-8 rounded-md flex-shrink-0">
-        <img src="/images/logo.svg" alt="Command Center" class="sidebar-label h-[22px] object-contain object-left" style="padding:0">
+        <img src="/images/logo.svg" alt="PiShift" class="sidebar-label h-[22px] object-contain object-left" style="padding:0">
     </div>
 
     {{-- Navigation --}}
