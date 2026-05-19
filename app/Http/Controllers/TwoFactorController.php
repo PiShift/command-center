@@ -6,13 +6,13 @@ use App\Models\UserTwoFactor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use RobThree\Auth\TwoFactorAuth;
-use RobThree\Auth\Providers\Qr\QRServerProvider;
+use RobThree\Auth\Providers\Qr\BaconQrCodeProvider;
 
 class TwoFactorController extends Controller
 {
     private function tfa(): TwoFactorAuth
     {
-        return new TwoFactorAuth(new QRServerProvider(), config('app.name'));
+        return new TwoFactorAuth(new BaconQrCodeProvider(), config('app.name'));
     }
 
     // ── Setup: show QR + manual entry ─────────────────────────────────────────
@@ -27,10 +27,12 @@ class TwoFactorController extends Controller
 
         $user = $request->user();
         $qrUrl = $tfa->getQRText($user->email, $secret);
+        $qrDataUri = $tfa->getQRCodeImageAsDataUri($user->email, $secret, 200);
 
         return view('profile.2fa-setup', [
-            'qrUrl'  => $qrUrl,
-            'secret' => $secret,
+            'qrUrl'      => $qrUrl,
+            'qrDataUri'  => $qrDataUri,
+            'secret'     => $secret,
         ]);
     }
 
@@ -38,9 +40,11 @@ class TwoFactorController extends Controller
 
     public function enable(Request $request)
     {
-        $request->validate([
-            'code' => ['required', 'digits:6'],
-        ]);
+        $code = preg_replace('/\D/', '', $request->input('code', ''));
+
+        if (strlen($code) !== 6) {
+            return back()->withErrors(['code' => 'Please enter the 6-digit code from your authenticator app.']);
+        }
 
         $secret = $request->session()->get('2fa.pending_secret');
         if (!$secret) {
@@ -48,7 +52,7 @@ class TwoFactorController extends Controller
         }
 
         $tfa = $this->tfa();
-        if (!$tfa->verifyCode($secret, $request->input('code'), 4)) {
+        if (!$tfa->verifyCode($secret, $code, 4)) {
             return back()->withErrors(['code' => 'Invalid code. Please try again.']);
         }
 

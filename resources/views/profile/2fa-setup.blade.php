@@ -5,9 +5,9 @@
             Scan the QR code below with your authenticator app (e.g. Google Authenticator, Authy), then enter the 6-digit code to confirm.
         </p>
 
-        {{-- QR Code (using Google Charts) --}}
+        {{-- QR Code (generated server-side) --}}
         <div style="text-align:center;margin-bottom:24px">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{ urlencode($qrUrl) }}" alt="QR Code" style="border:1px solid #e5e4df;border-radius:12px;padding:8px;background:#fff">
+            <img src="{{ $qrDataUri }}" alt="QR Code" style="border:1px solid #e5e4df;border-radius:12px;padding:8px;background:#fff">
         </div>
 
         {{-- Manual entry --}}
@@ -29,10 +29,10 @@
                 <input
                     type="text"
                     name="code"
-                    inputmode="numeric"
                     maxlength="6"
                     placeholder="000000"
                     autofocus
+                    autocomplete="one-time-code"
                     style="width:100%;padding:12px 14px;font-size:24px;letter-spacing:.25em;text-align:center;border:1px solid #e5e4df;border-radius:10px;background:#F5F4EF;color:#141413;outline:none;box-sizing:border-box"
                 >
             </div>
