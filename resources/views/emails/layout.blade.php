@@ -29,7 +29,7 @@
             @yield('content')
         </div>
         <div class="footer">
-            <p>You are receiving this because you are a member of PiShift Command Center.</p>
+            <p>You are receiving this because you are a member of {{ config('app.name') }}.</p>
             <p>© {{ date('Y') }} PiShift. All rights reserved.</p>
         </div>
     </div>

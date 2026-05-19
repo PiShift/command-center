@@ -7,7 +7,7 @@
 <body style="margin:0;padding:0;background:#faf9f5;font-family:Inter,sans-serif">
     <div style="max-width:480px;margin:40px auto;background:#fff;border:1px solid #e5e4df;border-radius:14px;overflow:hidden">
         <div style="background:#D97757;padding:24px 32px">
-            <p style="margin:0;font-size:18px;font-weight:600;color:#fff">Command Center</p>
+            <p style="margin:0;font-size:18px;font-weight:600;color:#fff">{{ config('app.name') }}</p>
         </div>
         <div style="padding:32px">
             <p style="margin:0 0 8px;font-size:16px;font-weight:600;color:#141413">Hi {{ $userName }},</p>
