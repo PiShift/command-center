@@ -17,6 +17,10 @@ use App\Http\Controllers\ProjectTeamController;
 use App\Http\Controllers\SprintController;
 use App\Http\Controllers\BacklogItemController;
 use App\Http\Controllers\TaskChecklistController;
+use App\Http\Controllers\AiController;
+use App\Http\Controllers\TaskAttachmentController;
+use App\Http\Controllers\TaskCommentAttachmentController;
+use App\Http\Controllers\TaskCommentController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -101,4 +105,24 @@ Route::middleware('auth')->group(function () {
     Route::delete('teams/{team}/members/{user}',    [TeamMemberController::class, 'destroy'])->name('teams.members.destroy');
     Route::post('projects/{project}/teams',         [ProjectTeamController::class, 'store'])->name('projects.teams.store');
     Route::delete('projects/{project}/teams/{team}',[ProjectTeamController::class, 'destroy'])->name('projects.teams.destroy');
+
+    // AI
+    Route::post('projects/{project}/ai/plan',         [AiController::class, 'plan'])->name('ai.plan');
+    Route::post('projects/{project}/ai/plan/confirm', [AiController::class, 'confirmPlan'])->name('ai.plan.confirm');
+    Route::post('projects/{project}/ai/promote-suggestions', [AiController::class, 'promoteSuggestions'])->name('ai.promote-suggestions');
+    Route::post('tasks/{task}/ai/generate-guide',     [AiController::class, 'generateGuide'])->name('ai.generate-guide');
+
+    // Attachments
+    Route::post('tasks/{task}/attachments',                     [TaskAttachmentController::class, 'store'])->name('attachments.store');
+    Route::delete('tasks/{task}/attachments/{media}',           [TaskAttachmentController::class, 'destroy'])->name('attachments.destroy');
+    Route::get('tasks/{task}/attachments/{media}/download',     [TaskAttachmentController::class, 'download'])->name('attachments.download');
+
+    // Comment attachments
+    Route::post('tasks/{task}/comments/{comment}/attachment',    [TaskCommentAttachmentController::class, 'store'])->name('comment-attachments.store');
+    Route::delete('tasks/{task}/comments/{comment}/attachment',  [TaskCommentAttachmentController::class, 'destroy'])->name('comment-attachments.destroy');
+    Route::get('tasks/{task}/comments/{comment}/attachment',     [TaskCommentAttachmentController::class, 'download'])->name('comment-attachments.download');
+
+    // Comments (show page + modal AJAX)
+    Route::post('tasks/{task}/comments',           [TaskCommentController::class, 'store'])->name('task-comments.store');
+    Route::delete('tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy'])->name('task-comments.destroy');
 });

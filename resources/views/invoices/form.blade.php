@@ -114,13 +114,10 @@
                             <input type="hidden" :name="`items[${idx}][task_id]`" :value="item.task_id">
                         </td>
                         <td class="px-3 py-2">
-                            <select :name="`items[${idx}][unit]`" x-model="item.unit" class="w-full appearance-none rounded text-[12px] px-2 py-1.5"
-                                    style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none">
-                                <option value="units">units</option>
-                                <option value="hours">hours</option>
-                                <option value="days">days</option>
-                                <option value="fixed">fixed</option>
-                            </select>
+                            <input type="text" :name="`items[${idx}][unit]`" x-model="item.unit" placeholder="e.g. hours"
+                                   class="w-full rounded text-[12px] px-2 py-1.5"
+                                   style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none"
+                                   onfocus="this.style.borderColor='#D97757'" onblur="this.style.borderColor='#e5e4df'">
                         </td>
                         <td class="px-3 py-2">
                             <input type="number" :name="`items[${idx}][quantity]`" x-model.number="item.quantity" step="0.01" min="0"

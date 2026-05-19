@@ -1,6 +1,68 @@
 {{-- Task Detail / New Task Modal — Livewire component --}}
 {{-- Root div required by Livewire; modal visibility controlled by @if($open) --}}
-<div x-data="{ guideOpen: false, guideMode: 'preview' }"
+<div x-data="{
+         guideOpen: false,
+         guideMode: 'preview',
+         guideAiLoading: false,
+         guideAiError: '',
+         lightboxSrc: null,
+         attachUploading: false,
+         attachError: '',
+         commentFile: null,
+         commentFileName: '',
+         commentUploading: false,
+         async generateGuide(taskId) {
+             this.guideAiLoading = true;
+             this.guideAiError = '';
+             try {
+                 const res = await fetch(`/tasks/${taskId}/ai/generate-guide`, {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' }
+                 });
+                 const json = await res.json();
+                 if (!res.ok) { this.guideAiError = json.error || 'AI request failed.'; }
+                 else { $wire.set('guide', json.guide); this.guideAiError = ''; }
+             } catch(e) { this.guideAiError = 'Network error. Please try again.'; }
+             this.guideAiLoading = false;
+         },
+         async uploadAttachment(taskId, file) {
+             this.attachUploading = true;
+             this.attachError = '';
+             try {
+                 const fd = new FormData();
+                 fd.append('file', file);
+                 fd.append('_token', document.querySelector('meta[name=csrf-token]').content);
+                 const res = await fetch(`/tasks/${taskId}/attachments`, { method: 'POST', body: fd });
+                 const json = await res.json();
+                 if (!res.ok) { this.attachError = json.message || 'Upload failed.'; }
+                 else { $wire.call('openTask', taskId); }
+             } catch(e) { this.attachError = 'Network error. Please try again.'; }
+             this.attachUploading = false;
+         },
+         async submitComment(taskId) {
+             if (!this.commentFile) {
+                 $wire.addComment();
+                 return;
+             }
+             const body = $wire.get('commentBody');
+             if (!body || !body.trim()) return;
+             this.commentUploading = true;
+             try {
+                 const fd = new FormData();
+                 fd.append('body', body);
+                 fd.append('attachment', this.commentFile);
+                 fd.append('_token', document.querySelector('meta[name=csrf-token]').content);
+                 const res = await fetch(`/tasks/${taskId}/comments`, { method: 'POST', headers: { 'Accept': 'application/json' }, body: fd });
+                 if (res.ok) {
+                     $wire.set('commentBody', '');
+                     this.commentFile = null;
+                     this.commentFileName = '';
+                     $wire.call('openTask', taskId);
+                 }
+             } catch(e) {}
+             this.commentUploading = false;
+         }
+     }"
      x-on:open-task.window="$wire.openTask($event.detail.id)"
      x-on:new-task.window="$wire.newTask()"
      x-on:guide-saved.window="guideMode = 'preview'">
@@ -21,7 +83,7 @@
 
 @if($open)
 {{-- Overlay --}}
-<div class="fixed inset-0 z-40 flex items-center justify-center p-4"
+<div class="fixed inset-0 z-modal flex items-center justify-center p-4"
      style="background: rgba(0,0,0,0.45)"
      wire:click.self="close"
      x-on:keydown.escape.window="$wire.close()">
@@ -191,6 +253,103 @@
             </div>
             @endif
 
+            {{-- ── Attachments ──────────────────────────────────────────────────── --}}
+            @if($task && (! $isNew))
+            @php
+                $allMedia   = $task->getMedia('attachments')->merge($task->getMedia('images'));
+                $mediaCount = $allMedia->count();
+            @endphp
+            <div class="px-7 py-5 border-b border-hairline">
+                {{-- Header --}}
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <p class="text-[11px] font-bold uppercase tracking-wider text-muted">Attachments</p>
+                        @if($mediaCount > 0)
+                        <span class="text-[11px] font-semibold text-muted bg-surface border border-hairline rounded-full px-2 py-0.5">{{ $mediaCount }}</span>
+                        @endif
+                    </div>
+                    @if($canEdit['attachments'])
+                    <label class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-dim bg-surface border border-line rounded-lg hover:bg-hairline hover:text-ink transition-colors duration-150 cursor-pointer"
+                           :class="attachUploading ? 'opacity-60 pointer-events-none' : ''">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
+                        </svg>
+                        <span x-text="attachUploading ? 'Uploading…' : 'Upload'"></span>
+                        <input type="file" class="sr-only"
+                               @change="uploadAttachment({{ $task->id }}, $event.target.files[0]); $event.target.value = ''">
+                    </label>
+                    @endif
+                </div>
+
+                {{-- Error --}}
+                <div x-show="attachError" class="flex items-center gap-1.5 text-[12px] text-[#b94040] bg-[#fff5f5] border border-[#f5c6c6] rounded-lg px-3 py-2 mb-3">
+                    <span x-text="attachError"></span>
+                </div>
+
+                {{-- Files list --}}
+                @if($mediaCount === 0)
+                <p class="text-[12px] text-muted italic">No attachments yet.</p>
+                @else
+                <ul class="space-y-1.5">
+                    @foreach($allMedia as $m)
+                    @php
+                        $isImg   = str_starts_with($m->mime_type, 'image/');
+                        $isPdf   = $m->mime_type === 'application/pdf';
+                        $dlUrl   = route('attachments.download', ['task' => $task->id, 'media' => $m->id]);
+                        $thumbUrl = $isImg ? route('attachments.download', ['task' => $task->id, 'media' => $m->id, 'thumb' => 1]) : null;
+                        $sizeFmt = $m->size >= 1048576 ? round($m->size/1048576, 1).'MB' : round($m->size/1024, 1).'KB';
+                    @endphp
+                    <li class="group flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-canvas transition-colors duration-100" wire:key="att-{{ $m->id }}">
+                        {{-- Thumb / icon --}}
+                        <div class="w-10 h-10 shrink-0 rounded-md overflow-hidden flex items-center justify-center bg-surface border border-hairline">
+                            @if($isImg && $thumbUrl)
+                            <img src="{{ $thumbUrl }}" alt="{{ $m->file_name }}"
+                                 class="w-full h-full object-cover cursor-zoom-in"
+                                 @click="lightboxSrc = '{{ $dlUrl }}'">
+                            @elseif($isPdf)
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-[#b94040]" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
+                            </svg>
+                            @else
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-muted" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"/>
+                            </svg>
+                            @endif
+                        </div>
+
+                        {{-- Info --}}
+                        <div class="flex-1 min-w-0">
+                            <p class="text-[13px] font-medium text-ink truncate" title="{{ $m->file_name }}">{{ $m->file_name }}</p>
+                            <p class="text-[11px] text-muted">{{ $sizeFmt }} · {{ $m->created_at->format('M j, Y') }}</p>
+                        </div>
+
+                        {{-- Actions --}}
+                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <a href="{{ $dlUrl }}" download="{{ $m->file_name }}"
+                               class="w-7 h-7 flex items-center justify-center rounded-full text-muted hover:text-ink transition-colors"
+                               style="background: rgba(0,0,0,0.07)" title="Download">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                                </svg>
+                            </a>
+                            @if($canEdit['attachments'])
+                            <button wire:click="deleteAttachment({{ $m->id }})"
+                                    wire:confirm="Remove this attachment?"
+                                    class="w-7 h-7 flex items-center justify-center rounded-full text-muted hover:text-[#b94040] transition-colors cursor-pointer"
+                                    style="background: rgba(0,0,0,0.07)" title="Delete">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                            @endif
+                        </div>
+                    </li>
+                    @endforeach
+                </ul>
+                @endif
+            </div>
+            @endif
+
             {{-- Comments --}}
             <div class="px-7 py-5 flex-1">
                 <p class="text-[11px] font-bold uppercase tracking-wider text-muted mb-4">Comments</p>
@@ -215,6 +374,29 @@
                                 @endif
                             </div>
                             <p class="text-[13px] text-dim leading-relaxed">{{ $comment->body }}</p>
+                            {{-- Comment attachment --}}
+                            @php $comAtt = $comment->getFirstMedia('attachment'); @endphp
+                            @if($comAtt)
+                            @php
+                                $comIsImg = str_starts_with($comAtt->mime_type, 'image/');
+                                $comDlUrl = route('comment-attachments.download', ['task' => $task->id, 'comment' => $comment->id]);
+                                $comSize  = $comAtt->size >= 1048576 ? round($comAtt->size/1048576, 1).'MB' : round($comAtt->size/1024, 1).'KB';
+                            @endphp
+                            <div class="mt-1.5 flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-surface border border-hairline inline-flex max-w-xs">
+                                @if($comIsImg)
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
+                                </svg>
+                                @else
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"/>
+                                </svg>
+                                @endif
+                                <a href="{{ $comDlUrl }}" download="{{ $comAtt->file_name }}"
+                                   class="text-[11px] font-medium text-accent hover:underline truncate max-w-[160px]">{{ $comAtt->file_name }}</a>
+                                <span class="text-[11px] text-muted shrink-0">{{ $comSize }}</span>
+                            </div>
+                            @endif
                         </div>
                     </div>
                     @empty
@@ -230,14 +412,38 @@
                          style="background: {{ auth()->user()->color ?? '#D97757' }}">
                         {{ auth()->user()->initials ?? strtoupper(substr(auth()->user()->name, 0, 2)) }}
                     </div>
-                    <div class="flex-1 flex gap-2">
-                        <textarea wire:model="commentBody"
-                                  wire:keydown.meta.enter="addComment"
-                                  rows="1"
-                                  placeholder="Write a comment… (⌘↵ to send)"
-                                  class="flex-1 text-[13px] text-ink bg-surface border border-line rounded-lg px-3 py-2 outline-none focus:border-accent focus:bg-white transition-colors resize-none placeholder:text-muted placeholder:italic"></textarea>
-                        <button wire:click="addComment"
-                                class="px-3 py-2 bg-accent hover:bg-accent-hover text-white text-[12px] font-medium rounded-lg transition-colors shrink-0 self-start cursor-pointer">Send</button>
+                    <div class="flex-1">
+                        <div class="flex gap-2 items-start">
+                            <textarea wire:model="commentBody"
+                                      wire:keydown.meta.enter="addComment"
+                                      rows="1"
+                                      placeholder="Write a comment… (⌘↵ to send)"
+                                      class="flex-1 text-[13px] text-ink bg-surface border border-line rounded-lg px-3 py-2 outline-none focus:border-accent focus:bg-white transition-colors resize-none placeholder:text-muted placeholder:italic"></textarea>
+                            {{-- Paperclip --}}
+                            <label class="w-8 h-8 flex items-center justify-center rounded-full text-muted hover:text-ink transition-colors cursor-pointer shrink-0 mt-0.5"
+                                   style="background: rgba(0,0,0,0.07)" title="Attach file">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"/>
+                                </svg>
+                                <input type="file" class="sr-only"
+                                       @change="commentFile = $event.target.files[0]; commentFileName = $event.target.files[0]?.name ?? ''">
+                            </label>
+                            @if($task)
+                            <button @click="submitComment({{ $task->id }})"
+                                    :disabled="commentUploading"
+                                    class="px-3 py-2 bg-accent hover:bg-accent-hover text-white text-[12px] font-medium rounded-lg transition-colors shrink-0 self-start cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                                <span x-text="commentUploading ? 'Sending…' : 'Send'"></span>
+                            </button>
+                            @endif
+                        </div>
+                        {{-- Selected file indicator --}}
+                        <div x-show="commentFileName" class="flex items-center gap-1.5 mt-1.5 text-[11px] text-muted">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32"/>
+                            </svg>
+                            <span x-text="commentFileName" class="truncate max-w-[200px]"></span>
+                            <button @click="commentFile = null; commentFileName = ''" class="text-muted hover:text-[#b94040] cursor-pointer">×</button>
+                        </div>
                     </div>
                 </div>
                 @else
@@ -425,7 +631,7 @@
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
          @click="guideOpen = false"
-         class="fixed inset-0 z-[60] bg-black/20"></div>
+         class="fixed inset-0 z-drawer bg-black/20"></div>
 
     {{-- Drawer panel --}}
     <div x-show="guideOpen"
@@ -436,7 +642,7 @@
          x-transition:leave="transition-transform duration-200 ease-in"
          x-transition:leave-start="translate-x-0"
          x-transition:leave-end="translate-x-full"
-         class="fixed inset-y-0 right-0 z-[61] flex flex-col bg-white border-l border-line shadow-[0_0_60px_rgba(0,0,0,0.18)]"
+         class="fixed inset-y-0 right-0 z-drawer-panel flex flex-col bg-white border-l border-line shadow-[0_0_60px_rgba(0,0,0,0.18)]"
          style="width: 480px">
 
         {{-- Drawer header --}}
@@ -450,13 +656,27 @@
             <div class="flex items-center gap-2">
                 {{-- Edit / Preview toggle — only for editors --}}
                 @if($canEdit['meta'])
-                <div class="flex rounded-lg border border-line overflow-hidden text-[11px] font-medium">
-                    <button @click="guideMode = 'preview'"
-                            :class="guideMode === 'preview' ? 'bg-surface text-ink' : 'text-muted hover:bg-canvas'"
-                            class="px-3 py-1 cursor-pointer transition-colors">Preview</button>
-                    <button @click="guideMode = 'edit'"
-                            :class="guideMode === 'edit' ? 'bg-surface text-ink' : 'text-muted hover:bg-canvas'"
-                            class="px-3 py-1 cursor-pointer transition-colors border-l border-line">Edit</button>
+                <div class="flex items-center gap-2">
+                    @if($task?->id)
+                    <button type="button"
+                            x-show="guideMode === 'edit'"
+                            @click="generateGuide({{ $task->id }})"
+                            :disabled="guideAiLoading"
+                            class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-[#7c3aed] bg-[#f5f3ff] border border-[#e0d9f9] rounded-lg hover:bg-[#ede9fe] transition-colors duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor" :class="guideAiLoading ? 'animate-spin' : ''">
+                            <path d="M12 2.25a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM18.894 6.166a.75.75 0 0 0-1.06-1.06l-1.591 1.59a.75.75 0 1 0 1.06 1.061l1.591-1.59ZM21.75 12a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5H21a.75.75 0 0 1 .75.75ZM17.834 18.894a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 1 0-1.061 1.06l1.59 1.591ZM12 18a.75.75 0 0 1 .75.75V21a.75.75 0 0 1-1.5 0v-2.25A.75.75 0 0 1 12 18ZM7.758 17.303a.75.75 0 0 0-1.061-1.06l-1.591 1.59a.75.75 0 0 0 1.06 1.061l1.592-1.59ZM6 12a.75.75 0 0 1-.75.75H3a.75.75 0 0 1 0-1.5h2.25A.75.75 0 0 1 6 12ZM6.697 7.757a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 0 0-1.061 1.06l1.59 1.591Z"/>
+                        </svg>
+                        <span x-text="guideAiLoading ? 'Generating…' : 'Generate with AI'"></span>
+                    </button>
+                    @endif
+                    <div class="flex rounded-lg border border-line overflow-hidden text-[11px] font-medium">
+                        <button @click="guideMode = 'preview'"
+                                :class="guideMode === 'preview' ? 'bg-surface text-ink' : 'text-muted hover:bg-canvas'"
+                                class="px-3 py-1 cursor-pointer transition-colors">Preview</button>
+                        <button @click="guideMode = 'edit'"
+                                :class="guideMode === 'edit' ? 'bg-surface text-ink' : 'text-muted hover:bg-canvas'"
+                                class="px-3 py-1 cursor-pointer transition-colors border-l border-line">Edit</button>
+                    </div>
                 </div>
                 @endif
                 <button @click="guideOpen = false"
@@ -492,6 +712,12 @@
         <div x-show="guideMode === 'edit'" class="flex flex-col flex-1 overflow-hidden">
             <div class="px-6 pt-5 pb-2 shrink-0">
                 <p class="text-[11px] text-muted mb-2">Supports <span class="font-medium text-ink">Markdown</span> — headings, lists, code blocks, bold/italic.</p>
+                <div x-show="guideAiError" class="flex items-center gap-1.5 text-[12px] text-[#b94040] bg-[#fff5f5] border border-[#f5c6c6] rounded-lg px-3 py-2 mb-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/>
+                    </svg>
+                    <span x-text="guideAiError"></span>
+                </div>
             </div>
             <textarea wire:model="guide"
                       rows="20"
@@ -515,4 +741,26 @@
 @endif
 
 @endif
+{{-- Lightbox --}}
+<template x-teleport="body">
+    <div x-show="lightboxSrc"
+         x-cloak
+         x-transition:enter="transition-opacity duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition-opacity duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @click.self="lightboxSrc = null"
+         @keydown.escape.window="lightboxSrc = null"
+         class="fixed inset-0 z-lightbox flex items-center justify-center p-6"
+         style="background: rgba(0,0,0,0.75)">
+        <button @click="lightboxSrc = null"
+                class="absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-white cursor-pointer transition-colors"
+                style="background: rgba(255,255,255,0.15)" title="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <img :src="lightboxSrc" class="max-w-full max-h-full rounded-xl object-contain" style="box-shadow: 0 20px 60px rgba(0,0,0,0.5)">
+    </div>
+</template>
 </div>{{-- /Livewire root --}}

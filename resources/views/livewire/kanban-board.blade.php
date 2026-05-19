@@ -110,19 +110,19 @@
                         {{-- Title --}}
                         <p class="text-[13.5px] font-medium text-ink leading-snug mb-1 line-clamp-2">{{ $task->title }}</p>
 
-                        {{-- "Take it" button — unassigned tasks only, for eligible users --}}
+                        {{-- "View & Claim" button — unassigned tasks only; opens modal so dev reads before claiming --}}
                         @if(! $task->assigned_to && \Illuminate\Support\Facades\Gate::allows('claim', $task))
                         <div x-on:click.stop>
-                            <button wire:click.stop="claimTask({{ $task->id }})"
+                            <button x-on:click="$dispatch('open-task', { id: {{ $task->id }} })"
                                     class="inline-flex items-center gap-1 mb-2 px-2 py-0.5 text-[11px] font-semibold rounded-[5px] border cursor-pointer transition-colors duration-150"
                                     style="color:#2e7d55;background:#edf7f2;border-color:#b7e0ca"
                                     onmouseover="this.style.background='#d6f0e4'"
                                     onmouseout="this.style.background='#edf7f2'"
-                                    title="Assign this task to yourself">
+                                    title="View task details and claim">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59"/>
                                 </svg>
-                                Take it
+                                View & Claim
                             </button>
                         </div>
                         @endif
@@ -168,6 +168,20 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.963 9.963 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
                                     </svg>
                                     {{ $task->comments_count }}
+                                </span>
+                                @endif
+                                @if($task->relationLoaded('checklists') && $task->checklists->count() > 0)
+                                @php
+                                    $clTotal   = $task->checklists->count();
+                                    $clDone    = $task->checklists->where('is_checked', true)->count();
+                                    $clAllDone = $clDone === $clTotal;
+                                @endphp
+                                <span class="inline-flex items-center gap-1 text-[11px] font-semibold"
+                                      style="color: {{ $clAllDone ? '#2e7d55' : '#8c8c8a' }}">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    {{ $clDone }}/{{ $clTotal }}
                                 </span>
                                 @endif
                                 <span class="inline-flex items-center text-[11px] font-semibold rounded-[5px] px-2 py-0.5"

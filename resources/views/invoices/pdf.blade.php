@@ -162,9 +162,8 @@
 
 <div id="footer">
   {{ config('app.name', 'PiShift') }}
-  @if(config('app.email')) &middot; {{ config('app.email') }} @endif
-  @if(config('app.nif'))   &middot; NIF: {{ config('app.nif') }} @endif
-  @if(config('app.phone')) &middot; {{ config('app.phone') }} @endif
+  &middot; NIF: 01653526
+  &middot; support@pishift.co
 </div>
 
 <div id="top-bar"></div>

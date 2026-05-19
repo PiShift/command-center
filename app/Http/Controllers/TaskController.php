@@ -62,7 +62,7 @@ class TaskController extends Controller
     public function show(Task $task)
     {
         abort_unless(auth()->user()->hasPermission('tasks.view'), 403);
-        $task->load(['project', 'assignee', 'checklists']);
+        $task->load(['project', 'assignee', 'checklists', 'media', 'comments' => fn($q) => $q->with(['author', 'media'])->latest()]);
         return view('tasks.show', compact('task'));
     }
 
@@ -120,12 +120,13 @@ class TaskController extends Controller
         }
 
         $task->assigned_to = $user->id;
+        $task->status      = 'todo';
         $task->save();
 
         activity()
             ->performedOn($task)
             ->causedBy($user)
-            ->log("Task claimed by {$user->name}");
+            ->log("Task claimed by {$user->name} — status changed to todo");
 
         return back()->with('success', 'You are now assigned to this task.');
     }

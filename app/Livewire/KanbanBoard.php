@@ -38,12 +38,13 @@ class KanbanBoard extends Component
 
         $user = auth()->user();
         $task->assigned_to = $user->id;
+        $task->status      = 'todo';
         $task->save();
 
         activity()
             ->performedOn($task)
             ->causedBy($user)
-            ->log("Task claimed by {$user->name}");
+            ->log("Task claimed by {$user->name} — status changed to todo");
 
         session()->flash('success', 'You are now assigned to this task.');
         $this->dispatch('task-claimed', taskId: $taskId);
@@ -68,7 +69,7 @@ class KanbanBoard extends Component
                 return null;
             }
 
-            $query = $col->tasks()->with(['project', 'assignee'])->withCount('comments');
+            $query = $col->tasks()->with(['project', 'assignee', 'checklists'])->withCount('comments');
 
             // Developers: only their own assigned tasks (not team-wide unclaimed tasks)
             if ($scopedToUser) {

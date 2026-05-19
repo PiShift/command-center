@@ -94,6 +94,12 @@
     --text-2xl--line-height:     1.3;
     --text-2xl--letter-spacing:  -0.02em;
 
+    /* ── Z-Index ─────────────────────────────────────── */
+    --z-modal:     40;
+    --z-drawer:    60;
+    --z-drawer-panel: 61;
+    --z-lightbox:  80;
+
     /* ── Transitions ─────────────────────────────────── */
     --default-transition-duration: 150ms;
 }

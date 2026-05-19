@@ -64,7 +64,7 @@ class TaskModal extends Component
 
     public function openTask(int $id): void
     {
-        $task = Task::with(['project', 'assignee', 'comments.author'])->findOrFail($id);
+        $task = Task::with(['project', 'assignee', 'comments.author', 'comments.media', 'media'])->findOrFail($id);
 
         $this->taskId          = $task->id;
         $this->title           = $task->title;
@@ -210,8 +210,7 @@ class TaskModal extends Component
         TaskChecklist::where('task_id', $this->taskId)->findOrFail($id)->update(['label' => trim($label)]);
     }
 
-    public function saveGuide(): void
-    {
+    public function saveGuide(): void    {
         if (! $this->taskId) return;
         $task = Task::findOrFail($this->taskId);
         Gate::authorize('editMeta', $task);
@@ -220,8 +219,7 @@ class TaskModal extends Component
         $this->dispatch('guide-saved');
     }
 
-    public function claimTask(): void
-    {
+    public function claimTask(): void    {
         if (! $this->taskId) return;
         $task = Task::findOrFail($this->taskId);
         Gate::authorize('claim', $task);
@@ -233,16 +231,31 @@ class TaskModal extends Component
 
         $user = auth()->user();
         $task->assigned_to = $user->id;
+        $task->status      = 'todo';
         $task->save();
 
         activity()
             ->performedOn($task)
             ->causedBy($user)
-            ->log("Task claimed by {$user->name}");
+            ->log("Task claimed by {$user->name} — status changed to todo");
 
         $this->open = false;
         session()->flash('success', 'Task claimed! It now appears in your tasks.');
         $this->dispatch('task-claimed');
+    }
+
+    public function deleteAttachment(int $mediaId): void
+    {
+        if (! $this->taskId) return;
+        $task  = Task::findOrFail($this->taskId);
+        $user  = auth()->user();
+        $media = $task->media()->findOrFail($mediaId);
+        abort_unless(
+            ($media->custom_properties['uploaded_by'] ?? null) === $user->id
+                || $user->hasPermission('tasks.edit_any'),
+            403
+        );
+        $media->delete();
     }
 
     // ───────────────────────────────────────────────────────────────────────────
@@ -256,7 +269,7 @@ class TaskModal extends Component
     public function render()
     {
         $task = $this->taskId
-            ? Task::with(['project', 'assignee', 'comments.author', 'checklists'])->find($this->taskId)
+            ? Task::with(['project', 'assignee', 'comments.author', 'comments.media', 'checklists', 'media'])->find($this->taskId)
             : null;
 
         $canEdit = [
@@ -267,6 +280,7 @@ class TaskModal extends Component
             'assignee'      => ! $task || Gate::allows('editAssignee', $task),
             'dates'         => ! $task || Gate::allows('editDates', $task),
             'deleteComment' => $task && Gate::allows('deleteComment', $task),
+            'attachments'   => $task && (auth()->user()->hasPermission('tasks.edit_own') || auth()->user()->hasPermission('tasks.edit_any')),
         ];
 
         $canClaim = $task && Gate::allows('claim', $task);

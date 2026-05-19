@@ -163,7 +163,7 @@
                         @endif
                     </div>
                 @else
-                    <ul class="divide-y divide-hairline">
+                    <ul class="divide-y divide-hairline max-h-[420px] overflow-y-auto">
                         @foreach($sprints as $sprint)
                         <li class="px-6 py-4">
                             <div class="flex items-start justify-between gap-3">
@@ -455,6 +455,8 @@
                     form: { title: '', description: '', guide: '', sprint_id: '', guideFilename: '' },
                     selectedItems: [],
                     allItemIds: {{ Js::from($backlogItems->pluck('id')) }},
+                    itemSprints: {{ Js::from($backlogItems->pluck('sprint_id', 'id')) }},
+                    bulkSprint: '',
                     get allSelected() { return this.allItemIds.length > 0 && this.selectedItems.length === this.allItemIds.length; },
                     get someSelected() { return this.selectedItems.length > 0 && this.selectedItems.length < this.allItemIds.length; },
                     toggleAll() {
@@ -463,12 +465,20 @@
                         } else {
                             this.selectedItems = [...this.allItemIds];
                         }
+                        this.updateBulkSprint();
                     },
                     toggleItem(id) {
                         const idx = this.selectedItems.indexOf(id);
                         if (idx === -1) { this.selectedItems.push(id); } else { this.selectedItems.splice(idx, 1); }
+                        this.updateBulkSprint();
                     },
-                    clearSelection() { this.selectedItems = []; },
+                    clearSelection() { this.selectedItems = []; this.bulkSprint = ''; },
+                    updateBulkSprint() {
+                        if (this.selectedItems.length === 0) { this.bulkSprint = ''; return; }
+                        const sprintIds = this.selectedItems.map(id => this.itemSprints[id] ?? '');
+                        const first = sprintIds[0];
+                        this.bulkSprint = sprintIds.every(s => s === first) ? (first || '') : '';
+                    },
                     open(item) {
                         if (item) {
                             this.editing = item;
@@ -504,6 +514,87 @@
                         const reader = new FileReader();
                         reader.onload = (e) => { this.form.guide = e.target.result; };
                         reader.readAsText(file);
+                    },
+                    // ── AI Planning ──────────────────────────────────────────
+                    aiPlanOpen: false,
+                    planStep: 1,
+                    planTab: 'paste',
+                    planNotes: '',
+                    planSelectedItems: [],
+                    planLoading: false,
+                    planError: '',
+                    planResult: null,
+                    planRawInput: '',
+                    togglePlanItem(id) {
+                        const idx = this.planSelectedItems.indexOf(id);
+                        if (idx === -1) { this.planSelectedItems.push(id); } else { this.planSelectedItems.splice(idx, 1); }
+                    },
+                    async analyzePlan() {
+                        this.planError = '';
+                        if (this.planTab === 'paste' && !this.planNotes.trim()) {
+                            this.planError = 'Please paste some planning notes.'; return;
+                        }
+                        if (this.planTab === 'backlog' && this.planSelectedItems.length === 0) {
+                            this.planError = 'Select at least one backlog item.'; return;
+                        }
+                        const body = this.planTab === 'paste'
+                            ? { raw_notes: this.planNotes }
+                            : { item_ids: this.planSelectedItems };
+                        const rawInput = this.planTab === 'paste'
+                            ? this.planNotes
+                            : this.planSelectedItems.join(', ');
+                        this.planRawInput = rawInput;
+                        this.planLoading = true;
+                        try {
+                            const res = await fetch('{{ route('ai.plan', $project) }}', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' },
+                                body: JSON.stringify(body)
+                            });
+                            const json = await res.json();
+                            if (!res.ok) { this.planError = json.error || 'AI request failed.'; }
+                            else { this.planResult = json; this.planStep = 2; }
+                        } catch(e) { this.planError = 'Network error. Please try again.'; }
+                        this.planLoading = false;
+                    },
+                    removeItem(sIdx, iIdx) {
+                        this.planResult.sprints[sIdx].items.splice(iIdx, 1);
+                    },
+                    removeSprint(sIdx) {
+                        this.planResult.sprints.splice(sIdx, 1);
+                    },
+                    addSprint() {
+                        this.planResult.sprints.push({ name: 'New Sprint', rationale: '', items: [] });
+                    },
+                    moveItem(fromSprint, fromItem, toSprintIdx) {
+                        const item = this.planResult.sprints[fromSprint].items.splice(fromItem, 1)[0];
+                        this.planResult.sprints[toSprintIdx].items.push(item);
+                    },
+                    // ── Promote AI suggestions ────────────────────────────────
+                    promoteAiLoading: false,
+                    promoteAiError: '',
+                    promoteAiResult: null,
+                    async fetchPromoteSuggestions() {
+                        this.promoteAiLoading = true;
+                        this.promoteAiError = '';
+                        this.promoteAiResult = null;
+                        try {
+                            const res = await fetch('{{ route('ai.promote-suggestions', $project) }}', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content, 'Accept': 'application/json' },
+                                body: JSON.stringify({ title: this.promoting?.title ?? '', description: this.promoting?.description ?? '' })
+                            });
+                            const json = await res.json();
+                            if (!res.ok) { this.promoteAiError = json.error || 'AI request failed.'; }
+                            else { this.promoteAiResult = json; }
+                        } catch(e) { this.promoteAiError = 'Network error. Please try again.'; }
+                        this.promoteAiLoading = false;
+                    },
+                    applyAiSuggestion(field, value) {
+                        if (field === 'type')        this.promoteForm.type = value;
+                        if (field === 'priority')    this.promoteForm.priority = value;
+                        if (field === 'weight')      this.promoteForm.weight = parseInt(value);
+                        if (field === 'description') this.promoteForm.description = value;
                     }
                 }"
                 class="bg-white border border-line rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(20,20,19,0.04)]"
@@ -550,6 +641,7 @@
                                     <input type="hidden" name="items[]" :value="id">
                                 </template>
                                 <select name="sprint_id"
+                                        x-model="bulkSprint"
                                         class="text-[12px] text-ink bg-surface border border-line rounded-lg px-2 py-1 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15 transition-all duration-150 cursor-pointer">
                                     <option value="">Sprint…</option>
                                     @foreach($sprints as $sprint)
@@ -609,7 +701,15 @@
                         @endif
 
                         {{-- Add item button — hidden when items selected --}}
-                        <div x-show="selectedItems.length === 0">
+                        <div x-show="selectedItems.length === 0" class="flex items-center gap-2">
+                            {{-- Plan with AI --}}
+                            <button @click="aiPlanOpen = true; planStep = 1; planNotes = ''; planSelectedItems = []; planResult = null; planError = ''"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-ink bg-surface border border-line rounded-lg hover:bg-hairline transition-colors duration-150 cursor-pointer">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-accent" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2.25a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM18.894 6.166a.75.75 0 0 0-1.06-1.06l-1.591 1.59a.75.75 0 1 0 1.06 1.061l1.591-1.59ZM21.75 12a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5H21a.75.75 0 0 1 .75.75ZM17.834 18.894a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 1 0-1.061 1.06l1.59 1.591ZM12 18a.75.75 0 0 1 .75.75V21a.75.75 0 0 1-1.5 0v-2.25A.75.75 0 0 1 12 18ZM7.758 17.303a.75.75 0 0 0-1.061-1.06l-1.591 1.59a.75.75 0 0 0 1.06 1.061l1.592-1.59ZM6 12a.75.75 0 0 1-.75.75H3a.75.75 0 0 1 0-1.5h2.25A.75.75 0 0 1 6 12ZM6.697 7.757a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 0 0-1.061 1.06l1.59 1.591Z"/>
+                                </svg>
+                                Plan with AI
+                            </button>
                             <button @click="open(null)"
                                     class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors duration-150 cursor-pointer">
                                 @include('components.icon', ['name' => 'plus'])
@@ -638,109 +738,42 @@
                         @endif
                     </div>
                 @else
-                    <ul class="divide-y divide-hairline">
-                        @foreach($backlogItems as $item)
-                        <li class="flex items-start gap-3 px-6 py-3.5 hover:bg-canvas transition-colors duration-150"
-                            :class="selectedItems.includes({{ $item->id }}) ? 'bg-accent-light' : ''">
-                            @if($canManage)
-                            <div class="flex-shrink-0 mt-0.5">
-                                <input type="checkbox"
-                                       @click="toggleItem({{ $item->id }})"
-                                       :checked="selectedItems.includes({{ $item->id }})"
-                                       class="w-4 h-4 rounded border-line text-accent cursor-pointer accent-[#D97757]">
+                    <div class="max-h-[480px] overflow-y-auto">
+                    @php
+                        $groupedItems = $backlogItems->groupBy('sprint_id');
+                        // Put null sprint_id group last
+                        $sprintGroups = collect();
+                        foreach ($groupedItems as $sprintId => $groupItems) {
+                            if ($sprintId) $sprintGroups[$sprintId] = $groupItems;
+                        }
+                        $noSprintItems = $groupedItems->get('') ?? $groupedItems->get(null) ?? collect();
+                    @endphp
+                    @foreach($sprintGroups as $sprintId => $groupItems)
+                        @php $sprintLabel = $groupItems->first()->sprint?->name ?? 'Sprint'; @endphp
+                        <div class="border-b border-hairline last:border-b-0">
+                            <div class="px-6 py-2 bg-canvas">
+                                <span class="text-[10px] font-semibold tracking-widest uppercase text-muted">{{ $sprintLabel }}</span>
                             </div>
-                            @endif
-                            <div class="flex-1 min-w-0">
-                                {{-- Title row --}}
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <span class="text-[13.5px] font-semibold text-ink">{{ $item->title }}</span>
-                                    {{-- Status badge --}}
-                                    @if($item->status === 'refined')
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#eef3fb] text-[#3a6fba]">Refined</span>
-                                    @else
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-surface text-muted">Raw</span>
-                                    @endif
-                                    {{-- Sprint tag --}}
-                                    @if($item->sprint)
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface border border-hairline text-dim">{{ $item->sprint->name }}</span>
-                                    @endif
-                                    {{-- Guide indicator --}}
-                                    @if($item->guide)
-                                        <span title="Has guide" class="text-muted">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
-                                            </svg>
-                                        </span>
-                                    @endif
-                                </div>
-                                {{-- Description preview --}}
-                                @if($item->description)
-                                    <p class="text-[12px] text-muted mt-0.5 truncate">{{ Str::limit($item->description, 100) }}</p>
-                                @endif
+                            <ul class="divide-y divide-hairline">
+                                @foreach($groupItems as $item)
+                                @include('projects._backlog_item_row', compact('item', 'canManage'))
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endforeach
+                    @if($noSprintItems->isNotEmpty())
+                        <div class="border-b border-hairline last:border-b-0">
+                            <div class="px-6 py-2 bg-canvas">
+                                <span class="text-[10px] font-semibold tracking-widest uppercase text-muted">No sprint assigned</span>
                             </div>
-
-                            {{-- Actions --}}
-                            @if($canManage)
-                            <div class="flex items-center gap-1 flex-shrink-0 mt-0.5">
-                                {{-- Edit --}}
-                                <button
-                                    @click="open({
-                                        id: {{ $item->id }},
-                                        title: {{ Js::from($item->title) }},
-                                        description: {{ Js::from($item->description) }},
-                                        guide: {{ Js::from($item->guide) }},
-                                        sprint_id: '{{ $item->sprint_id ?? '' }}'
-                                    })"
-                                    class="w-7 h-7 flex items-center justify-center rounded-lg text-muted hover:text-ink hover:bg-hairline transition-colors duration-150 cursor-pointer"
-                                    title="Edit">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/>
-                                    </svg>
-                                </button>
-                                {{-- Delete --}}
-                                <button
-                                    x-data
-                                    @click="if(confirm('Delete this backlog item? This cannot be undone.')) $refs.deleteBacklog{{ $item->id }}.submit()"
-                                    class="w-7 h-7 flex items-center justify-center rounded-lg text-muted hover:text-[#b94040] hover:bg-[#fff0f0] transition-colors duration-150 cursor-pointer"
-                                    title="Delete">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
-                                    </svg>
-                                </button>
-                                <form x-ref="deleteBacklog{{ $item->id }}"
-                                      action="{{ route('backlog.destroy', [$project, $item]) }}"
-                                      method="POST" class="hidden">
-                                    @csrf @method('DELETE')
-                                </form>
-                                {{-- Promote (only for non-promoted items) --}}
-                                @if(!$item->promoted)
-                                <button
-                                    @click="openPromote({
-                                        id: {{ $item->id }},
-                                        title: {{ Js::from($item->title) }},
-                                        description: {{ Js::from($item->description) }},
-                                        sprint_id: '{{ $item->sprint_id ?? '' }}'
-                                    })"
-                                    class="w-7 h-7 flex items-center justify-center rounded-lg text-[#2e7d55] hover:bg-[#edf7f2] transition-colors duration-150 cursor-pointer"
-                                    title="Promote to task">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18"/>
-                                    </svg>
-                                </button>
-                                @else
-                                @if($item->promotedTask)
-                                <a href="{{ route('tasks.show', $item->promotedTask) }}"
-                                   class="inline-flex items-center h-7 px-2 text-[11px] font-medium text-accent hover:underline flex-shrink-0"
-                                   title="View promoted task">
-                                    → View Task
-                                </a>
-                                @endif
-                                @endif
-                            </div>
-                            @endif
-                        </li>
-                        @endforeach
-                    </ul>
+                            <ul class="divide-y divide-hairline">
+                                @foreach($noSprintItems as $item)
+                                @include('projects._backlog_item_row', compact('item', 'canManage'))
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+                    </div>
                 @endif
 
                 {{-- Promoted items (collapsed by default) --}}
@@ -960,12 +993,23 @@
                                     </span>
                                     <h3 class="text-[15px] font-semibold text-ink">Promote to Task</h3>
                                 </div>
-                                <button @click="closePromote()"
-                                        class="w-7 h-7 flex items-center justify-center rounded-full text-muted hover:text-ink hover:bg-hairline transition-colors duration-150 cursor-pointer">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
-                                    </svg>
-                                </button>
+                                <div class="flex items-center gap-2">
+                                    <button type="button"
+                                            @click="fetchPromoteSuggestions()"
+                                            :disabled="promoteAiLoading"
+                                            class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium text-[#7c3aed] bg-[#f5f3ff] border border-[#e0d9f9] rounded-lg hover:bg-[#ede9fe] transition-colors duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" :class="promoteAiLoading ? 'animate-spin' : ''">
+                                            <path d="M12 2.25a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM18.894 6.166a.75.75 0 0 0-1.06-1.06l-1.591 1.59a.75.75 0 1 0 1.06 1.061l1.591-1.59ZM21.75 12a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5H21a.75.75 0 0 1 .75.75ZM17.834 18.894a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 1 0-1.061 1.06l1.59 1.591ZM12 18a.75.75 0 0 1 .75.75V21a.75.75 0 0 1-1.5 0v-2.25A.75.75 0 0 1 12 18ZM7.758 17.303a.75.75 0 0 0-1.061-1.06l-1.591 1.59a.75.75 0 0 0 1.06 1.061l1.592-1.59ZM6 12a.75.75 0 0 1-.75.75H3a.75.75 0 0 1 0-1.5h2.25A.75.75 0 0 1 6 12ZM6.697 7.757a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 0 0-1.061 1.06l1.59 1.591Z"/>
+                                        </svg>
+                                        <span x-text="promoteAiLoading ? 'Thinking…' : 'Ask AI'"></span>
+                                    </button>
+                                    <button @click="closePromote(); promoteAiResult = null; promoteAiError = '';"
+                                            class="w-7 h-7 flex items-center justify-center rounded-full text-muted hover:text-ink hover:bg-hairline transition-colors duration-150 cursor-pointer">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
 
                             {{-- Promote forms (one per item) --}}
@@ -1066,6 +1110,57 @@
                                                 </div>
                                             </div>
 
+                                            {{-- AI Suggestions panel --}}
+                                            <div x-show="promoteAiResult || promoteAiError" x-cloak
+                                                 class="rounded-xl border border-accent/20 bg-accent-light p-4 space-y-3">
+                                                <div class="flex items-center justify-between">
+                                                    <p class="text-[11px] font-bold uppercase tracking-[0.05em] text-accent">AI Suggests</p>
+                                                    <button type="button"
+                                                            @click="applyAiSuggestion('type', promoteAiResult.type); applyAiSuggestion('priority', promoteAiResult.priority); applyAiSuggestion('weight', promoteAiResult.weight); applyAiSuggestion('description', promoteAiResult.description)"
+                                                            x-show="promoteAiResult"
+                                                            class="text-[11px] font-semibold text-accent hover:underline cursor-pointer">
+                                                        Apply all
+                                                    </button>
+                                                </div>
+                                                <div x-show="promoteAiError" class="text-[12px] text-[#b94040]" x-text="promoteAiError"></div>
+                                                <div x-show="promoteAiResult" class="space-y-2.5">
+                                                    {{-- Type --}}
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-[12px] text-dim">Type: <span class="font-semibold text-ink capitalize" x-text="promoteAiResult?.type"></span></span>
+                                                        <button type="button" @click="applyAiSuggestion('type', promoteAiResult.type)"
+                                                                class="text-[11px] font-medium text-accent hover:underline cursor-pointer">Apply</button>
+                                                    </div>
+                                                    {{-- Priority --}}
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-[12px] text-dim">Priority: <span class="font-semibold text-ink capitalize" x-text="promoteAiResult?.priority"></span></span>
+                                                        <button type="button" @click="applyAiSuggestion('priority', promoteAiResult.priority)"
+                                                                class="text-[11px] font-medium text-accent hover:underline cursor-pointer">Apply</button>
+                                                    </div>
+                                                    {{-- Weight + reason --}}
+                                                    <div class="flex items-start justify-between gap-2">
+                                                        <div class="flex-1">
+                                                            <span class="text-[12px] text-dim">Complexity: <span class="font-semibold text-ink" x-text="promoteAiResult?.weight + '/5'"></span></span>
+                                                            <p class="text-[11px] text-muted mt-0.5 leading-relaxed" x-text="promoteAiResult?.weight_reason"></p>
+                                                        </div>
+                                                        <button type="button" @click="applyAiSuggestion('weight', promoteAiResult.weight)"
+                                                                class="text-[11px] font-medium text-accent hover:underline cursor-pointer flex-shrink-0">Apply</button>
+                                                    </div>
+                                                    {{-- Estimated hours (informational only) --}}
+                                                    <div class="flex items-center justify-between">
+                                                        <span class="text-[12px] text-dim">Est. hours: <span class="font-semibold text-ink" x-text="promoteAiResult?.estimated_hours + 'h'"></span></span>
+                                                    </div>
+                                                    {{-- Description --}}
+                                                    <div class="space-y-1">
+                                                        <div class="flex items-center justify-between">
+                                                            <span class="text-[12px] text-dim font-medium">Refined description</span>
+                                                            <button type="button" @click="applyAiSuggestion('description', promoteAiResult.description)"
+                                                                    class="text-[11px] font-medium text-accent hover:underline cursor-pointer">Apply</button>
+                                                        </div>
+                                                        <p class="text-[12px] text-ink leading-relaxed" x-text="promoteAiResult?.description"></p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
                                         </div>
                                         <div class="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-hairline bg-canvas">
                                             <button type="button" @click="closePromote()"
@@ -1088,6 +1183,234 @@
                         </div>
                     </div>
                 </template>
+
+                {{-- ── AI Planning Panel ──────────────────────────────────────────────── --}}
+                <div>
+                    <div x-show="aiPlanOpen" x-cloak
+                         class="fixed inset-0 z-[70] flex flex-col bg-white"
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0 translate-y-2"
+                         x-transition:enter-end="opacity-100 translate-y-0"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100 translate-y-0"
+                         x-transition:leave-end="opacity-0 translate-y-2">
+
+                        {{-- Panel header --}}
+                        <div class="flex items-center justify-between px-8 py-4 border-b border-hairline flex-shrink-0">
+                            <div class="flex items-center gap-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-accent" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2.25a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM18.894 6.166a.75.75 0 0 0-1.06-1.06l-1.591 1.59a.75.75 0 1 0 1.06 1.061l1.591-1.59ZM21.75 12a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5H21a.75.75 0 0 1 .75.75ZM17.834 18.894a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 1 0-1.061 1.06l1.59 1.591ZM12 18a.75.75 0 0 1 .75.75V21a.75.75 0 0 1-1.5 0v-2.25A.75.75 0 0 1 12 18ZM7.758 17.303a.75.75 0 0 0-1.061-1.06l-1.591 1.59a.75.75 0 0 0 1.06 1.061l1.592-1.59ZM6 12a.75.75 0 0 1-.75.75H3a.75.75 0 0 1 0-1.5h2.25A.75.75 0 0 1 6 12ZM6.697 7.757a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 0 0-1.061 1.06l1.59 1.591Z"/>
+                                </svg>
+                                <h2 class="text-[16px] font-semibold text-ink">Plan with AI</h2>
+                                {{-- Step indicator --}}
+                                <div class="flex items-center gap-1.5 ml-2">
+                                    <span class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors duration-200"
+                                          :class="planStep >= 1 ? 'bg-accent text-white' : 'bg-surface text-muted'">1</span>
+                                    <span class="w-8 h-px" :class="planStep >= 2 ? 'bg-accent' : 'bg-hairline'"></span>
+                                    <span class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors duration-200"
+                                          :class="planStep >= 2 ? 'bg-accent text-white' : 'bg-surface text-muted'">2</span>
+                                </div>
+                            </div>
+                            <button @click="aiPlanOpen = false"
+                                    class="w-8 h-8 flex items-center justify-center rounded-full text-muted hover:text-ink hover:bg-hairline transition-colors duration-150 cursor-pointer">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+
+                        {{-- Step 1: Input --}}
+                        <div x-show="planStep === 1" class="flex-1 overflow-y-auto">
+                            <div class="max-w-3xl mx-auto px-8 py-8 space-y-6">
+                                <div>
+                                    <p class="text-[14px] text-muted mb-6">Describe what you want to build — paste rough notes, feature ideas, or requirements. The AI will organize them into a structured sprint plan.</p>
+
+                                    {{-- Tabs --}}
+                                    <div class="flex gap-0 border-b border-hairline mb-5">
+                                        <button type="button"
+                                                @click="planTab = 'paste'"
+                                                :class="planTab === 'paste' ? 'border-b-2 border-accent text-accent font-semibold' : 'text-muted hover:text-dim'"
+                                                class="px-4 py-2 text-[13px] -mb-px transition-colors duration-150 cursor-pointer">
+                                            Paste Notes
+                                        </button>
+                                        @if($backlogItems->count() > 0)
+                                        <button type="button"
+                                                @click="planTab = 'backlog'"
+                                                :class="planTab === 'backlog' ? 'border-b-2 border-accent text-accent font-semibold' : 'text-muted hover:text-dim'"
+                                                class="px-4 py-2 text-[13px] -mb-px transition-colors duration-150 cursor-pointer">
+                                            From Backlog
+                                            @if($backlogItems->count() > 0)
+                                            <span class="ml-1 px-1.5 py-0.5 text-[10px] bg-surface border border-hairline rounded-full text-muted">{{ $backlogItems->count() }}</span>
+                                            @endif
+                                        </button>
+                                        @endif
+                                    </div>
+
+                                    {{-- Paste notes tab --}}
+                                    <div x-show="planTab === 'paste'">
+                                        <textarea x-model="planNotes"
+                                                  placeholder="e.g. We need to build a customer notification system. Users should be able to subscribe to email and SMS alerts. Admins can trigger bulk notifications. We also need a preference center. Later, add push notifications for mobile..."
+                                                  rows="16"
+                                                  class="w-full px-4 py-3 text-[14px] text-ink bg-surface border border-line rounded-xl placeholder:text-muted placeholder:text-[13px] focus:bg-white focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15 transition-all duration-150 resize-none font-mono leading-relaxed"></textarea>
+                                        <p class="text-[12px] text-muted mt-2">Be as detailed or rough as you like. The AI will do the heavy lifting.</p>
+                                    </div>
+
+                                    {{-- From backlog tab --}}
+                                    @if($backlogItems->count() > 0)
+                                    <div x-show="planTab === 'backlog'" class="space-y-2">
+                                        <p class="text-[12px] text-muted mb-3">Select backlog items to include in the AI plan:</p>
+                                        @foreach($backlogItems as $item)
+                                        <label class="flex items-start gap-3 p-3 rounded-lg border border-line hover:border-accent hover:bg-accent-light transition-colors duration-150 cursor-pointer"
+                                               :class="planSelectedItems.includes({{ $item->id }}) ? 'border-accent bg-accent-light' : ''">
+                                            <input type="checkbox"
+                                                   @click="togglePlanItem({{ $item->id }})"
+                                                   :checked="planSelectedItems.includes({{ $item->id }})"
+                                                   class="mt-0.5 w-4 h-4 rounded border-line cursor-pointer accent-[#D97757]">
+                                            <div>
+                                                <p class="text-[13px] font-medium text-ink">{{ $item->title }}</p>
+                                                @if($item->description)
+                                                <p class="text-[12px] text-muted mt-0.5">{{ Str::limit($item->description, 120) }}</p>
+                                                @endif
+                                            </div>
+                                        </label>
+                                        @endforeach
+                                    </div>
+                                    @endif
+
+                                    {{-- Error --}}
+                                    <div x-show="planError" class="mt-4 flex items-center gap-2 text-[13px] text-[#b94040] bg-[#fff5f5] border border-[#f5c6c6] rounded-lg px-4 py-3">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/>
+                                        </svg>
+                                        <span x-text="planError"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Step 2: Review --}}
+                        <div x-show="planStep === 2" class="flex-1 overflow-y-auto">
+                            <div class="max-w-4xl mx-auto px-8 py-8">
+                                <div class="flex items-center justify-between mb-6">
+                                    <div>
+                                        <h3 class="text-[15px] font-semibold text-ink">Review your plan</h3>
+                                        <p class="text-[13px] text-muted mt-0.5">Edit sprint names, remove items, or reorganize before creating.</p>
+                                    </div>
+                                    <button type="button" @click="addSprint()"
+                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-ink bg-surface border border-line rounded-lg hover:bg-hairline transition-colors duration-150 cursor-pointer">
+                                        + Add sprint
+                                    </button>
+                                </div>
+
+                                <div class="space-y-5">
+                                    <template x-for="(sprint, sIdx) in planResult?.sprints ?? []" :key="sIdx">
+                                        <div class="border border-line rounded-xl overflow-hidden">
+                                            {{-- Sprint header --}}
+                                            <div class="flex items-center gap-3 px-5 py-3.5 bg-canvas border-b border-hairline">
+                                                <input type="text" x-model="sprint.name"
+                                                       class="flex-1 text-[14px] font-semibold text-ink bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-muted"
+                                                       placeholder="Sprint name">
+                                                <button type="button" @click="removeSprint(sIdx)"
+                                                        title="Remove sprint"
+                                                        class="w-6 h-6 flex items-center justify-center rounded text-muted hover:text-[#b94040] hover:bg-[#fff0f0] transition-colors duration-150 cursor-pointer flex-shrink-0">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            <div x-show="sprint.rationale" class="px-5 py-2 text-[12px] text-muted bg-canvas border-b border-hairline" x-text="sprint.rationale"></div>
+                                            {{-- Items --}}
+                                            <ul class="divide-y divide-hairline">
+                                                <template x-for="(item, iIdx) in sprint.items" :key="iIdx">
+                                                    <li class="flex items-start gap-3 px-5 py-3">
+                                                        <div class="flex-1 min-w-0">
+                                                            <input type="text" x-model="item.title"
+                                                                   class="w-full text-[13px] font-medium text-ink bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-muted"
+                                                                   placeholder="Item title">
+                                                            <p class="text-[12px] text-muted mt-0.5 truncate" x-text="item.description"></p>
+                                                        </div>
+                                                        <div class="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+                                                            <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                                                                  :class="{
+                                                                      'bg-[#eef3fb] text-[#3a6fba]': item.type === 'feature',
+                                                                      'bg-[#fff0f0] text-[#b94040]': item.type === 'bug',
+                                                                      'bg-surface text-muted': item.type === 'change'
+                                                                  }"
+                                                                  x-text="item.type"></span>
+                                                            <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-canvas border border-hairline text-dim"
+                                                                  x-text="'W' + (item.weight ?? 3)"></span>
+                                                            {{-- Move to sprint --}}
+                                                            <template x-if="planResult.sprints.length > 1">
+                                                                <select @change="moveItem(sIdx, iIdx, parseInt($event.target.value)); $event.target.value = ''"
+                                                                        class="text-[11px] text-muted bg-surface border border-hairline rounded px-1.5 py-0.5 cursor-pointer focus:outline-none focus:border-accent">
+                                                                    <option value="" disabled selected>Move →</option>
+                                                                    <template x-for="(s2, s2Idx) in planResult.sprints" :key="s2Idx">
+                                                                        <option :value="s2Idx" x-text="s2.name" :disabled="s2Idx === sIdx"></option>
+                                                                    </template>
+                                                                </select>
+                                                            </template>
+                                                            <button type="button" @click="removeItem(sIdx, iIdx)"
+                                                                    class="w-5 h-5 flex items-center justify-center rounded text-muted hover:text-[#b94040] hover:bg-[#fff0f0] transition-colors duration-150 cursor-pointer">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </li>
+                                                </template>
+                                                <li x-show="sprint.items.length === 0" class="px-5 py-3 text-[12px] text-muted italic">No items in this sprint.</li>
+                                            </ul>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Panel footer --}}
+                        <div class="flex items-center justify-between px-8 py-4 border-t border-hairline bg-canvas flex-shrink-0">
+                            <button type="button"
+                                    @click="planStep > 1 ? planStep-- : (aiPlanOpen = false)"
+                                    class="px-4 py-2 text-[13px] font-medium text-ink bg-surface border border-line rounded-lg hover:bg-hairline transition-colors duration-150 cursor-pointer">
+                                <span x-text="planStep > 1 ? '← Back' : 'Cancel'"></span>
+                            </button>
+
+                            {{-- Step 1 footer: Analyze button --}}
+                            <div x-show="planStep === 1">
+                                <button type="button"
+                                        @click="analyzePlan()"
+                                        :disabled="planLoading"
+                                        class="inline-flex items-center gap-2 px-5 py-2 text-[13px] font-medium text-white bg-accent hover:bg-accent-hover rounded-lg transition-colors duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                                    <svg x-show="planLoading" class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                    </svg>
+                                    <span x-text="planLoading ? 'Analyzing…' : 'Analyze with AI →'"></span>
+                                </button>
+                            </div>
+
+                            {{-- Step 2 footer: Confirm button --}}
+                            <div x-show="planStep === 2">
+                                <form method="POST" action="{{ route('ai.plan.confirm', $project) }}" x-ref="confirmPlanForm">
+                                    @csrf
+                                    <input type="hidden" name="raw_input" :value="planRawInput">
+                                    <input type="hidden" name="sprints" :value="JSON.stringify(planResult?.sprints ?? [])">
+                                    <button type="button"
+                                            @click="
+                                                $refs.confirmPlanForm.querySelector('[name=sprints]').value = JSON.stringify(planResult?.sprints ?? []);
+                                                $refs.confirmPlanForm.submit();
+                                            "
+                                            :disabled="!planResult?.sprints?.length"
+                                            class="inline-flex items-center gap-2 px-5 py-2 text-[13px] font-medium text-white bg-accent hover:bg-accent-hover rounded-lg transition-colors duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
+                                        </svg>
+                                        Create everything
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
             </div>
             @endif
