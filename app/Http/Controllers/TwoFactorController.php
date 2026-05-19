@@ -12,7 +12,7 @@ class TwoFactorController extends Controller
 {
     private function tfa(): TwoFactorAuth
     {
-        return new TwoFactorAuth(new BaconQrCodeProvider('svg'), config('app.name'));
+        return new TwoFactorAuth(new BaconQrCodeProvider(4, '#ffffff', '#000000', 'svg'), config('app.name'));
     }
 
     // ── Setup: show QR + manual entry ─────────────────────────────────────────

@@ -171,7 +171,7 @@ class LoginController extends Controller
         $verified = false;
 
         if ($mode === 'totp' && $user->isTwoFactorEnabled()) {
-            $tfa = new \RobThree\Auth\TwoFactorAuth(new \RobThree\Auth\Providers\Qr\BaconQrCodeProvider('svg'), config('app.name'));
+            $tfa = new \RobThree\Auth\TwoFactorAuth(new \RobThree\Auth\Providers\Qr\BaconQrCodeProvider(4, '#ffffff', '#000000', 'svg'), config('app.name'));
             $cleanCode = preg_replace('/\D/', '', $code);
             $verified = $tfa->verifyCode($user->twoFactor->secret, $cleanCode, 4);
         } elseif ($mode === 'recovery' && $user->isTwoFactorEnabled()) {
