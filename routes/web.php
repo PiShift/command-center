@@ -68,6 +68,7 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::post('/profile/2fa/enable',            [TwoFactorController::class, 'enable'])->name('2fa.enable');
     Route::post('/profile/2fa/disable',           [TwoFactorController::class, 'disable'])->name('2fa.disable');
     Route::post('/profile/2fa/regenerate-codes',  [TwoFactorController::class, 'regenerateCodes'])->name('2fa.regenerate-codes');
+    Route::get('/profile/2fa/debug',              [TwoFactorController::class, 'debug'])->name('2fa.debug');
 
     // Projects
     Route::resource('projects', ProjectController::class)->names('projects');

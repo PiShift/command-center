@@ -124,4 +124,29 @@ class TwoFactorController extends Controller
 
         return view('profile.2fa-recovery', ['codes' => $plainCodes]);
     }
+
+    // ── Temporary diagnostic (remove after debugging) ─────────────────────────
+
+    public function debug(Request $request)
+    {
+        $tfa    = $this->tfa();
+        $user   = $request->user();
+        $tf     = $user->twoFactor;
+        $output = [];
+
+        $output['server_time']     = now()->toDateTimeString();
+        $output['server_timezone'] = config('app.timezone');
+        $output['unix_timestamp']  = time();
+
+        if ($tf && $tf->enabled) {
+            $secret = $tf->secret; // model decrypts automatically
+            $output['stored_secret_length'] = strlen($secret);
+            $output['current_code']         = $tfa->getCode($secret);
+            $output['verify_self']          = $tfa->verifyCode($secret, $tfa->getCode($secret), 4) ? 'PASS' : 'FAIL';
+        } else {
+            $output['totp'] = '2FA not enabled for this user';
+        }
+
+        return response()->json($output);
+    }
 }
