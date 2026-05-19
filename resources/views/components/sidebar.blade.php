@@ -33,6 +33,9 @@
     if ($user->hasPermission('roles.view')) {
         $nav[] = ['route' => 'roles.index', 'label' => 'Roles', 'icon' => 'shield'];
     }
+    if ($user->hasPermission('expenses.view')) {
+        $nav[] = ['route' => 'expenses.monthly-overview', 'label' => 'Expenses', 'icon' => 'wallet'];
+    }
     $projects = \App\Models\Project::orderBy('name')->get(['id', 'name', 'color']);
 @endphp
 
@@ -201,6 +204,9 @@
         <p class="sidebar-group-label text-[10px] font-semibold uppercase tracking-wider text-muted px-2 pb-1 pt-2">Workspace</p>
 
         @foreach ($nav as $item)
+            @if(!empty($item['_group']))
+                <p class="sidebar-group-label text-[10px] font-semibold uppercase tracking-wider text-muted px-2 pb-1 pt-3">{{ $item['_group'] }}</p>
+            @else
             <a href="{{ route($item['route']) }}"
                @mouseenter="$store.sidebarTip.open($el, '{{ $item['label'] }}')"
                @mouseleave="$store.sidebarTip.close()"
@@ -211,6 +217,7 @@
                     <span class="sidebar-badge text-[10px] font-semibold px-1.5 py-0.5 rounded-full text-white" style="background:var(--color-accent)">{{ $item['badge'] }}</span>
                 @endif
             </a>
+            @endif
         @endforeach
 
         {{-- Projects section --}}

@@ -36,6 +36,7 @@ class RoleSeeder extends Seeder
                 'payments.view',
                 'teams.view', 'teams.manage',
                 'roles.view',
+                'expenses.view', 'expenses.create', 'expenses.confirm', 'expenses.manage',
             ])->pluck('id')
         );
 

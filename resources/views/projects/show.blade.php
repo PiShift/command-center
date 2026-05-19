@@ -1573,12 +1573,6 @@
                     <h2 class="text-[13px] font-semibold text-ink">Project Details</h2>
                 </div>
                 <dl class="divide-y divide-hairline">
-                    @if($canManage)
-                    <div class="px-5 py-3">
-                        <dt class="text-[11px] font-bold uppercase tracking-wider text-muted mb-0.5">Budget</dt>
-                        <dd class="text-[13px] text-ink">{{ $project->budget ? number_format($project->budget, 2) . ' MRU' : '—' }}</dd>
-                    </div>
-                    @endif
                     <div class="px-5 py-3">
                         <dt class="text-[11px] font-bold uppercase tracking-wider text-muted mb-0.5">Start Date</dt>
                         <dd class="text-[13px] text-ink">{{ $project->start_date?->format('M d, Y') ?? '—' }}</dd>

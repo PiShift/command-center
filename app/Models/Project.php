@@ -20,14 +20,12 @@ class Project extends Model
         'status',
         'start_date',
         'deadline',
-        'budget',
         'health',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'deadline'   => 'date',
-        'budget'     => 'decimal:2',
     ];
 
     public function customer(): BelongsTo

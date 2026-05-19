@@ -21,6 +21,10 @@ use App\Http\Controllers\AiController;
 use App\Http\Controllers\TaskAttachmentController;
 use App\Http\Controllers\TaskCommentAttachmentController;
 use App\Http\Controllers\TaskCommentController;
+use App\Http\Controllers\ExpenseCategoryController;
+use App\Http\Controllers\RecurringChargeController;
+use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\MonthlyBudgetController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -125,4 +129,19 @@ Route::middleware('auth')->group(function () {
     // Comments (show page + modal AJAX)
     Route::post('tasks/{task}/comments',           [TaskCommentController::class, 'store'])->name('task-comments.store');
     Route::delete('tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy'])->name('task-comments.destroy');
+
+    // Expense Management
+    Route::resource('expense-categories', ExpenseCategoryController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::resource('recurring-charges', RecurringChargeController::class);
+    // Named routes with conflicts must come before resource (monthlyOverview, bulk, generateDrafts)
+    Route::get('/expenses/monthly-overview',    [ExpenseController::class, 'monthlyOverview'])->name('expenses.monthly-overview');
+    Route::post('/expenses/bulk-confirm',       [ExpenseController::class, 'bulkConfirm'])->name('expenses.bulk-confirm');
+    Route::post('/expenses/generate-drafts',    [ExpenseController::class, 'generateDrafts'])->name('expenses.generate-drafts');
+    Route::resource('expenses', ExpenseController::class);
+    Route::patch('/expenses/{expense}/confirm', [ExpenseController::class, 'confirm'])->name('expenses.confirm');
+
+    // Monthly Budgets
+    Route::get('/monthly-budgets',              [MonthlyBudgetController::class, 'index'])->name('monthly-budgets.index');
+    Route::post('/monthly-budgets',             [MonthlyBudgetController::class, 'store'])->name('monthly-budgets.store');
+    Route::delete('/monthly-budgets/{budget}',  [MonthlyBudgetController::class, 'destroy'])->name('monthly-budgets.destroy');
 });

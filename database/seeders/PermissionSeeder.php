@@ -64,6 +64,12 @@ class PermissionSeeder extends Seeder
         ['roles.create',        'Create roles',         'Roles',     'Define new roles',                                        'roles.view'],
         ['roles.edit',          'Edit roles',           'Roles',     'Modify role names and assigned permissions',              'roles.view'],
         ['roles.delete',        'Delete roles',         'Roles',     'Remove role definitions',                                 'roles.edit'],
+
+        // ── Expenses ───────────────────────────────────────────────────────
+        ['expenses.view',       'View expenses',        'Expenses',  'View expense list, monthly overview, recurring charges',  null],
+        ['expenses.create',     'Create expenses',      'Expenses',  'Create manual expense records',                           'expenses.view'],
+        ['expenses.confirm',    'Confirm expenses',     'Expenses',  'Confirm draft expenses and bulk confirm',                 'expenses.view'],
+        ['expenses.manage',     'Manage expenses',      'Expenses',  'Manage recurring charges, monthly budgets, categories, delete expenses', 'expenses.confirm'],
     ];
 
     public function run(): void

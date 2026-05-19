@@ -102,13 +102,6 @@
                            class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
 
-                {{-- Budget --}}
-                <div>
-                    <label class="block text-[12px] font-medium text-dim mb-1">Budget</label>
-                    <input type="number" name="budget" value="{{ old('budget', $project->budget ?? '') }}" min="0" step="0.01"
-                           class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
-                </div>
-
                 {{-- Description --}}
                 <div class="col-span-2">
                     <label class="block text-[12px] font-medium text-dim mb-1">Description</label>
