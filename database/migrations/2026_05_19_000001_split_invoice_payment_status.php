@@ -9,12 +9,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // 1. Add the new payment_status column
-        Schema::table('invoices', function (Blueprint $table) {
-            $table->enum('payment_status', ['unpaid', 'partially_paid', 'paid'])
-                  ->default('unpaid')
-                  ->after('amount_paid');
-        });
+        // 1. Add the new payment_status column (idempotent — safe to re-run)
+        if (! Schema::hasColumn('invoices', 'payment_status')) {
+            Schema::table('invoices', function (Blueprint $table) {
+                $table->enum('payment_status', ['unpaid', 'partially_paid', 'paid'])
+                      ->default('unpaid')
+                      ->after('amount_paid');
+            });
+        }
 
         // 2. Derive payment_status from old combined status
         DB::statement("
