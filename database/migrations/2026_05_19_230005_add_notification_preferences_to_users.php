@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->json('notification_preferences')
-                  ->default(json_encode(['email_enabled' => true]))
+                  ->nullable()
                   ->after('remember_token');
         });
     }
