@@ -2,30 +2,19 @@
 
 namespace App\Notifications\Helpers;
 
-use App\Models\Setting;
-
 class SlackNotificationHelper
 {
     public static function isEnabled(): bool
     {
-        $dbEnabled = Setting::get('slack_enabled');
-
-        if ($dbEnabled !== null) {
-            $enabled = filter_var($dbEnabled, FILTER_VALIDATE_BOOLEAN);
-        } else {
-            $enabled = config('services.slack.enabled', false);
-        }
-
-        if (! $enabled) {
+        if (! config('services.slack.enabled', false)) {
             return false;
         }
 
-        $webhookUrl = Setting::get('slack_webhook_url') ?? config('services.slack.webhook_url');
-        return ! empty($webhookUrl);
+        return ! empty(config('services.slack.webhook_url'));
     }
 
     public static function webhookUrl(): ?string
     {
-        return Setting::get('slack_webhook_url') ?? config('services.slack.webhook_url');
+        return config('services.slack.webhook_url') ?: null;
     }
 }

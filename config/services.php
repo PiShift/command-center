@@ -34,7 +34,7 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
         'webhook_url' => env('SLACK_WEBHOOK_URL'),
-        'enabled'     => (bool) env('SLACK_NOTIFICATIONS_ENABLED', false),
+        'enabled'     => (bool) env('SLACK_NOTIFICATIONS_ENABLED', true),
     ],
 
 ];

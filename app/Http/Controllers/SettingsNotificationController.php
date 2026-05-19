@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Setting;
 use Illuminate\Http\Request;
 
 class SettingsNotificationController extends Controller
@@ -12,8 +11,8 @@ class SettingsNotificationController extends Controller
         abort_unless(auth()->user()->hasPermission('settings.manage'), 403);
 
         return view('settings.notifications', [
-            'slackWebhookUrl' => Setting::get('slack_webhook_url', ''),
-            'slackEnabled'    => (bool) Setting::get('slack_enabled', false),
+            'slackWebhookConfigured' => ! empty(config('services.slack.webhook_url')),
+            'slackEnabled'           => config('services.slack.enabled', false),
         ]);
     }
 
@@ -21,15 +20,8 @@ class SettingsNotificationController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('settings.manage'), 403);
 
-        $data = $request->validate([
-            'slack_webhook_url' => 'nullable|url|max:500',
-            'slack_enabled'     => 'boolean',
-        ]);
-
-        Setting::set('slack_webhook_url', $data['slack_webhook_url'] ?? '');
-        Setting::set('slack_enabled', $request->boolean('slack_enabled') ? '1' : '0');
-
-        return back()->with('success', 'Notification settings saved.');
+        // Slack is configured via environment variables — nothing to save here yet.
+        return back()->with('success', 'Settings saved.');
     }
 
     public function testSlack()
