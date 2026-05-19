@@ -15,35 +15,34 @@ class TwoFactorController extends Controller
         return new TwoFactorAuth(new BaconQrCodeProvider(4, '#ffffff', '#000000', 'svg'), config('app.name'));
     }
 
-    // ── Setup: show QR + manual entry ─────────────────────────────────────────
+    // ── Setup: generate + store secret immediately, show QR ──────────────────
 
     public function setup(Request $request)
     {
-        $tfa = $this->tfa();
+        $tfa  = $this->tfa();
+        $user = $request->user();
 
-        // If returning from a failed verify, reuse the same secret so the QR stays valid
-        $secret = null;
-        if ($request->old('encrypted_secret')) {
-            try {
-                $secret = decrypt($request->old('encrypted_secret'));
-            } catch (\Exception) {}
+        // Reuse existing pending secret (enabled=false) so the QR stays stable
+        // across page refreshes or failed verifications
+        $tf = UserTwoFactor::firstOrNew(['user_id' => $user->id]);
+
+        if (!$tf->exists || $tf->enabled) {
+            // Fresh setup or re-setup after having 2FA enabled previously
+            $tf->user_id = $user->id;
+            $tf->secret  = $tfa->createSecret();
+            $tf->enabled = false;
+            $tf->save();
         }
 
-        if (!$secret) {
-            $secret = $tfa->createSecret();
-        }
-
-        $user       = $request->user();
-        $qrDataUri  = $tfa->getQRCodeImageAsDataUri($user->email, $secret, 200);
+        $qrDataUri = $tfa->getQRCodeImageAsDataUri($user->email, $tf->secret, 200);
 
         return view('profile.2fa-setup', [
-            'qrDataUri'       => $qrDataUri,
-            'secret'          => $secret,
-            'encryptedSecret' => encrypt($secret),
+            'qrDataUri' => $qrDataUri,
+            'secret'    => $tf->secret,
         ]);
     }
 
-    // ── Enable: validate confirmation code and save ───────────────────────────
+    // ── Enable: verify code against DB-stored secret ──────────────────────────
 
     public function enable(Request $request)
     {
@@ -53,24 +52,21 @@ class TwoFactorController extends Controller
             return back()->withErrors(['code' => 'Please enter the 6-digit code from your authenticator app.']);
         }
 
-        try {
-            $secret = decrypt($request->input('encrypted_secret', ''));
-        } catch (\Exception) {
-            return redirect()->route('2fa.setup')->withErrors(['code' => 'Session expired. Please restart setup.']);
+        $user = $request->user();
+        $tf   = UserTwoFactor::where('user_id', $user->id)->first();
+
+        if (!$tf || !$tf->secret) {
+            return redirect()->route('2fa.setup')->withErrors(['code' => 'Setup session expired. Please scan the QR code again.']);
         }
 
         $tfa = $this->tfa();
-        if (!$tfa->verifyCode($secret, $code, 4)) {
-            return back()
-                ->withInput(['encrypted_secret' => $request->input('encrypted_secret')])
-                ->withErrors(['code' => 'Invalid code. Please try again.']);
+
+        if (!$tfa->verifyCode($tf->secret, $code, 8)) {
+            return back()->withErrors(['code' => 'Invalid code. Please try again.']);
         }
 
-        $user = $request->user();
-        $tf = UserTwoFactor::updateOrCreate(
-            ['user_id' => $user->id],
-            ['secret' => $secret, 'enabled' => true],
-        );
+        $tf->enabled = true;
+        $tf->save();
 
         $plainCodes = $tf->generateRecoveryCodes();
 
@@ -131,20 +127,31 @@ class TwoFactorController extends Controller
     {
         $tfa    = $this->tfa();
         $user   = $request->user();
-        $tf     = $user->twoFactor;
+        $tf     = UserTwoFactor::where('user_id', $user->id)->first();
         $output = [];
 
-        $output['server_time']     = now()->toDateTimeString();
-        $output['server_timezone'] = config('app.timezone');
-        $output['unix_timestamp']  = time();
+        $output['server_time']         = now()->toDateTimeString();
+        $output['server_timezone']      = config('app.timezone');
+        $output['unix_timestamp']       = time();
+        $output['seconds_into_period']  = time() % 30;
+        $output['seconds_remaining']    = 30 - (time() % 30);
 
-        if ($tf && $tf->enabled) {
-            $secret = $tf->secret; // model decrypts automatically
-            $output['stored_secret_length'] = strlen($secret);
-            $output['current_code']         = $tfa->getCode($secret);
-            $output['verify_self']          = $tfa->verifyCode($secret, $tfa->getCode($secret), 4) ? 'PASS' : 'FAIL';
+        if ($tf && $tf->secret) {
+            $secret = $tf->secret;
+            $output['secret_source']  = $tf->enabled ? 'DB (enabled)' : 'DB (pending setup)';
+            $output['secret_length']  = strlen($secret);
+            $output['current_code']   = $tfa->getCode($secret);
+            $output['verify_self']    = $tfa->verifyCode($secret, $tfa->getCode($secret), 8) ? 'PASS' : 'FAIL';
+
+            $now    = time();
+            $window = [];
+            for ($i = -2; $i <= 2; $i++) {
+                $period   = (int)(($now + $i * 30) / 30);
+                $window[] = ['offset' => ($i * 30) . 's', 'code' => $tfa->getCode($secret, $period)];
+            }
+            $output['code_window'] = $window;
         } else {
-            $output['totp'] = '2FA not enabled for this user';
+            $output['hint'] = 'No secret found. Go to /profile/2fa/setup first.';
         }
 
         return response()->json($output);
