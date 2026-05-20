@@ -12,11 +12,11 @@
 
         <div class="flex flex-col gap-3">
             <div class="flex items-center gap-3 p-3 rounded-lg" style="background:#F5F4EF">
-                <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:{{ $slackWebhookConfigured ? '#22a559' : '#e5e4df' }}"></div>
+                <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:{{ $slackConfigured ? '#22a559' : '#e5e4df' }}"></div>
                 <div>
-                    <p style="font-size:13px;font-weight:500;color:#141413;margin:0">Webhook URL</p>
+                    <p style="font-size:13px;font-weight:500;color:#141413;margin:0">Bot Token</p>
                     <p style="font-size:12px;color:#5c5c5a;margin:1px 0 0">
-                        {{ $slackWebhookConfigured ? 'Configured via SLACK_WEBHOOK_URL' : 'Not set — add SLACK_WEBHOOK_URL to your .env' }}
+                        {{ $slackConfigured ? 'Configured via SLACK_BOT_TOKEN' : 'Not set — add SLACK_BOT_TOKEN to your .env' }}
                     </p>
                 </div>
             </div>
@@ -31,11 +31,11 @@
             </div>
         </div>
 
-        @if($slackWebhookConfigured)
+        @if($slackConfigured)
         <hr style="border:none;border-top:1px solid #e5e4df;margin:20px 0">
         <div>
             <p style="font-size:13px;font-weight:600;color:#141413;margin-bottom:8px">Test Connection</p>
-            <p style="font-size:13px;color:#5c5c5a;margin-bottom:12px">Send a test message to verify your Slack webhook is working.</p>
+            <p style="font-size:13px;color:#5c5c5a;margin-bottom:12px">Send a test message to verify your Slack bot token is working.</p>
             <form method="POST" action="{{ route('settings.notifications.test-slack') }}">
                 @csrf
                 <button type="submit"

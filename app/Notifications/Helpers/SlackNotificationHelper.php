@@ -20,7 +20,7 @@ class SlackNotificationHelper
 
     public static function defaultChannel(): string
     {
-        return config('services.slack.default_channel', '#general');
+        return config('services.slack.default_channel') ?: '#general';
     }
 }
 
