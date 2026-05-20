@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Notifications\Slack\SlackRoute;
 
 class User extends Authenticatable
 {
@@ -25,6 +26,18 @@ class User extends Authenticatable
         'initials',
         'notification_preferences',
     ];
+
+    public function routeNotificationForSlack($notification): SlackRoute
+    {
+        if (method_exists($notification, 'routeNotificationForSlack')) {
+            return $notification->routeNotificationForSlack();
+        }
+
+        return SlackRoute::make(
+            \App\Notifications\Helpers\SlackNotificationHelper::defaultChannel(),
+            \App\Notifications\Helpers\SlackNotificationHelper::botToken(),
+        );
+    }
 
     public function tasks(): HasMany
     {
