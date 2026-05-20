@@ -28,7 +28,7 @@ class SlackNotificationHelper
         }
 
         try {
-            Http::post(self::webhookUrl(), ['json' => ['text' => $message]]);
+            Http::withJson(['text' => $message])->post(self::webhookUrl());
         } catch (\Throwable $e) {
             Log::error('Slack notification failed', ['error' => $e->getMessage()]);
         }
