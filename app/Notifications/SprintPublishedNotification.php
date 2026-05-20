@@ -8,7 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackMessage;
 use Illuminate\Notifications\Slack\SlackRoute;
 
 class SprintPublishedNotification extends Notification implements ShouldQueue
@@ -61,7 +61,7 @@ class SprintPublishedNotification extends Notification implements ShouldQueue
     public function toSlack(object $notifiable): SlackMessage
     {
         return (new SlackMessage)
-            ->content("🚀 Sprint *{$this->sprint->name}* is now active on _{$this->sprint->project?->name}_ — *{$this->taskCount}* tasks available");
+            ->text("🚀 Sprint *{$this->sprint->name}* is now active on _{$this->sprint->project?->name}_ — *{$this->taskCount}* tasks available");
     }
 
     public function routeNotificationForSlack(): SlackRoute

@@ -7,7 +7,7 @@ use App\Notifications\Helpers\SlackNotificationHelper;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackMessage;
 use Illuminate\Notifications\Slack\SlackRoute;
 
 class TaskChecklistCompletedNotification extends Notification implements ShouldQueue
@@ -44,7 +44,7 @@ class TaskChecklistCompletedNotification extends Notification implements ShouldQ
     public function toSlack(object $notifiable): SlackMessage
     {
         return (new SlackMessage)
-            ->content("✅ *{$notifiable->name}* completed all checklist items on *{$this->task->title}*");
+            ->text("✅ *{$notifiable->name}* completed all checklist items on *{$this->task->title}*");
     }
 
     public function routeNotificationForSlack(): SlackRoute

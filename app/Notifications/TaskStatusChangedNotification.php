@@ -9,7 +9,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackMessage;
 use Illuminate\Notifications\Slack\SlackRoute;
 
 class TaskStatusChangedNotification extends Notification implements ShouldQueue
@@ -66,7 +66,7 @@ class TaskStatusChangedNotification extends Notification implements ShouldQueue
     public function toSlack(object $notifiable): SlackMessage
     {
         return (new SlackMessage)
-            ->content("🔄 *{$this->task->title}* moved from _{$this->oldStatus}_ to _{$this->newStatus}_ by *{$this->changer->name}*");
+            ->text("🔄 *{$this->task->title}* moved from _{$this->oldStatus}_ to _{$this->newStatus}_ by *{$this->changer->name}*");
     }
 
     public function routeNotificationForSlack(): SlackRoute

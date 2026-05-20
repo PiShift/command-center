@@ -8,7 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackMessage;
 use Illuminate\Notifications\Slack\SlackRoute;
 
 class TeamLeadAssignedNotification extends Notification implements ShouldQueue
@@ -59,7 +59,7 @@ class TeamLeadAssignedNotification extends Notification implements ShouldQueue
     public function toSlack(object $notifiable): SlackMessage
     {
         return (new SlackMessage)
-            ->content("⭐ *{$notifiable->name}* is now the lead of *{$this->team->name}*");
+            ->text("⭐ *{$notifiable->name}* is now the lead of *{$this->team->name}*");
     }
 
     public function routeNotificationForSlack(): SlackRoute

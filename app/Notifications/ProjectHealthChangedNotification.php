@@ -8,7 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackMessage;
 use Illuminate\Notifications\Slack\SlackRoute;
 
 class ProjectHealthChangedNotification extends Notification implements ShouldQueue
@@ -61,7 +61,7 @@ class ProjectHealthChangedNotification extends Notification implements ShouldQue
     public function toSlack(object $notifiable): SlackMessage
     {
         return (new SlackMessage)
-            ->content("🔴 *{$this->project->name}* health changed to *{$this->health}*");
+            ->text("🔴 *{$this->project->name}* health changed to *{$this->health}*");
     }
 
     public function routeNotificationForSlack(): SlackRoute

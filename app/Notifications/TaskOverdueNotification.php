@@ -8,7 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackMessage;
 use Illuminate\Notifications\Slack\SlackRoute;
 
 class TaskOverdueNotification extends Notification implements ShouldQueue
@@ -61,7 +61,7 @@ class TaskOverdueNotification extends Notification implements ShouldQueue
     public function toSlack(object $notifiable): SlackMessage
     {
         return (new SlackMessage)
-            ->content("⚠️ *{$this->task->title}* is *{$this->daysOverdue} day(s) overdue* — assigned to *{$notifiable->name}* on _{$this->task->project?->name}_");
+            ->text("⚠️ *{$this->task->title}* is *{$this->daysOverdue} day(s) overdue* — assigned to *{$notifiable->name}* on _{$this->task->project?->name}_");
     }
 
     public function routeNotificationForSlack(): SlackRoute

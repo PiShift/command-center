@@ -7,7 +7,7 @@ use App\Notifications\Helpers\SlackNotificationHelper;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackMessage;
 use Illuminate\Notifications\Slack\SlackRoute;
 
 class TeamMemberAddedNotification extends Notification implements ShouldQueue
@@ -44,7 +44,7 @@ class TeamMemberAddedNotification extends Notification implements ShouldQueue
     public function toSlack(object $notifiable): SlackMessage
     {
         return (new SlackMessage)
-            ->content("👥 *{$notifiable->name}* was added to team *{$this->team->name}*");
+            ->text("👥 *{$notifiable->name}* was added to team *{$this->team->name}*");
     }
 
     public function routeNotificationForSlack(): SlackRoute

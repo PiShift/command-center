@@ -10,7 +10,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackMessage;
 use Illuminate\Notifications\Slack\SlackRoute;
 
 class TaskCommentNotification extends Notification implements ShouldQueue
@@ -68,7 +68,7 @@ class TaskCommentNotification extends Notification implements ShouldQueue
     {
         $preview = mb_substr($this->comment->body, 0, 80);
         return (new SlackMessage)
-            ->content("💬 *{$this->commenter->name}* commented on *{$this->task->title}*: \"{$preview}\"");
+            ->text("💬 *{$this->commenter->name}* commented on *{$this->task->title}*: \"{$preview}\"");
     }
 
     public function routeNotificationForSlack(): SlackRoute
