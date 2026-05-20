@@ -115,10 +115,10 @@ class ProjectController extends Controller
         $availableTasks = collect();
         $myTasks        = collect();
         if (! $canManage) {
-            $activeSprint = $sprints->firstWhere('status', 'active');
-            if ($activeSprint) {
+            $activeSprintIds = $sprints->where('status', 'active')->pluck('id');
+            if ($activeSprintIds->isNotEmpty()) {
                 $availableTasks = Task::where('project_id', $project->id)
-                    ->where('sprint_id', $activeSprint->id)
+                    ->whereIn('sprint_id', $activeSprintIds)
                     ->where('status', 'open')
                     ->whereNull('assigned_to')
                     ->orderByDesc('weight')

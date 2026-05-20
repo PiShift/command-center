@@ -1488,27 +1488,37 @@
                 @else
                     <ul class="divide-y divide-hairline">
                         @foreach($availableTasks as $task)
-                        <li class="flex items-start gap-3 px-6 py-3.5 hover:bg-canvas transition-colors">
+                        <li class="flex items-center gap-3 px-6 py-3.5 hover:bg-canvas transition-colors">
+                            {{-- Weight badge --}}
+                            @if($task->weight)
+                            <span class="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded text-[10px] font-bold bg-surface text-muted border border-hairline"
+                                  title="Complexity weight">{{ $task->weight }}</span>
+                            @else
+                            <span class="flex-shrink-0 w-6"></span>
+                            @endif
+
+                            {{-- Title + badges --}}
                             <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    @if($task->weight)
-                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-surface text-muted border border-hairline"
-                                          title="Complexity weight">{{ $task->weight }}</span>
-                                    @endif
-                                    <button type="button"
-                                            onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $task->id }} } }))"
-                                            class="text-[13.5px] font-medium text-ink hover:text-accent transition-colors cursor-pointer text-left">{{ $task->title }}</button>
+                                <button type="button"
+                                        onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $task->id }} } }))"
+                                        class="text-[13.5px] font-medium text-ink hover:text-accent transition-colors cursor-pointer text-left truncate block w-full">{{ $task->title }}</button>
+                                <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                                    @php
+                                        $pColors = ['critical' => ['#fdf0f0','#b94040'], 'high' => ['#fdf0f0','#b94040'], 'medium' => ['#fef9ec','#9a7a1a'], 'low' => ['#edf7f2','#2e7d55']];
+                                        $pc = $pColors[$task->priority] ?? ['#F5F4EF','#8c8c8a'];
+                                    @endphp
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold"
+                                          style="background:{{ $pc[0] }};color:{{ $pc[1] }}">{{ ucfirst($task->priority) }}</span>
                                     @if($task->type)
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface text-dim">{{ ucfirst($task->type) }}</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface text-dim border border-hairline">{{ ucfirst($task->type) }}</span>
+                                    @endif
+                                    @if($task->sprint)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] text-muted">{{ $task->sprint->name }}</span>
                                     @endif
                                 </div>
-                                @php
-                                    $pColors = ['critical' => ['#fdf0f0','#b94040'], 'high' => ['#fdf0f0','#b94040'], 'medium' => ['#fef9ec','#9a7a1a'], 'low' => ['#edf7f2','#2e7d55']];
-                                    $pc = $pColors[$task->priority] ?? ['#F5F4EF','#8c8c8a'];
-                                @endphp
-                                <span class="inline-flex items-center mt-1 px-2 py-0.5 rounded text-[11px] font-semibold"
-                                      style="background:{{ $pc[0] }};color:{{ $pc[1] }}">{{ ucfirst($task->priority) }}</span>
                             </div>
+
+                            {{-- Claim button --}}
                             <form action="{{ route('tasks.claim', $task) }}" method="POST" class="flex-shrink-0">
                                 @csrf
                                 <button type="submit"
