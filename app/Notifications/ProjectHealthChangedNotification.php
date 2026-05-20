@@ -8,8 +8,6 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Slack\SlackMessage;
-use Illuminate\Notifications\Slack\SlackRoute;
 
 class ProjectHealthChangedNotification extends Notification implements ShouldQueue
 {
@@ -26,10 +24,6 @@ class ProjectHealthChangedNotification extends Notification implements ShouldQue
 
         if ($notifiable->wantsEmailNotification('project_health')) {
             $channels[] = 'mail';
-        }
-
-        if (SlackNotificationHelper::isEnabled()) {
-            $channels[] = 'slack';
         }
 
         return $channels;
@@ -58,14 +52,13 @@ class ProjectHealthChangedNotification extends Notification implements ShouldQue
             ]);
     }
 
-    public function toSlack(object $notifiable): SlackMessage
+    public function toSlackText(): string
     {
-        return (new SlackMessage)
-            ->text("🔴 *{$this->project->name}* health changed to *{$this->health}*");
+        return "🔴 *{$this->project->name}* health changed to *{$this->health}*";
     }
 
-    public function routeNotificationForSlack(): SlackRoute
+    public function sendSlack(): void
     {
-        return SlackRoute::make(SlackNotificationHelper::webhookUrl());
+        SlackNotificationHelper::send($this->toSlackText());
     }
 }

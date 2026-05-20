@@ -113,7 +113,8 @@ class TeamController extends Controller
         if (! empty($data['lead_user_id']) && $data['lead_user_id'] != $oldLeadId) {
             $newLead = User::find($data['lead_user_id']);
             if ($newLead) {
-                $newLead->notify(new TeamLeadAssignedNotification($team));
+                $newLead->notify(new TeamLeadAssignedNotification($team, $newLead));
+                (new TeamLeadAssignedNotification($team, $newLead))->sendSlack();
             }
         }
 

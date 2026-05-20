@@ -8,8 +8,6 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Slack\SlackMessage;
-use Illuminate\Notifications\Slack\SlackRoute;
 
 class SprintDeadlineNotification extends Notification implements ShouldQueue
 {
@@ -25,10 +23,6 @@ class SprintDeadlineNotification extends Notification implements ShouldQueue
 
         if ($notifiable->wantsEmailNotification('sprint_deadline')) {
             $channels[] = 'mail';
-        }
-
-        if (SlackNotificationHelper::isEnabled()) {
-            $channels[] = 'slack';
         }
 
         return $channels;
@@ -56,14 +50,13 @@ class SprintDeadlineNotification extends Notification implements ShouldQueue
             ]);
     }
 
-    public function toSlack(object $notifiable): SlackMessage
+    public function toSlackText(): string
     {
-        return (new SlackMessage)
-            ->text("⏰ Sprint *{$this->sprint->name}* on _{$this->sprint->project?->name}_ deadline is in *3 days* ({$this->sprint->deadline?->format('M d, Y')})");
+        return "⏰ Sprint *{$this->sprint->name}* on _{$this->sprint->project?->name}_ deadline is in *3 days* ({$this->sprint->deadline?->format('M d, Y')})";
     }
 
-    public function routeNotificationForSlack(): SlackRoute
+    public function sendSlack(): void
     {
-        return SlackRoute::make(SlackNotificationHelper::webhookUrl());
+        SlackNotificationHelper::send($this->toSlackText());
     }
 }

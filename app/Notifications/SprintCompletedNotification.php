@@ -7,8 +7,6 @@ use App\Notifications\Helpers\SlackNotificationHelper;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Slack\SlackMessage;
-use Illuminate\Notifications\Slack\SlackRoute;
 
 class SprintCompletedNotification extends Notification implements ShouldQueue
 {
@@ -27,10 +25,6 @@ class SprintCompletedNotification extends Notification implements ShouldQueue
             $channels[] = 'mail';
         }
 
-        if (SlackNotificationHelper::isEnabled()) {
-            $channels[] = 'slack';
-        }
-
         return $channels;
     }
 
@@ -46,14 +40,13 @@ class SprintCompletedNotification extends Notification implements ShouldQueue
         ];
     }
 
-    public function toSlack(object $notifiable): SlackMessage
+    public function toSlackText(): string
     {
-        return (new SlackMessage)
-            ->text("🏁 Sprint *{$this->sprint->name}* on _{$this->sprint->project?->name}_ completed — *{$this->doneCount}* tasks done");
+        return "🏁 Sprint *{$this->sprint->name}* on _{$this->sprint->project?->name}_ completed — *{$this->doneCount}* tasks done";
     }
 
-    public function routeNotificationForSlack(): SlackRoute
+    public function sendSlack(): void
     {
-        return SlackRoute::make(SlackNotificationHelper::webhookUrl());
+        SlackNotificationHelper::send($this->toSlackText());
     }
 }

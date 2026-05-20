@@ -8,8 +8,6 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Slack\SlackMessage;
-use Illuminate\Notifications\Slack\SlackRoute;
 
 class TaskOverdueNotification extends Notification implements ShouldQueue
 {
@@ -26,10 +24,6 @@ class TaskOverdueNotification extends Notification implements ShouldQueue
 
         if ($notifiable->wantsEmailNotification('task_overdue')) {
             $channels[] = 'mail';
-        }
-
-        if (SlackNotificationHelper::isEnabled()) {
-            $channels[] = 'slack';
         }
 
         return $channels;
@@ -58,14 +52,13 @@ class TaskOverdueNotification extends Notification implements ShouldQueue
             ]);
     }
 
-    public function toSlack(object $notifiable): SlackMessage
+    public function toSlackText(): string
     {
-        return (new SlackMessage)
-            ->text("⚠️ *{$this->task->title}* is *{$this->daysOverdue} day(s) overdue* — assigned to *{$notifiable->name}* on _{$this->task->project?->name}_");
+        return "⚠️ *{$this->task->title}* is *{$this->daysOverdue} day(s) overdue* — assigned to *{$this->task->assignee?->name}* on _{$this->task->project?->name}_";
     }
 
-    public function routeNotificationForSlack(): SlackRoute
+    public function sendSlack(): void
     {
-        return SlackRoute::make(SlackNotificationHelper::webhookUrl());
+        SlackNotificationHelper::send($this->toSlackText());
     }
 }

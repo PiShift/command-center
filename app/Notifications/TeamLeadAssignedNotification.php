@@ -3,13 +3,12 @@
 namespace App\Notifications;
 
 use App\Models\Team;
+use App\Models\User;
 use App\Notifications\Helpers\SlackNotificationHelper;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Slack\SlackMessage;
-use Illuminate\Notifications\Slack\SlackRoute;
 
 class TeamLeadAssignedNotification extends Notification implements ShouldQueue
 {
@@ -17,6 +16,7 @@ class TeamLeadAssignedNotification extends Notification implements ShouldQueue
 
     public function __construct(
         public readonly Team $team,
+        public readonly User $lead,
     ) {}
 
     public function via(object $notifiable): array
@@ -25,10 +25,6 @@ class TeamLeadAssignedNotification extends Notification implements ShouldQueue
 
         if ($notifiable->wantsEmailNotification('team_lead_assigned')) {
             $channels[] = 'mail';
-        }
-
-        if (SlackNotificationHelper::isEnabled()) {
-            $channels[] = 'slack';
         }
 
         return $channels;
@@ -56,14 +52,13 @@ class TeamLeadAssignedNotification extends Notification implements ShouldQueue
             ]);
     }
 
-    public function toSlack(object $notifiable): SlackMessage
+    public function toSlackText(): string
     {
-        return (new SlackMessage)
-            ->text("⭐ *{$notifiable->name}* is now the lead of *{$this->team->name}*");
+        return "⭐ *{$this->lead->name}* is now the lead of *{$this->team->name}*";
     }
 
-    public function routeNotificationForSlack(): SlackRoute
+    public function sendSlack(): void
     {
-        return SlackRoute::make(SlackNotificationHelper::webhookUrl());
+        SlackNotificationHelper::send($this->toSlackText());
     }
 }

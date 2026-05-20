@@ -2,6 +2,9 @@
 
 namespace App\Notifications\Helpers;
 
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
 class SlackNotificationHelper
 {
     public static function isEnabled(): bool
@@ -16,5 +19,18 @@ class SlackNotificationHelper
     public static function webhookUrl(): ?string
     {
         return config('services.slack.webhook_url') ?: null;
+    }
+
+    public static function send(string $message): void
+    {
+        if (! self::isEnabled()) {
+            return;
+        }
+
+        try {
+            Http::post(self::webhookUrl(), ['json' => ['text' => $message]]);
+        } catch (\Throwable $e) {
+            Log::error('Slack notification failed', ['error' => $e->getMessage()]);
+        }
     }
 }

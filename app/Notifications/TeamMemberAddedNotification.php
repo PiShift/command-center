@@ -3,12 +3,11 @@
 namespace App\Notifications;
 
 use App\Models\Team;
+use App\Models\User;
 use App\Notifications\Helpers\SlackNotificationHelper;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Slack\SlackMessage;
-use Illuminate\Notifications\Slack\SlackRoute;
 
 class TeamMemberAddedNotification extends Notification implements ShouldQueue
 {
@@ -16,15 +15,12 @@ class TeamMemberAddedNotification extends Notification implements ShouldQueue
 
     public function __construct(
         public readonly Team $team,
+        public readonly User $member,
     ) {}
 
     public function via(object $notifiable): array
     {
         $channels = ['database'];
-
-        if (SlackNotificationHelper::isEnabled()) {
-            $channels[] = 'slack';
-        }
 
         return $channels;
     }
@@ -41,14 +37,13 @@ class TeamMemberAddedNotification extends Notification implements ShouldQueue
         ];
     }
 
-    public function toSlack(object $notifiable): SlackMessage
+    public function toSlackText(): string
     {
-        return (new SlackMessage)
-            ->text("👥 *{$notifiable->name}* was added to team *{$this->team->name}*");
+        return "👥 *{$this->member->name}* was added to team *{$this->team->name}*";
     }
 
-    public function routeNotificationForSlack(): SlackRoute
+    public function sendSlack(): void
     {
-        return SlackRoute::make(SlackNotificationHelper::webhookUrl());
+        SlackNotificationHelper::send($this->toSlackText());
     }
 }

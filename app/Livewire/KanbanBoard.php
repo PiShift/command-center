@@ -45,6 +45,7 @@ class KanbanBoard extends Component
         foreach ($recipients as $recipient) {
             $recipient->notify(new TaskStatusChangedNotification($task, $oldStatus, $newStatus, $mover));
         }
+        (new TaskStatusChangedNotification($task, $oldStatus, $newStatus, $mover))->sendSlack();
 
         $this->dispatch('task-moved', taskId: $taskId, column: $columnSlug);
     }
@@ -76,6 +77,7 @@ class KanbanBoard extends Component
         foreach ($managers as $manager) {
             $manager->notify(new TaskClaimedNotification($task, $user));
         }
+        (new TaskClaimedNotification($task, $user))->sendSlack();
 
         $this->dispatch('task-claimed', taskId: $taskId);
     }

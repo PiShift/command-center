@@ -170,6 +170,7 @@ class ProjectController extends Controller
             foreach ($managers as $manager) {
                 $manager->notify(new ProjectHealthChangedNotification($project, $data['health']));
             }
+            (new ProjectHealthChangedNotification($project, $data['health']))->sendSlack();
         }
 
         return redirect()->route('projects.show', $project)->with('success', 'Project updated.');
