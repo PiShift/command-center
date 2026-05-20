@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackRoute;
 
 class SprintPublishedNotification extends Notification implements ShouldQueue
 {
@@ -63,8 +64,8 @@ class SprintPublishedNotification extends Notification implements ShouldQueue
             ->content("🚀 Sprint *{$this->sprint->name}* is now active on _{$this->sprint->project?->name}_ — *{$this->taskCount}* tasks available");
     }
 
-    public function routeNotificationForSlack(): string
+    public function routeNotificationForSlack(): SlackRoute
     {
-        return SlackNotificationHelper::webhookUrl();
+        return SlackRoute::make(SlackNotificationHelper::webhookUrl());
     }
 }

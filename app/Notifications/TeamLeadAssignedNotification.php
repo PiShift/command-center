@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackRoute;
 
 class TeamLeadAssignedNotification extends Notification implements ShouldQueue
 {
@@ -61,8 +62,8 @@ class TeamLeadAssignedNotification extends Notification implements ShouldQueue
             ->content("⭐ *{$notifiable->name}* is now the lead of *{$this->team->name}*");
     }
 
-    public function routeNotificationForSlack(): string
+    public function routeNotificationForSlack(): SlackRoute
     {
-        return SlackNotificationHelper::webhookUrl();
+        return SlackRoute::make(SlackNotificationHelper::webhookUrl());
     }
 }

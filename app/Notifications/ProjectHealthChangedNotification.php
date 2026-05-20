@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackRoute;
 
 class ProjectHealthChangedNotification extends Notification implements ShouldQueue
 {
@@ -63,8 +64,8 @@ class ProjectHealthChangedNotification extends Notification implements ShouldQue
             ->content("🔴 *{$this->project->name}* health changed to *{$this->health}*");
     }
 
-    public function routeNotificationForSlack(): string
+    public function routeNotificationForSlack(): SlackRoute
     {
-        return SlackNotificationHelper::webhookUrl();
+        return SlackRoute::make(SlackNotificationHelper::webhookUrl());
     }
 }

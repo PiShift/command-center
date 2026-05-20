@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackRoute;
 
 class SprintDeadlineNotification extends Notification implements ShouldQueue
 {
@@ -61,8 +62,8 @@ class SprintDeadlineNotification extends Notification implements ShouldQueue
             ->content("⏰ Sprint *{$this->sprint->name}* on _{$this->sprint->project?->name}_ deadline is in *3 days* ({$this->sprint->deadline?->format('M d, Y')})");
     }
 
-    public function routeNotificationForSlack(): string
+    public function routeNotificationForSlack(): SlackRoute
     {
-        return SlackNotificationHelper::webhookUrl();
+        return SlackRoute::make(SlackNotificationHelper::webhookUrl());
     }
 }

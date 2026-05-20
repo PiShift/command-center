@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\SlackMessage;
+use Illuminate\Notifications\Slack\SlackRoute;
 
 class TaskAssignedNotification extends Notification implements ShouldQueue
 {
@@ -64,8 +65,8 @@ class TaskAssignedNotification extends Notification implements ShouldQueue
             ->content("👤 *{$this->assigner->name}* assigned *{$this->task->title}* to *{$notifiable->name}* on _{$this->task->project?->name}_");
     }
 
-    public function routeNotificationForSlack(): string
+    public function routeNotificationForSlack(): SlackRoute
     {
-        return SlackNotificationHelper::webhookUrl();
+        return SlackRoute::make(SlackNotificationHelper::webhookUrl());
     }
 }
