@@ -41,7 +41,15 @@ class SlackNotificationHelper
             ? $notification->routeNotificationForSlack()
             : SlackRoute::make(self::defaultChannel(), self::botToken());
 
-        NotificationFacade::route('slack', $route)->notify($notification);
+        // Wrap so via() always returns ['slack'] — the original notification's
+        // via() no longer includes 'slack' (to avoid duplicates in user loops).
+        $wrapper = new class($notification) extends Notification {
+            public function __construct(private readonly Notification $inner) {}
+            public function via(object $notifiable): array { return ['slack']; }
+            public function toSlack(object $notifiable): mixed { return $this->inner->toSlack($notifiable); }
+        };
+
+        NotificationFacade::route('slack', $route)->notify($wrapper);
     }
 }
 
