@@ -31,18 +31,39 @@
         @if(!$isDeveloper)
         @include('components.topbar')
         @else
-        {{-- Minimal top bar for Developer --}}
+        {{-- Developer top bar --}}
         <div class="h-[52px] flex items-center px-6 bg-white border-b border-line shrink-0">
             <div class="flex items-center gap-2">
                 <img src="/images/icon-wb-round.webp" alt="CC" class="w-8 h-8 rounded-lg shrink-0">
-                <img src="/images/logo.svg" alt="PiShift" class="h-[20px] object-contain">
+                <img src="/images/logo.svg" alt="{{ config('app.name') }}" class="h-[20px] object-contain">
             </div>
-            <span class="ml-4 text-[11px] font-bold uppercase tracking-widest text-muted">My Board</span>
+            <a href="{{ route('board') }}" class="ml-4 text-[11px] font-bold uppercase tracking-widest text-muted hover:text-ink transition-colors">My Board</a>
             <div class="ml-auto flex items-center gap-3">
-                <span class="text-[13px] text-dim">{{ auth()->user()->name }}</span>
-                <form method="POST" action="{{ route('logout') }}">@csrf
-                    <button type="submit" class="text-[12px] text-muted bg-transparent border-none cursor-pointer px-2 py-1 rounded-md transition-colors duration-150 hover:bg-hairline hover:text-ink">Sign out</button>
-                </form>
+                <livewire:notification-bell />
+
+                <div class="relative" x-data="{ open: false }">
+                    <button @click="open = !open" class="flex items-center gap-2 text-[13px] text-dim hover:text-ink transition-colors">
+                        <span class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white"
+                              style="background: {{ auth()->user()->color ?? '#D97757' }}">
+                            {{ auth()->user()->initials ?? strtoupper(substr(auth()->user()->name, 0, 2)) }}
+                        </span>
+                        <span class="hidden sm:block">{{ auth()->user()->name }}</span>
+                    </button>
+                    <div x-show="open" @click.outside="open = false" x-cloak
+                         class="absolute right-0 top-9 w-44 bg-white border border-line rounded-lg shadow-lg py-1 z-50">
+                        <a href="{{ route('profile.show') }}" class="flex items-center gap-2 w-full px-4 py-2 text-[13px] text-dim hover:bg-hairline hover:text-ink">
+                            @include('components.icon', ['name' => 'user'])
+                            My Profile
+                        </a>
+                        <form method="POST" action="{{ route('logout') }}">
+                            @csrf
+                            <button type="submit" class="flex items-center gap-2 w-full text-left px-4 py-2 text-[13px] text-dim hover:bg-hairline hover:text-ink">
+                                @include('components.icon', ['name' => 'log-out'])
+                                Sign out
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
         @endif

@@ -7,6 +7,8 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
+use App\Notifications\TaskClaimedNotification;
+use App\Notifications\TaskStatusChangedNotification;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 
@@ -19,10 +21,31 @@ class KanbanBoard extends Component
 
     public function moveTask(int $taskId, string $columnSlug): void
     {
-        $task = Task::findOrFail($taskId);
+        $task      = Task::findOrFail($taskId);
         Gate::authorize('editStatus', $task);
-        $col  = KanbanColumn::where('slug', $columnSlug)->firstOrFail();
-        $task->update(['status' => $col->slug]);
+        $col       = KanbanColumn::where('slug', $columnSlug)->firstOrFail();
+        $oldStatus = $task->status;
+        $newStatus = $col->slug;
+
+        if ($oldStatus === $newStatus) {
+            return;
+        }
+
+        $task->update(['status' => $newStatus]);
+
+        $mover      = auth()->user();
+        $recipients = collect();
+        if ($task->assigned_to && $task->assigned_to !== $mover->id) {
+            $recipients->push($task->assignee);
+        }
+        $managers   = User::whereHas('roleModel', fn($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
+        $recipients = $recipients->merge($managers)->unique('id')->filter(fn($u) => $u->id !== $mover->id);
+
+        $task->load('project');
+        foreach ($recipients as $recipient) {
+            $recipient->notify(new TaskStatusChangedNotification($task, $oldStatus, $newStatus, $mover));
+        }
+
         $this->dispatch('task-moved', taskId: $taskId, column: $columnSlug);
     }
 
@@ -47,6 +70,13 @@ class KanbanBoard extends Component
             ->log("Task claimed by {$user->name} — status changed to todo");
 
         session()->flash('success', 'You are now assigned to this task.');
+
+        $task->load('project');
+        $managers = User::whereHas('roleModel', fn($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
+        foreach ($managers as $manager) {
+            $manager->notify(new TaskClaimedNotification($task, $user));
+        }
+
         $this->dispatch('task-claimed', taskId: $taskId);
     }
 

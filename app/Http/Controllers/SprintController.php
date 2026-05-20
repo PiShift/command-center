@@ -81,12 +81,13 @@ class SprintController extends Controller
         $taskCount = $sprint->tasks()->count();
         $sprint->load('project');
 
-        // Notify all team members of the project
+        // Notify all team members of the project (excluding the publisher)
         $project->load('teams.members');
+        $publisherId = auth()->id();
         $notified = collect();
         foreach ($project->teams as $team) {
             foreach ($team->members as $member) {
-                if (! $notified->contains('id', $member->id)) {
+                if ($member->id !== $publisherId && ! $notified->contains('id', $member->id)) {
                     $member->notify(new SprintPublishedNotification($sprint, $taskCount));
                     $notified->push($member);
                 }

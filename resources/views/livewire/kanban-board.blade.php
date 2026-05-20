@@ -62,7 +62,7 @@
                 </span>
             </div>
             <button type="button"
-                    x-on:click="$dispatch('new-task', {})"
+                    x-on:click="$wire.dispatch('new-task', {})"
                     class="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors whitespace-nowrap cursor-pointer">
                 + Add Task
             </button>
@@ -105,7 +105,7 @@
                      x-on:dragstart.stop="$event.dataTransfer.setData('taskId', '{{ $task->id }}'); $event.dataTransfer.effectAllowed='move'"
                      x-on:mouseenter="$el.style.borderColor='#e5e4df'"
                      x-on:mouseleave="$el.style.borderColor='#eeeee9'"
-                     x-on:click="$dispatch('open-task', { id: {{ $task->id }} })">
+                     x-on:click="$wire.dispatch('open-task', { id: {{ $task->id }} })">
                     <div class="p-3.5">
                         {{-- Title --}}
                         <p class="text-[13.5px] font-medium text-ink leading-snug mb-1 line-clamp-2">{{ $task->title }}</p>
@@ -113,7 +113,7 @@
                         {{-- "View & Claim" button — unassigned tasks only; opens modal so dev reads before claiming --}}
                         @if(! $task->assigned_to && \Illuminate\Support\Facades\Gate::allows('claim', $task))
                         <div x-on:click.stop>
-                            <button x-on:click="$dispatch('open-task', { id: {{ $task->id }} })"
+                            <button x-on:click="$wire.dispatch('open-task', { id: {{ $task->id }} })"
                                     class="inline-flex items-center gap-1 mb-2 px-2 py-0.5 text-[11px] font-semibold rounded-[5px] border cursor-pointer transition-colors duration-150"
                                     style="color:#2e7d55;background:#edf7f2;border-color:#b7e0ca"
                                     onmouseover="this.style.background='#d6f0e4'"
@@ -199,7 +199,7 @@
             {{-- Add task — always visible at column bottom --}}
             <div class="px-2.5 pb-2.5 pt-1 shrink-0" style="background:#F5F4EF">
                 <button type="button"
-                        x-on:click="$dispatch('new-task', {})"
+                        x-on:click="$wire.dispatch('new-task', {})"
                         class="block w-full text-center text-[13px] font-medium text-muted hover:text-accent border border-dashed border-line hover:border-accent py-2 rounded-lg transition-colors cursor-pointer">
                     + Add task
                 </button>
