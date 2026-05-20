@@ -66,7 +66,6 @@ class TaskController extends Controller
             $assignee = User::find($data['assigned_to']);
             if ($assignee) {
                 $assignee->notify(new TaskAssignedNotification($task->load('project'), auth()->user()));
-                (new TaskAssignedNotification($task->load('project'), auth()->user()))->sendSlack();
             }
         }
 
@@ -106,7 +105,6 @@ class TaskController extends Controller
             $assignee = User::find($data['assigned_to']);
             if ($assignee) {
                 $assignee->notify(new TaskAssignedNotification($task->load('project'), auth()->user()));
-                (new TaskAssignedNotification($task->load('project'), auth()->user()))->sendSlack();
             }
         }
 
@@ -124,7 +122,6 @@ class TaskController extends Controller
             foreach ($recipients as $recipient) {
                 $recipient->notify(new TaskStatusChangedNotification($task->load('project'), $oldStatus, $data['status'], auth()->user()));
             }
-            (new TaskStatusChangedNotification($task->load('project'), $oldStatus, $data['status'], auth()->user()))->sendSlack();
         }
 
         return redirect()->route('tasks.show', $task)->with('success', 'Task updated.');
@@ -177,7 +174,6 @@ class TaskController extends Controller
         foreach ($managers as $manager) {
             $manager->notify(new TaskClaimedNotification($task->load('project'), $user));
         }
-        (new TaskClaimedNotification($task->load('project'), $user))->sendSlack();
 
         return back()->with('success', 'You are now assigned to this task.');
     }

@@ -8,6 +8,8 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Slack\SlackMessage;
+use Illuminate\Notifications\Slack\SlackRoute;
 
 class SprintPublishedNotification extends Notification implements ShouldQueue
 {
@@ -24,6 +26,10 @@ class SprintPublishedNotification extends Notification implements ShouldQueue
 
         if ($notifiable->wantsEmailNotification('sprint_published')) {
             $channels[] = 'mail';
+        }
+
+        if (SlackNotificationHelper::isEnabled()) {
+            $channels[] = 'slack';
         }
 
         return $channels;
@@ -52,13 +58,16 @@ class SprintPublishedNotification extends Notification implements ShouldQueue
             ]);
     }
 
-    public function toSlackText(): string
+    public function toSlack(object $notifiable): SlackMessage
     {
-        return "🚀 Sprint *{$this->sprint->name}* is now active on _{$this->sprint->project?->name}_ — *{$this->taskCount}* tasks available";
+        return (new SlackMessage)
+            ->text("🚀 Sprint *{$this->sprint->name}* is now active on _{$this->sprint->project?->name}_ — *{$this->taskCount}* tasks available");
     }
 
-    public function sendSlack(): void
+    public function routeNotificationForSlack(): SlackRoute
     {
-        SlackNotificationHelper::send($this->toSlackText());
+        $channel = $this->sprint->project?->slack_channel ?: SlackNotificationHelper::defaultChannel();
+
+        return SlackRoute::make($channel, SlackNotificationHelper::botToken());
     }
 }

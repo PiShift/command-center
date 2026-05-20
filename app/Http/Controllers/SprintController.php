@@ -93,7 +93,6 @@ class SprintController extends Controller
                 }
             }
         }
-        (new SprintPublishedNotification($sprint, $taskCount))->sendSlack();
 
         return redirect()->route('projects.show', $project)
             ->with('success', 'Sprint published. Tasks are now visible to developers.');
@@ -131,7 +130,6 @@ class SprintController extends Controller
         foreach ($managers as $manager) {
             $manager->notify(new SprintCompletedNotification($sprint->load('project'), $doneCount));
         }
-        (new SprintCompletedNotification($sprint->load('project'), $doneCount))->sendSlack();
 
         return redirect()->route('projects.show', $project)
             ->with('success', 'Sprint marked as completed.');

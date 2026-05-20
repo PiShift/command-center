@@ -88,6 +88,14 @@
                            class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
 
+                {{-- Slack Channel --}}
+                <div>
+                    <label class="block text-[12px] font-medium text-dim mb-1">Slack Channel</label>
+                    <input type="text" name="slack_channel" value="{{ old('slack_channel', $project->slack_channel ?? '') }}" placeholder="#channel-name"
+                           class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
+                    <p class="mt-1 text-[11px] text-muted">Notifications for this project will be sent to this channel. Leave empty to use the default workspace channel.</p>
+                </div>
+
                 {{-- Start Date --}}
                 <div>
                     <label class="block text-[12px] font-medium text-dim mb-1">Start Date</label>

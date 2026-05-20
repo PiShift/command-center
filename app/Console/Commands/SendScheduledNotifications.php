@@ -44,7 +44,6 @@ class SendScheduledNotifications extends Command
                     $daysOverdue = (int) now()->diffInDays($task->due_date);
 
                     $task->assignee->notify(new TaskOverdueNotification($task, $daysOverdue));
-                    (new TaskOverdueNotification($task, $daysOverdue))->sendSlack();
                     $task->update(['overdue_notified_at' => now()]);
                 }
             });
@@ -69,7 +68,6 @@ class SendScheduledNotifications extends Command
                             $user->notify(new SprintDeadlineNotification($sprint));
                         }
                     });
-                    (new SprintDeadlineNotification($sprint))->sendSlack();
                 }
             });
 

@@ -7,6 +7,8 @@ use App\Notifications\Helpers\SlackNotificationHelper;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Slack\SlackMessage;
+use Illuminate\Notifications\Slack\SlackRoute;
 
 class TaskChecklistCompletedNotification extends Notification implements ShouldQueue
 {
@@ -19,6 +21,10 @@ class TaskChecklistCompletedNotification extends Notification implements ShouldQ
     public function via(object $notifiable): array
     {
         $channels = ['database'];
+
+        if (SlackNotificationHelper::isEnabled()) {
+            $channels[] = 'slack';
+        }
 
         return $channels;
     }
@@ -35,13 +41,16 @@ class TaskChecklistCompletedNotification extends Notification implements ShouldQ
         ];
     }
 
-    public function toSlackText(): string
+    public function toSlack(object $notifiable): SlackMessage
     {
-        return "✅ *{$this->task->assignee?->name}* completed all checklist items on *{$this->task->title}*";
+        return (new SlackMessage)
+            ->text("✅ *{$this->task->assignee?->name}* completed all checklist items on *{$this->task->title}*");
     }
 
-    public function sendSlack(): void
+    public function routeNotificationForSlack(): SlackRoute
     {
-        SlackNotificationHelper::send($this->toSlackText());
+        $channel = $this->task->project?->slack_channel ?: SlackNotificationHelper::defaultChannel();
+
+        return SlackRoute::make($channel, SlackNotificationHelper::botToken());
     }
 }

@@ -2,9 +2,6 @@
 
 namespace App\Notifications\Helpers;
 
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-
 class SlackNotificationHelper
 {
     public static function isEnabled(): bool
@@ -13,24 +10,17 @@ class SlackNotificationHelper
             return false;
         }
 
-        return ! empty(config('services.slack.webhook_url'));
+        return ! empty(config('services.slack.bot_token'));
     }
 
-    public static function webhookUrl(): ?string
+    public static function botToken(): ?string
     {
-        return config('services.slack.webhook_url') ?: null;
+        return config('services.slack.bot_token') ?: null;
     }
 
-    public static function send(string $message): void
+    public static function defaultChannel(): string
     {
-        if (! self::isEnabled()) {
-            return;
-        }
-
-        try {
-            Http::asJson()->post(self::webhookUrl(), ['text' => $message]);
-        } catch (\Throwable $e) {
-            Log::error('Slack notification failed', ['error' => $e->getMessage()]);
-        }
+        return config('services.slack.default_channel', '#general');
     }
 }
+

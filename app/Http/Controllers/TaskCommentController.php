@@ -72,7 +72,6 @@ class TaskCommentController extends Controller
         foreach ($recipients as $recipient) {
             $recipient->notify(new TaskCommentNotification($task->load('project'), $comment, $commenter));
         }
-        (new TaskCommentNotification($task->load('project'), $comment, $commenter))->sendSlack();
 
         return back()->with('success', 'Comment added.');
     }

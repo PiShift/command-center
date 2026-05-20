@@ -29,12 +29,11 @@ return [
     ],
 
     'slack' => [
-        'notifications' => [
-            'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
-            'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
-        ],
+        'bot_token'       => env('SLACK_BOT_TOKEN'),
+        'default_channel' => env('SLACK_DEFAULT_CHANNEL', '#general'),
+        'enabled'         => (bool) env('SLACK_NOTIFICATIONS_ENABLED', true),
+        // Legacy webhook (used by test button only)
         'webhook_url' => env('SLACK_WEBHOOK_URL'),
-        'enabled'     => (bool) env('SLACK_NOTIFICATIONS_ENABLED', true),
     ],
 
 ];

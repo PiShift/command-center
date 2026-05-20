@@ -16,6 +16,7 @@ class Project extends Model
         'guide',
         'github_repo',
         'stack',
+        'slack_channel',
         'color',
         'status',
         'start_date',

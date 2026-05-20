@@ -9,6 +9,8 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Slack\SlackMessage;
+use Illuminate\Notifications\Slack\SlackRoute;
 
 class TaskAssignedNotification extends Notification implements ShouldQueue
 {
@@ -25,6 +27,10 @@ class TaskAssignedNotification extends Notification implements ShouldQueue
 
         if ($notifiable->wantsEmailNotification('task_assigned')) {
             $channels[] = 'mail';
+        }
+
+        if (SlackNotificationHelper::isEnabled()) {
+            $channels[] = 'slack';
         }
 
         return $channels;
@@ -53,13 +59,16 @@ class TaskAssignedNotification extends Notification implements ShouldQueue
             ]);
     }
 
-    public function toSlackText(): string
+    public function toSlack(object $notifiable): SlackMessage
     {
-        return "👤 *{$this->assigner->name}* assigned *{$this->task->title}* to *{$this->task->assignee?->name}* on _{$this->task->project?->name}_";
+        return (new SlackMessage)
+            ->text("👤 *{$this->assigner->name}* assigned *{$this->task->title}* to *{$this->task->assignee?->name}* on _{$this->task->project?->name}_");
     }
 
-    public function sendSlack(): void
+    public function routeNotificationForSlack(): SlackRoute
     {
-        SlackNotificationHelper::send($this->toSlackText());
+        $channel = $this->task->project?->slack_channel ?: SlackNotificationHelper::defaultChannel();
+
+        return SlackRoute::make($channel, SlackNotificationHelper::botToken());
     }
 }

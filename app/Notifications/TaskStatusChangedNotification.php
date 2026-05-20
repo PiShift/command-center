@@ -9,6 +9,8 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Slack\SlackMessage;
+use Illuminate\Notifications\Slack\SlackRoute;
 
 class TaskStatusChangedNotification extends Notification implements ShouldQueue
 {
@@ -27,6 +29,10 @@ class TaskStatusChangedNotification extends Notification implements ShouldQueue
 
         if ($notifiable->wantsEmailNotification('task_status_changed')) {
             $channels[] = 'mail';
+        }
+
+        if (SlackNotificationHelper::isEnabled()) {
+            $channels[] = 'slack';
         }
 
         return $channels;
@@ -57,13 +63,16 @@ class TaskStatusChangedNotification extends Notification implements ShouldQueue
             ]);
     }
 
-    public function toSlackText(): string
+    public function toSlack(object $notifiable): SlackMessage
     {
-        return "🔄 *{$this->task->title}* moved from _{$this->oldStatus}_ to _{$this->newStatus}_ by *{$this->changer->name}*";
+        return (new SlackMessage)
+            ->text("🔄 *{$this->task->title}* moved from _{$this->oldStatus}_ to _{$this->newStatus}_ by *{$this->changer->name}*");
     }
 
-    public function sendSlack(): void
+    public function routeNotificationForSlack(): SlackRoute
     {
-        SlackNotificationHelper::send($this->toSlackText());
+        $channel = $this->task->project?->slack_channel ?: SlackNotificationHelper::defaultChannel();
+
+        return SlackRoute::make($channel, SlackNotificationHelper::botToken());
     }
 }

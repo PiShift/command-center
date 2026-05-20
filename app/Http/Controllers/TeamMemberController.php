@@ -27,7 +27,6 @@ class TeamMemberController extends Controller
         $addedUser = User::find($data['user_id']);
         if ($addedUser) {
             $addedUser->notify(new TeamMemberAddedNotification($team, $addedUser));
-            (new TeamMemberAddedNotification($team, $addedUser))->sendSlack();
         }
 
         return back()->with('success', 'Member added.');

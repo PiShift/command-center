@@ -44,7 +44,6 @@ class TaskChecklistController extends Controller
 
             if ($total > 0 && $total === $checked && $task->assignee) {
                 $task->assignee->notify(new TaskChecklistCompletedNotification($task->load('project')));
-                (new TaskChecklistCompletedNotification($task->load('project')))->sendSlack();
             }
         }
 

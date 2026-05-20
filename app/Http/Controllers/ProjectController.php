@@ -54,18 +54,19 @@ class ProjectController extends Controller
         abort_unless(auth()->user()->hasPermission('projects.create'), 403);
 
         $data = $request->validate([
-            'name'        => 'required|string|max:255',
-            'customer_id' => 'nullable|exists:customers,id',
-            'description' => 'nullable|string',
-            'guide'       => 'nullable|string',
-            'github_repo' => 'nullable|string|max:255',
-            'stack'       => 'nullable|string|max:255',
-            'color'       => 'nullable|string|max:20',
-            'status'      => 'required|in:active,paused,complete',
-            'start_date'  => 'nullable|date',
-            'deadline'    => 'nullable|date',
-            'budget'      => 'nullable|numeric|min:0',
-            'health'      => 'required|in:on-track,at-risk,blocked',
+            'name'          => 'required|string|max:255',
+            'customer_id'   => 'nullable|exists:customers,id',
+            'description'   => 'nullable|string',
+            'guide'         => 'nullable|string',
+            'github_repo'   => 'nullable|string|max:255',
+            'stack'         => 'nullable|string|max:255',
+            'slack_channel' => 'nullable|string|max:100',
+            'color'         => 'nullable|string|max:20',
+            'status'        => 'required|in:active,paused,complete',
+            'start_date'    => 'nullable|date',
+            'deadline'      => 'nullable|date',
+            'budget'        => 'nullable|numeric|min:0',
+            'health'        => 'required|in:on-track,at-risk,blocked',
         ]);
 
         $project = Project::create($data);
@@ -148,18 +149,19 @@ class ProjectController extends Controller
         abort_unless(auth()->user()->hasPermission('projects.edit'), 403);
 
         $data = $request->validate([
-            'name'        => 'required|string|max:255',
-            'customer_id' => 'nullable|exists:customers,id',
-            'description' => 'nullable|string',
-            'guide'       => 'nullable|string',
-            'github_repo' => 'nullable|string|max:255',
-            'stack'       => 'nullable|string|max:255',
-            'color'       => 'nullable|string|max:20',
-            'status'      => 'required|in:active,paused,complete',
-            'start_date'  => 'nullable|date',
-            'deadline'    => 'nullable|date',
-            'budget'      => 'nullable|numeric|min:0',
-            'health'      => 'required|in:on-track,at-risk,blocked',
+            'name'          => 'required|string|max:255',
+            'customer_id'   => 'nullable|exists:customers,id',
+            'description'   => 'nullable|string',
+            'guide'         => 'nullable|string',
+            'github_repo'   => 'nullable|string|max:255',
+            'stack'         => 'nullable|string|max:255',
+            'slack_channel' => 'nullable|string|max:100',
+            'color'         => 'nullable|string|max:20',
+            'status'        => 'required|in:active,paused,complete',
+            'start_date'    => 'nullable|date',
+            'deadline'      => 'nullable|date',
+            'budget'        => 'nullable|numeric|min:0',
+            'health'        => 'required|in:on-track,at-risk,blocked',
         ]);
 
         $oldHealth = $project->health;
@@ -170,7 +172,6 @@ class ProjectController extends Controller
             foreach ($managers as $manager) {
                 $manager->notify(new ProjectHealthChangedNotification($project, $data['health']));
             }
-            (new ProjectHealthChangedNotification($project, $data['health']))->sendSlack();
         }
 
         return redirect()->route('projects.show', $project)->with('success', 'Project updated.');

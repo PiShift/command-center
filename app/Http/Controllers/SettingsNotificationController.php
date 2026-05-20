@@ -2,7 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Notifications\Helpers\SlackNotificationHelper;
+use App\Notifications\TestSlackNotification;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Notifications\Slack\SlackRoute;
+use Illuminate\Support\Facades\Notification;
 
 class SettingsNotificationController extends Controller
 {
@@ -11,8 +16,8 @@ class SettingsNotificationController extends Controller
         abort_unless(auth()->user()->hasPermission('settings.manage'), 403);
 
         return view('settings.notifications', [
-            'slackWebhookConfigured' => ! empty(config('services.slack.webhook_url')),
-            'slackEnabled'           => config('services.slack.enabled', false),
+            'slackConfigured' => SlackNotificationHelper::isEnabled(),
+            'slackEnabled'    => config('services.slack.enabled', false),
         ]);
     }
 
@@ -28,22 +33,17 @@ class SettingsNotificationController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('settings.manage'), 403);
 
-        $webhookUrl = config('services.slack.webhook_url');
-
-        if (empty($webhookUrl)) {
-            return back()->with('error', 'No Slack webhook URL configured.');
+        if (! SlackNotificationHelper::isEnabled()) {
+            return back()->with('error', 'Slack is not configured. Set SLACK_BOT_TOKEN and SLACK_DEFAULT_CHANNEL in your environment.');
         }
 
         try {
-            $response = \Illuminate\Support\Facades\Http::post($webhookUrl, [
-                'text' => '✅ PiShift — Slack integration is working!',
-            ]);
+            Notification::route('slack', SlackRoute::make(
+                SlackNotificationHelper::defaultChannel(),
+                SlackNotificationHelper::botToken(),
+            ))->notify(new TestSlackNotification());
 
-            if ($response->successful()) {
-                return back()->with('success', 'Test message sent to Slack successfully!');
-            }
-
-            return back()->with('error', 'Slack returned an error. Check your webhook URL.');
+            return back()->with('success', 'Test message sent to Slack successfully!');
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to send test message: ' . $e->getMessage());
         }

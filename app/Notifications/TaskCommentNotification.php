@@ -10,6 +10,8 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Slack\SlackMessage;
+use Illuminate\Notifications\Slack\SlackRoute;
 
 class TaskCommentNotification extends Notification implements ShouldQueue
 {
@@ -27,6 +29,10 @@ class TaskCommentNotification extends Notification implements ShouldQueue
 
         if ($notifiable->wantsEmailNotification('task_comment')) {
             $channels[] = 'mail';
+        }
+
+        if (SlackNotificationHelper::isEnabled()) {
+            $channels[] = 'slack';
         }
 
         return $channels;
@@ -58,15 +64,18 @@ class TaskCommentNotification extends Notification implements ShouldQueue
             ]);
     }
 
-    public function toSlackText(): string
+    public function toSlack(object $notifiable): SlackMessage
     {
         $preview = mb_substr($this->comment->body, 0, 80);
 
-        return "💬 *{$this->commenter->name}* commented on *{$this->task->title}*: \"{$preview}\"";
+        return (new SlackMessage)
+            ->text("💬 *{$this->commenter->name}* commented on *{$this->task->title}*: \"{$preview}\"");
     }
 
-    public function sendSlack(): void
+    public function routeNotificationForSlack(): SlackRoute
     {
-        SlackNotificationHelper::send($this->toSlackText());
+        $channel = $this->task->project?->slack_channel ?: SlackNotificationHelper::defaultChannel();
+
+        return SlackRoute::make($channel, SlackNotificationHelper::botToken());
     }
 }
