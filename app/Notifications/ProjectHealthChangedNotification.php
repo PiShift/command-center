@@ -24,7 +24,7 @@ class ProjectHealthChangedNotification extends Notification implements ShouldQue
     {
         $channels = ['database'];
 
-        if ($notifiable->wantsEmailNotification('project_health')) {
+        if (method_exists($notifiable, 'wantsEmailNotification') && $notifiable->wantsEmailNotification('project_health')) {
             $channels[] = 'mail';
         }
 

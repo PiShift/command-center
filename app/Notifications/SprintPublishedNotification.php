@@ -24,7 +24,7 @@ class SprintPublishedNotification extends Notification implements ShouldQueue
     {
         $channels = ['database'];
 
-        if ($notifiable->wantsEmailNotification('sprint_published')) {
+        if (method_exists($notifiable, 'wantsEmailNotification') && $notifiable->wantsEmailNotification('sprint_published')) {
             $channels[] = 'mail';
         }
 

@@ -27,7 +27,7 @@ class TaskStatusChangedNotification extends Notification implements ShouldQueue
     {
         $channels = ['database'];
 
-        if ($notifiable->wantsEmailNotification('task_status_changed')) {
+        if (method_exists($notifiable, 'wantsEmailNotification') && $notifiable->wantsEmailNotification('task_status_changed')) {
             $channels[] = 'mail';
         }
 

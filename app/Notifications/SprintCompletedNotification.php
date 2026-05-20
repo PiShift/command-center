@@ -23,7 +23,7 @@ class SprintCompletedNotification extends Notification implements ShouldQueue
     {
         $channels = ['database'];
 
-        if ($notifiable->wantsEmailNotification('sprint_completed')) {
+        if (method_exists($notifiable, 'wantsEmailNotification') && $notifiable->wantsEmailNotification('sprint_completed')) {
             $channels[] = 'mail';
         }
 

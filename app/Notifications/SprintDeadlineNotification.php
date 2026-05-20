@@ -23,7 +23,7 @@ class SprintDeadlineNotification extends Notification implements ShouldQueue
     {
         $channels = ['database'];
 
-        if ($notifiable->wantsEmailNotification('sprint_deadline')) {
+        if (method_exists($notifiable, 'wantsEmailNotification') && $notifiable->wantsEmailNotification('sprint_deadline')) {
             $channels[] = 'mail';
         }
 

@@ -27,7 +27,7 @@ class TaskCommentNotification extends Notification implements ShouldQueue
     {
         $channels = ['database'];
 
-        if ($notifiable->wantsEmailNotification('task_comment')) {
+        if (method_exists($notifiable, 'wantsEmailNotification') && $notifiable->wantsEmailNotification('task_comment')) {
             $channels[] = 'mail';
         }
 

@@ -25,7 +25,7 @@ class TeamLeadAssignedNotification extends Notification implements ShouldQueue
     {
         $channels = ['database'];
 
-        if ($notifiable->wantsEmailNotification('team_lead_assigned')) {
+        if (method_exists($notifiable, 'wantsEmailNotification') && $notifiable->wantsEmailNotification('team_lead_assigned')) {
             $channels[] = 'mail';
         }
 

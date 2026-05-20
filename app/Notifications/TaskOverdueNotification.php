@@ -24,7 +24,7 @@ class TaskOverdueNotification extends Notification implements ShouldQueue
     {
         $channels = ['database'];
 
-        if ($notifiable->wantsEmailNotification('task_overdue')) {
+        if (method_exists($notifiable, 'wantsEmailNotification') && $notifiable->wantsEmailNotification('task_overdue')) {
             $channels[] = 'mail';
         }
 

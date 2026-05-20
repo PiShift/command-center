@@ -25,7 +25,7 @@ class TaskAssignedNotification extends Notification implements ShouldQueue
     {
         $channels = ['database'];
 
-        if ($notifiable->wantsEmailNotification('task_assigned')) {
+        if (method_exists($notifiable, 'wantsEmailNotification') && $notifiable->wantsEmailNotification('task_assigned')) {
             $channels[] = 'mail';
         }
 
