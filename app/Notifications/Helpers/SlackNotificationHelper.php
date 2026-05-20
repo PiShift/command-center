@@ -2,6 +2,10 @@
 
 namespace App\Notifications\Helpers;
 
+use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Slack\SlackRoute;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
+
 class SlackNotificationHelper
 {
     public static function isEnabled(): bool
@@ -21,6 +25,23 @@ class SlackNotificationHelper
     public static function defaultChannel(): string
     {
         return config('services.slack.default_channel') ?: '#general';
+    }
+
+    /**
+     * Send a Slack notification exactly once, using the notification's own
+     * routeNotificationForSlack() if it has one, falling back to the default channel.
+     */
+    public static function notifyOnce(Notification $notification): void
+    {
+        if (! self::isEnabled()) {
+            return;
+        }
+
+        $route = method_exists($notification, 'routeNotificationForSlack')
+            ? $notification->routeNotificationForSlack()
+            : SlackRoute::make(self::defaultChannel(), self::botToken());
+
+        NotificationFacade::route('slack', $route)->notify($notification);
     }
 }
 

@@ -28,10 +28,6 @@ class ProjectHealthChangedNotification extends Notification implements ShouldQue
             $channels[] = 'mail';
         }
 
-        if (SlackNotificationHelper::isEnabled()) {
-            $channels[] = 'slack';
-        }
-
         return $channels;
     }
 

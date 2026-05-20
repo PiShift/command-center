@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
+use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\TaskClaimedNotification;
 use App\Notifications\TaskStatusChangedNotification;
 use Illuminate\Support\Facades\Gate;
@@ -46,6 +47,8 @@ class KanbanBoard extends Component
             $recipient->notify(new TaskStatusChangedNotification($task, $oldStatus, $newStatus, $mover));
         }
 
+        SlackNotificationHelper::notifyOnce(new TaskStatusChangedNotification($task, $oldStatus, $newStatus, $mover));
+
         $this->dispatch('task-moved', taskId: $taskId, column: $columnSlug);
     }
 
@@ -76,6 +79,8 @@ class KanbanBoard extends Component
         foreach ($managers as $manager) {
             $manager->notify(new TaskClaimedNotification($task, $user));
         }
+
+        SlackNotificationHelper::notifyOnce(new TaskClaimedNotification($task, $user));
 
         $this->dispatch('task-claimed', taskId: $taskId);
     }

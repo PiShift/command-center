@@ -25,10 +25,6 @@ class TaskClaimedNotification extends Notification implements ShouldQueue
     {
         $channels = ['database'];
 
-        if (SlackNotificationHelper::isEnabled()) {
-            $channels[] = 'slack';
-        }
-
         return $channels;
     }
 

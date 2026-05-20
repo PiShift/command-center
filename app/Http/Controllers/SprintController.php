@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\Sprint;
 use App\Models\User;
+use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\SprintCompletedNotification;
 use App\Notifications\SprintPublishedNotification;
 use Illuminate\Http\Request;
@@ -94,6 +95,8 @@ class SprintController extends Controller
             }
         }
 
+        SlackNotificationHelper::notifyOnce(new SprintPublishedNotification($sprint, $taskCount));
+
         return redirect()->route('projects.show', $project)
             ->with('success', 'Sprint published. Tasks are now visible to developers.');
     }
@@ -130,6 +133,8 @@ class SprintController extends Controller
         foreach ($managers as $manager) {
             $manager->notify(new SprintCompletedNotification($sprint->load('project'), $doneCount));
         }
+
+        SlackNotificationHelper::notifyOnce(new SprintCompletedNotification($sprint->load('project'), $doneCount));
 
         return redirect()->route('projects.show', $project)
             ->with('success', 'Sprint marked as completed.');

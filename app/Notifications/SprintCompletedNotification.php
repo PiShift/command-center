@@ -27,10 +27,6 @@ class SprintCompletedNotification extends Notification implements ShouldQueue
             $channels[] = 'mail';
         }
 
-        if (SlackNotificationHelper::isEnabled()) {
-            $channels[] = 'slack';
-        }
-
         return $channels;
     }
 

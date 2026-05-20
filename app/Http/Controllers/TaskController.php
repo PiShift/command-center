@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
+use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\TaskAssignedNotification;
 use App\Notifications\TaskClaimedNotification;
 use App\Notifications\TaskStatusChangedNotification;
@@ -122,6 +123,8 @@ class TaskController extends Controller
             foreach ($recipients as $recipient) {
                 $recipient->notify(new TaskStatusChangedNotification($task->load('project'), $oldStatus, $data['status'], auth()->user()));
             }
+
+            SlackNotificationHelper::notifyOnce(new TaskStatusChangedNotification($task->load('project'), $oldStatus, $data['status'], auth()->user()));
         }
 
         return redirect()->route('tasks.show', $task)->with('success', 'Task updated.');
@@ -174,6 +177,8 @@ class TaskController extends Controller
         foreach ($managers as $manager) {
             $manager->notify(new TaskClaimedNotification($task->load('project'), $user));
         }
+
+        SlackNotificationHelper::notifyOnce(new TaskClaimedNotification($task->load('project'), $user));
 
         return back()->with('success', 'You are now assigned to this task.');
     }

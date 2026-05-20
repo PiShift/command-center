@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\ProjectHealthChangedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -172,6 +173,8 @@ class ProjectController extends Controller
             foreach ($managers as $manager) {
                 $manager->notify(new ProjectHealthChangedNotification($project, $data['health']));
             }
+
+            SlackNotificationHelper::notifyOnce(new ProjectHealthChangedNotification($project, $data['health']));
         }
 
         return redirect()->route('projects.show', $project)->with('success', 'Project updated.');

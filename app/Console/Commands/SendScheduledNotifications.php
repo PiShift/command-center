@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceReminder;
 use App\Models\Sprint;
 use App\Models\Task;
+use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\SprintDeadlineNotification;
 use App\Notifications\TaskOverdueNotification;
 use Illuminate\Console\Command;
@@ -68,6 +69,8 @@ class SendScheduledNotifications extends Command
                             $user->notify(new SprintDeadlineNotification($sprint));
                         }
                     });
+
+                    SlackNotificationHelper::notifyOnce(new SprintDeadlineNotification($sprint));
                 }
             });
 

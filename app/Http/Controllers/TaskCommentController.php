@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Task;
 use App\Models\TaskComment;
+use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\TaskCommentNotification;
 use Illuminate\Http\Request;
 
@@ -72,6 +73,8 @@ class TaskCommentController extends Controller
         foreach ($recipients as $recipient) {
             $recipient->notify(new TaskCommentNotification($task->load('project'), $comment, $commenter));
         }
+
+        SlackNotificationHelper::notifyOnce(new TaskCommentNotification($task->load('project'), $comment, $commenter));
 
         return back()->with('success', 'Comment added.');
     }
