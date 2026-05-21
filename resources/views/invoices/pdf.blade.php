@@ -255,7 +255,28 @@
   @foreach($invoice->items->sortBy('sort_order') as $idx => $item)
     <tr>
       <td class="muted">{{ $idx + 1 }}</td>
-      <td class="desc" style="line-height:1.6">@include('invoices._item_description', ['description' => $item->description])</td>
+      <td class="desc" style="line-height:1.6">
+        @php
+            $descLines = explode("\n", trim($item->description ?? ''));
+            $firstNonEmpty = true;
+        @endphp
+        @foreach($descLines as $descLine)
+            @php $t = rtrim($descLine); @endphp
+            @if($t === '')
+                <br>
+            @elseif($firstNonEmpty)
+                @php $firstNonEmpty = false; @endphp
+                <strong style="font-weight:600">{{ $t }}</strong>
+            @elseif(str_starts_with($t, '·') || str_starts_with($t, '-'))
+                <table style="width:100%;border-collapse:collapse;margin:0;padding:0"><tr>
+                  <td style="width:12px;vertical-align:top;padding:0">{{ mb_substr($t, 0, 1) }}</td>
+                  <td style="vertical-align:top;padding:0">{{ trim(mb_substr($t, 1)) }}</td>
+                </tr></table>
+            @else
+                <div>{{ $t }}</div>
+            @endif
+        @endforeach
+      </td>
       <td class="muted">{{ $item->unit }}</td>
       <td class="r muted">{{ rtrim(rtrim(number_format($item->quantity, 2), '0'), '.') }}</td>
       <td class="r">{{ $invoice->currency }} {{ number_format($item->unit_price, 2) }}</td>
