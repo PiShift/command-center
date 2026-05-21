@@ -49,6 +49,7 @@
                                 :style="'background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none;' + (!selectedCustomer ? 'opacity:0.5;cursor:not-allowed' : '')"
                                 x-model="selectedProject"
                                 :disabled="!selectedCustomer"
+                                @change="$dispatch('project-changed', { id: selectedProject })"
                                 onfocus="if(!this.disabled){this.style.borderColor='#D97757'}" onblur="this.style.borderColor='#e5e4df'">
                             <option value="">No project</option>
                             <template x-for="p in filteredProjects" :key="p.id">
@@ -61,10 +62,15 @@
                     </div>
                 </div>
                 {{-- Dates --}}
+                @php
+                    $defaultIssue = now()->format('Y-m-d');
+                    $defaultDue   = now()->addDays(7)->format('Y-m-d');
+                    $dateDefaults = ['issue_date' => $defaultIssue, 'due_date' => $defaultDue];
+                @endphp
                 @foreach([['issue_date','Issue Date'],['due_date','Due Date']] as [$name,$label])
                 <div>
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">{{ $label }} *</label>
-                    <input type="date" name="{{ $name }}" value="{{ old($name, isset($invoice) ? $invoice->$name?->format('Y-m-d') : '') }}" required
+                    <input type="date" name="{{ $name }}" value="{{ old($name, isset($invoice) && $invoice->exists ? $invoice->$name?->format('Y-m-d') : $dateDefaults[$name]) }}" required
                            class="w-full rounded-lg text-[13px] px-3 py-2"
                            style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none"
                            onfocus="this.style.borderColor='#D97757';this.style.background='#fff'"
@@ -84,11 +90,79 @@
         </div>
 
         {{-- Line items --}}
+        @php
+            $projectIds = $projects->pluck('id')->toArray();
+            $allProjectTasks = \App\Models\Task::where('status', 'done')
+                ->whereIn('project_id', $projectIds)
+                ->with('sprint:id,name')
+                ->get(['id', 'project_id', 'sprint_id', 'title', 'estimated_hours'])
+                ->groupBy('project_id')
+                ->map(fn($ts) => $ts->map(fn($t) => [
+                    'id'              => $t->id,
+                    'title'           => $t->title,
+                    'sprint_name'     => $t->sprint?->name,
+                    'estimated_hours' => $t->estimated_hours,
+                ])->values()->all())
+                ->all();
+            $allProjectSprints = \App\Models\Sprint::whereIn('project_id', $projectIds)
+                ->whereIn('status', ['active', 'completed'])
+                ->with('tasks:id,sprint_id,title')
+                ->get(['id', 'project_id', 'name', 'status'])
+                ->groupBy('project_id')
+                ->map(fn($ss) => $ss->map(fn($s) => [
+                    'id'     => $s->id,
+                    'name'   => $s->name,
+                    'status' => $s->status,
+                    'tasks'  => $s->tasks->pluck('title')->values()->all(),
+                ])->values()->all())
+                ->all();
+        @endphp
         <div class="rounded-xl overflow-hidden" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)" x-data="itemsManager()">
-            <div class="px-6 py-4 flex items-center justify-between" style="border-bottom:1px solid #eeeee9">
+            <div class="px-6 py-4 flex items-center justify-between gap-3 flex-wrap" style="border-bottom:1px solid #eeeee9">
                 <p style="font-size:13px;font-weight:600;color:#141413">Line Items</p>
-                <button type="button" @click="addItem()"
-                        style="font-size:12px;font-weight:500;color:#D97757;background:none;border:none;cursor:pointer">+ Add line</button>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button type="button" @click="addItem()"
+                            style="font-size:12px;font-weight:500;color:#D97757;background:none;border:none;cursor:pointer">+ Add line</button>
+
+                    <template x-if="currentProjectId">
+                        <button type="button"
+                                @click="showTaskPanel = !showTaskPanel; showSprintSelect = false"
+                                :style="showTaskPanel
+                                    ? 'font-size:12px;font-weight:500;color:#fff;background:#D97757;border:1px solid #D97757;cursor:pointer;border-radius:6px;padding:3px 10px'
+                                    : 'font-size:12px;font-weight:500;color:#5c5c5a;background:none;border:1px solid #e5e4df;cursor:pointer;border-radius:6px;padding:3px 10px'"
+                                >+ From Tasks</button>
+                    </template>
+
+                    <template x-if="currentProjectId">
+                        <div class="flex items-center gap-1.5">
+                            <button type="button"
+                                    @click="showSprintSelect = !showSprintSelect; showTaskPanel = false"
+                                    :style="showSprintSelect
+                                        ? 'font-size:12px;font-weight:500;color:#fff;background:#D97757;border:1px solid #D97757;cursor:pointer;border-radius:6px;padding:3px 10px'
+                                        : 'font-size:12px;font-weight:500;color:#5c5c5a;background:none;border:1px solid #e5e4df;cursor:pointer;border-radius:6px;padding:3px 10px'"
+                                    >+ From Sprint</button>
+                            <template x-if="showSprintSelect">
+                                <div class="flex items-center gap-1.5">
+                                    <div class="relative">
+                                        <select x-model="selectedSprintId"
+                                                style="font-size:12px;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:6px;padding:3px 22px 3px 8px;outline:none;appearance:none">
+                                            <option value="">Pick sprint…</option>
+                                            <template x-for="s in projectSprints" :key="s.id">
+                                                <option :value="s.id" x-text="s.name + (s.status === 'active' ? ' ●' : '')"></option>
+                                            </template>
+                                        </select>
+                                        <span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" style="color:#8c8c8a">
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                                        </span>
+                                    </div>
+                                    <button type="button" @click="addFromSprint()"
+                                            :disabled="!selectedSprintId"
+                                            style="font-size:12px;font-weight:500;color:#fff;background:#141413;border:none;cursor:pointer;border-radius:6px;padding:3px 10px">Add</button>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
             </div>
             <table class="w-full" style="font-size:12.5px">
                 <thead>
@@ -106,12 +180,13 @@
                     <template x-for="(item, idx) in items" :key="idx">
                     <tr style="border-bottom:1px solid #eeeee9">
                         <td class="px-4 py-2">
-                            <input type="text" :name="`items[${idx}][description]`" x-model="item.description" placeholder="Description"
-                                   class="w-full rounded text-[12.5px] px-2 py-1.5"
-                                   style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none"
-                                   onfocus="this.style.borderColor='#D97757'" onblur="this.style.borderColor='#e5e4df'">
-                            <input type="hidden" :name="`items[${idx}][type]`" :value="item.type">
-                            <input type="hidden" :name="`items[${idx}][task_id]`" :value="item.task_id">
+                            <textarea :name="`items[${idx}][description]`" x-model="item.description" placeholder="Description"
+                                      rows="1"
+                                      class="w-full rounded text-[12.5px] px-2 py-1.5"
+                                      style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none;resize:none;line-height:1.5;overflow:hidden"
+                                      onfocus="this.style.borderColor='#D97757'" onblur="this.style.borderColor='#e5e4df'"
+                                      @input="$el.style.height='auto'; $el.style.height=$el.scrollHeight+'px'"
+                                      x-init="$nextTick(() => { $el.style.height='auto'; $el.style.height=$el.scrollHeight+'px' })"></textarea>
                         </td>
                         <td class="px-3 py-2">
                             <input type="text" :name="`items[${idx}][unit]`" x-model="item.unit" placeholder="e.g. hours"
@@ -143,6 +218,45 @@
                     </template>
                 </tbody>
             </table>
+
+            {{-- From Tasks panel --}}
+            <div x-show="showTaskPanel" style="border-top:1px solid #eeeee9;background:#faf9f5">
+                <div class="px-6 py-4">
+                    <p style="font-size:12px;font-weight:600;color:#141413;margin-bottom:10px">Select done tasks from this project:</p>
+                    <template x-if="projectTasks.length === 0">
+                        <p style="font-size:12px;color:#8c8c8a">No completed tasks found for this project.</p>
+                    </template>
+                    <template x-if="projectTasks.length > 0">
+                        <div>
+                            <div class="flex flex-col gap-1.5 mb-4" style="max-height:260px;overflow-y:auto">
+                                <template x-for="task in projectTasks" :key="task.id">
+                                    <label class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer"
+                                           style="background:#fff;border:1px solid #e5e4df">
+                                        <input type="checkbox" :value="task.id" x-model="selectedTaskIds"
+                                               style="accent-color:#D97757;width:14px;height:14px;flex-shrink:0;cursor:pointer">
+                                        <div style="flex:1;min-width:0">
+                                            <p style="font-size:12.5px;color:#141413;font-weight:500" x-text="task.title"></p>
+                                            <p style="font-size:11px;color:#8c8c8a">
+                                                <span x-text="task.sprint_name || 'No sprint'"></span>
+                                                <template x-if="task.estimated_hours">
+                                                    <span> &middot; <span x-text="task.estimated_hours"></span>h estimated</span>
+                                                </template>
+                                            </p>
+                                        </div>
+                                    </label>
+                                </template>
+                            </div>
+                            <button type="button" @click="addFromTasks()"
+                                    :disabled="selectedTaskIds.length === 0"
+                                    :style="selectedTaskIds.length > 0
+                                        ? 'font-size:12px;font-weight:500;color:#fff;background:#D97757;border:none;cursor:pointer;border-radius:6px;padding:5px 14px'
+                                        : 'font-size:12px;font-weight:500;color:#8c8c8a;background:#e5e4df;border:none;cursor:not-allowed;border-radius:6px;padding:5px 14px'"
+                                    x-text="selectedTaskIds.length > 0 ? 'Add ' + selectedTaskIds.length + ' task(s) as line items' : 'Select tasks above'"
+                                    ></button>
+                        </div>
+                    </template>
+                </div>
+            </div>
         </div>
 
         {{-- Notes --}}
@@ -200,8 +314,6 @@
 @php
     $existingItems = (isset($invoice) && $invoice->relationLoaded('items') && $invoice->items->isNotEmpty())
         ? $invoice->items->map(fn($i) => [
-            'type'           => $i->type,
-            'task_id'        => $i->task_id,
             'description'    => $i->description,
             'quantity'       => $i->quantity,
             'unit'           => $i->unit,
@@ -213,17 +325,87 @@
         : [];
 @endphp
 <script>
+const _allProjectTasks   = @json($allProjectTasks);
+const _allProjectSprints = @json($allProjectSprints);
+
 function itemsManager() {
     return {
-        items: @json($existingItems),
-        addItem() {
-            this.items.push({ type:'manual', task_id:null, description:'', quantity:1, unit:'units', unit_price:0, discount_value:null, discount_type:'', subtotal:0 });
+        items: @json($existingItems).map(i => ({ isMultiline: false, ...i })),
+        currentProjectId: '{{ old('project_id', $invoice->project_id ?? '') }}',
+        showTaskPanel:    false,
+        showSprintSelect: false,
+        selectedTaskIds:  [],
+        selectedSprintId: '',
+
+        init() {
+            window.addEventListener('project-changed', (e) => {
+                this.currentProjectId = e.detail.id ? String(e.detail.id) : '';
+                this.showTaskPanel    = false;
+                this.showSprintSelect = false;
+                this.selectedTaskIds  = [];
+                this.selectedSprintId = '';
+            });
         },
+
+        get projectTasks() {
+            if (!this.currentProjectId) return [];
+            return _allProjectTasks[this.currentProjectId] ?? [];
+        },
+
+        get projectSprints() {
+            if (!this.currentProjectId) return [];
+            return _allProjectSprints[this.currentProjectId] ?? [];
+        },
+
+        addItem() {
+            this.items.push({
+                isMultiline: false, type: 'manual', task_id: null,
+                description: '', quantity: 1, unit: 'units',
+                unit_price: 0, discount_value: null, discount_type: '', subtotal: 0,
+            });
+        },
+
+        addFromTasks() {
+            const ids = this.selectedTaskIds.map(String);
+            this.projectTasks
+                .filter(t => ids.includes(String(t.id)))
+                .forEach(t => {
+                    const qty  = t.estimated_hours ? parseFloat(t.estimated_hours) : 1;
+                    const unit = t.estimated_hours ? 'hours' : 'fixed';
+                    this.items.push({
+                        isMultiline: false,
+                        type: 'manual', task_id: null,
+                        description: t.title,
+                        quantity: qty, unit: unit,
+                        unit_price: 0, discount_value: null, discount_type: '', subtotal: 0,
+                    });
+                });
+            this.selectedTaskIds = [];
+            this.showTaskPanel   = false;
+        },
+
+        addFromSprint() {
+            if (!this.selectedSprintId) return;
+            const sprint = this.projectSprints.find(s => String(s.id) === String(this.selectedSprintId));
+            if (!sprint) return;
+            const taskLines  = sprint.tasks.map(t => '\u00b7 ' + t).join('\n');
+            const desc       = sprint.name + '\n\n' + taskLines;
+            this.items.push({
+                isMultiline: true,
+                type: 'manual', task_id: null,
+                description: desc,
+                quantity: 1, unit: 'fixed',
+                unit_price: 0, discount_value: null, discount_type: '', subtotal: 0,
+            });
+            this.selectedSprintId = '';
+            this.showSprintSelect = false;
+        },
+
         recalc(item) {
             const base = (item.quantity || 0) * (item.unit_price || 0);
             const disc = item.discount_value > 0 ? base * item.discount_value / 100 : 0;
             item.subtotal = Math.max(0, base - disc);
-        }
-    }
+        },
+    };
 }
 </script>

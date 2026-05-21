@@ -255,10 +255,7 @@
   @foreach($invoice->items->sortBy('sort_order') as $idx => $item)
     <tr>
       <td class="muted">{{ $idx + 1 }}</td>
-      <td class="desc">
-        {{ $item->description }}
-        @if($item->type === 'task') <span class="task-tag">&middot; task</span> @endif
-      </td>
+      <td class="desc" style="line-height:1.6">@include('invoices._item_description', ['description' => $item->description])</td>
       <td class="muted">{{ $item->unit }}</td>
       <td class="r muted">{{ rtrim(rtrim(number_format($item->quantity, 2), '0'), '.') }}</td>
       <td class="r">{{ $invoice->currency }} {{ number_format($item->unit_price, 2) }}</td>

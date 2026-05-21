@@ -39,9 +39,10 @@
                 <button @click="open = true"
                         style="padding:8px 16px;font-size:13px;font-weight:500;background:#D97757;color:#fff;border:none;border-radius:8px;cursor:pointer;transition:background 150ms ease"
                         onmouseover="this.style.background='#c4684a'" onmouseout="this.style.background='#D97757'">Publish</button>
-                <div x-show="open" x-cloak @keydown.escape.window="open = false"
-                     style="position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(20,20,19,0.4)">
-                    <div @click.outside="open = false" style="background:#fff;border-radius:12px;padding:24px;width:340px;border:1px solid #e5e4df;box-shadow:0 8px 32px rgba(20,20,19,0.12)">
+                <div :style="open ? 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(20,20,19,0.4)' : 'display:none'"
+                     @keydown.escape.window="open = false"
+                     @click.self="open = false">
+                    <div style="background:#fff;border-radius:12px;padding:24px;width:340px;border:1px solid #e5e4df;box-shadow:0 8px 32px rgba(20,20,19,0.12)">
                         <p style="font-size:15px;font-weight:600;color:#141413;margin-bottom:8px">Publish Invoice?</p>
                         <p style="font-size:13px;color:#5c5c5a;margin-bottom:16px">This will make the invoice visible and lock editing.</p>
                         @if($invoice->customer?->email)
@@ -53,7 +54,7 @@
                         <div class="flex gap-2 justify-end">
                             <button @click="open = false"
                                     style="padding:8px 16px;font-size:13px;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer">Cancel</button>
-                            <form method="POST" action="{{ route('invoices.publish', $invoice) }}" id="publish-form-{{ $invoice->id }}">
+                            <form method="POST" action="{{ route('invoices.publish', $invoice) }}">
                                 @csrf
                                 <input type="hidden" name="notify_customer" :value="notify ? '1' : '0'">
                                 <button type="submit"
@@ -163,10 +164,7 @@
                 <tbody>
                     @foreach($invoice->items as $item)
                     <tr style="border-bottom:1px solid #eeeee9">
-                        <td class="px-6 py-3" style="color:#141413">
-                            {{ $item->description }}
-                            @if($item->type === 'task')<span style="font-size:11px;color:#8c8c8a;margin-left:4px">(task)</span>@endif
-                        </td>
+                        <td class="px-6 py-3" style="color:#141413;line-height:1.6">@include('invoices._item_description', ['description' => $item->description])</td>
                         <td class="px-4 py-3 text-center" style="color:#5c5c5a">{{ $item->unit }}</td>
                         <td class="px-4 py-3 text-right" style="color:#5c5c5a">{{ $item->quantity }}</td>
                         <td class="px-4 py-3 text-right" style="color:#5c5c5a">{{ $invoice->currency }} {{ number_format($item->unit_price, 2) }}</td>

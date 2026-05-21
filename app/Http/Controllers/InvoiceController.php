@@ -179,8 +179,8 @@ class InvoiceController extends Controller
             if (empty($row['description']) && empty($row['unit_price'])) continue;
             InvoiceItem::create([
                 'invoice_id'     => $invoice->id,
-                'type'           => $row['type'] ?? 'manual',
-                'task_id'        => $row['task_id'] ?? null,
+                'type'           => 'manual',
+                'task_id'        => null,
                 'description'    => $row['description'],
                 'quantity'       => $row['quantity'] ?? 1,
                 'unit'           => $row['unit'] ?? 'units',
