@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Invoice;
+use App\Services\InvoiceService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -33,6 +34,12 @@ class InvoicePublishedMailable extends Mailable
 
     public function attachments(): array
     {
+        $pdf = app(InvoiceService::class)->generatePdf($this->invoice);
+        $this->attachData(
+            $pdf->output(),
+            $this->invoice->invoice_number . '.pdf',
+            ['mime' => 'application/pdf']
+        );
         return [];
     }
 }
