@@ -68,13 +68,14 @@
             <tr style="background:#faf9f5; border-bottom:1px solid #e5e4df">
                 @php
                     $headers = [
-                        ['col' => 'name',       'label' => 'Project',    'cls' => 'px-6 py-3 text-left'],
-                        ['col' => null,         'label' => 'Customer',   'cls' => 'px-4 py-3 text-left'],
-                        ['col' => 'status',     'label' => 'Status',     'cls' => 'px-4 py-3 text-left'],
-                        ['col' => null,         'label' => 'Health',     'cls' => 'px-4 py-3 text-left'],
-                        ['col' => null,         'label' => 'Open Tasks', 'cls' => 'px-4 py-3 text-left'],
-                        ['col' => 'deadline',   'label' => 'Deadline',   'cls' => 'px-4 py-3 text-left'],
-                        ['col' => null,         'label' => '',           'cls' => 'px-4 py-3'],
+                        ['col' => 'name',       'label' => 'Project',        'cls' => 'px-6 py-3 text-left'],
+                        ['col' => null,         'label' => 'Customer',       'cls' => 'px-4 py-3 text-left'],
+                        ['col' => null,         'label' => 'Activity',       'cls' => 'px-4 py-3 text-left'],
+                        ['col' => null,         'label' => 'Current Sprint', 'cls' => 'px-4 py-3 text-left'],
+                        ['col' => null,         'label' => 'Progress',       'cls' => 'px-4 py-3 text-left'],
+                        ['col' => null,         'label' => 'Health',         'cls' => 'px-4 py-3 text-left'],
+                        ['col' => 'deadline',   'label' => 'Deadline',       'cls' => 'px-4 py-3 text-left'],
+                        ['col' => null,         'label' => '',               'cls' => 'px-4 py-3'],
                     ];
                 @endphp
                 @foreach($headers as $th)
@@ -102,9 +103,77 @@
                     </div>
                 </td>
                 <td class="px-4 py-3" style="color:#5c5c5a">{{ $project->customer?->name ?? '-' }}</td>
-                <td class="px-4 py-3">@include('components.badge', ['type' => 'project_status', 'value' => $project->status])</td>
+                {{-- Activity state --}}
+                <td class="px-4 py-3">
+                    @php
+                        $actState = $project->activity_state ?? 'no_sprints';
+                        $actConfig = match($actState) {
+                            'active_sprint' => ['dot' => '#3d9970', 'pulse' => true,  'label' => 'Active sprint', 'textColor' => '#2e7d55'],
+                            'preparing'     => ['dot' => '#4a90d9', 'pulse' => false, 'label' => 'Preparing',     'textColor' => '#3a6fba'],
+                            'idle'          => ['dot' => '#e07b39', 'pulse' => false, 'label' => 'Idle',          'textColor' => '#9a6030'],
+                            default         => ['dot' => '#c0bfba', 'pulse' => false, 'label' => 'No sprints',    'textColor' => '#8c8c8a'],
+                        };
+                    @endphp
+                    <div class="flex items-center gap-1.5">
+                        <span class="relative flex h-2 w-2 shrink-0">
+                            @if($actConfig['pulse'])
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style="background:{{ $actConfig['dot'] }}"></span>
+                            @endif
+                            <span class="relative inline-flex rounded-full h-2 w-2" style="background:{{ $actConfig['dot'] }}"></span>
+                        </span>
+                        <span style="font-size:12px;font-weight:500;color:{{ $actConfig['textColor'] }}">{{ $actConfig['label'] }}</span>
+                    </div>
+                </td>
+
+                {{-- Current Sprint --}}
+                <td class="px-4 py-3">
+                    @php
+                        $sprintName    = $project->active_sprint_name ?? null;
+                        $isDraft       = $project->active_sprint_is_draft ?? false;
+                        $daysLeft      = $project->active_sprint_days_remaining ?? null;
+                        $deadlineDate  = $project->active_sprint_deadline;
+                    @endphp
+                    @if($sprintName && !$isDraft)
+                        <div style="font-size:13px;font-weight:500;color:#141413">{{ $sprintName }}</div>
+                        @if($deadlineDate)
+                        @php
+                            $dlFmt = is_string($deadlineDate) ? \Carbon\Carbon::parse($deadlineDate) : $deadlineDate;
+                            $daysColor = $daysLeft !== null ? ($daysLeft < 3 ? '#b94040' : ($daysLeft < 7 ? '#9a6030' : '#2e7d55')) : '#8c8c8a';
+                        @endphp
+                        <div style="font-size:11px;color:#8c8c8a;margin-top:2px">
+                            {{ $dlFmt->format('M j') }}
+                            @if($daysLeft !== null)
+                                · <span style="font-weight:600;color:{{ $daysColor }}">{{ $daysLeft >= 0 ? $daysLeft . 'd left' : abs($daysLeft) . 'd overdue' }}</span>
+                            @endif
+                        </div>
+                        @endif
+                    @elseif($sprintName && $isDraft)
+                        <div style="font-size:13px;font-style:italic;color:#3a6fba">{{ $sprintName }}</div>
+                        <div style="font-size:11px;color:#8c8c8a;margin-top:2px">(Draft)</div>
+                    @else
+                        <span style="color:#9a6030;font-weight:500;font-size:13px">—</span>
+                    @endif
+                </td>
+
+                {{-- Progress --}}
+                <td class="px-4 py-3">
+                    @php
+                        $done    = $project->tasks_done_count ?? 0;
+                        $total   = $project->tasks_total_count ?? 0;
+                        $pct     = $project->tasks_progress_percent ?? 0;
+                        $barColor = $pct >= 100 ? '#3d9970' : ($pct > 0 ? '#4a90d9' : '#d8d7d2');
+                    @endphp
+                    @if($total === 0)
+                        <span style="font-size:12px;color:#8c8c8a">No tasks</span>
+                    @else
+                        <div style="font-size:12px;font-weight:500;color:#5c5c5a;margin-bottom:4px">{{ $done }} / {{ $total }}</div>
+                        <div style="width:80px;height:4px;background:#eeeee9;border-radius:9999px;overflow:hidden">
+                            <div style="width:{{ $pct }}%;height:100%;background:{{ $barColor }};border-radius:9999px"></div>
+                        </div>
+                    @endif
+                </td>
+
                 <td class="px-4 py-3">@include('components.badge', ['type' => 'health', 'value' => $project->health ?? 'on-track'])</td>
-                <td class="px-4 py-3" style="color:#5c5c5a">{{ $project->open_tasks_count }} / {{ $project->tasks_count }}</td>
                 <td class="px-4 py-3" style="color:{{ $project->isOverdue() ? '#b94040' : '#5c5c5a' }};font-weight:{{ $project->isOverdue() ? '500' : '400' }}">{{ $project->deadline?->format('M d, Y') ?? '-' }}</td>
                 <td class="px-4 py-3 text-right">
                     <div class="flex items-center justify-end gap-2">
@@ -122,7 +191,12 @@
             @endforeach
         </tbody>
     </table>
-    <div class="px-6 py-4" style="border-top:1px solid #eeeee9">{{ $projects->links() }}</div>
+    <div class="px-6 py-4 flex items-center justify-between" style="border-top:1px solid #eeeee9">
+        <div>{{ $projects->links() }}</div>
+        @if(!$sort)
+        <span style="font-size:11px;color:#8c8c8a">Sorted by activity</span>
+        @endif
+    </div>
     @endif
 </div>
 
