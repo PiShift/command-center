@@ -28,7 +28,7 @@
                             @include('components.badge', ['type' => 'health', 'value' => $project->health ?? 'on-track'])
                         </div>
                         <div class="flex items-center gap-4 flex-wrap">
-                            @if($project->customer)
+                            @if($project->customer && auth()->user()->can('customers.view'))
                             <span class="text-[13px] text-dim">
                                 <span class="text-muted">Customer:</span>
                                 <a href="{{ route('customers.show', $project->customer) }}" class="hover:text-accent transition-colors">{{ $project->customer->name }}</a>
