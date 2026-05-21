@@ -41,6 +41,13 @@
                                 {{ $project->github_repo }}
                             </a>
                             @endif
+                            @if($project->website)
+                            <a href="{{ $project->website }}" target="_blank" rel="noopener"
+                               class="inline-flex items-center gap-1 text-[12px] text-dim hover:text-accent transition-colors">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                                {{ parse_url($project->website, PHP_URL_HOST) ?: $project->website }}
+                            </a>
+                            @endif
                             @if($project->stack)
                             <span class="inline-flex items-center px-2 py-0.5 text-[11px] font-medium text-muted bg-surface border border-hairline rounded-md">{{ $project->stack }}</span>
                             @endif

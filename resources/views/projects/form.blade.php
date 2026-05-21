@@ -81,6 +81,13 @@
                            class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
 
+                {{-- Website --}}
+                <div>
+                    <label class="block text-[12px] font-medium text-dim mb-1">Website / Domain</label>
+                    <input type="url" name="website" value="{{ old('website', $project->website ?? '') }}" placeholder="https://example.com"
+                           class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+
                 {{-- Stack --}}
                 <div>
                     <label class="block text-[12px] font-medium text-dim mb-1">Stack</label>
@@ -90,10 +97,12 @@
 
                 {{-- Slack Channel --}}
                 <div>
-                    <label class="block text-[12px] font-medium text-dim mb-1">Slack Channel</label>
+                    <label class="block text-[12px] font-medium text-dim mb-1">
+                        Slack Channel
+                        <x-tooltip text="Notifications for this project will be sent to this channel. Leave empty to use the default workspace channel." />
+                    </label>
                     <input type="text" name="slack_channel" value="{{ old('slack_channel', $project->slack_channel ?? '') }}" placeholder="#channel-name"
                            class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
-                    <p class="mt-1 text-[11px] text-muted">Notifications for this project will be sent to this channel. Leave empty to use the default workspace channel.</p>
                 </div>
 
                 {{-- Start Date --}}
