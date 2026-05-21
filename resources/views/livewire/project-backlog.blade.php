@@ -27,14 +27,14 @@
                 this.planLoading = false;
                 return;
             }
-            payload = { notes: this.planNotes };
+            payload = { raw_notes: this.planNotes };
         } else {
             if (this.planSelectedItems.length === 0) {
                 this.planError = 'Please select at least one backlog item.';
                 this.planLoading = false;
                 return;
             }
-            payload = { backlog_ids: this.planSelectedItems };
+            payload = { item_ids: this.planSelectedItems };
         }
 
         this.planRawInput = JSON.stringify(payload);
