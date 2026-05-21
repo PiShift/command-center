@@ -266,14 +266,14 @@
                 <br>
             @elseif($firstNonEmpty)
                 @php $firstNonEmpty = false; @endphp
-                <strong style="font-weight:600">{{ $t }}</strong>
+                <strong style="font-size:11px;font-weight:bold;color:#1a1a1a">{{ $t }}</strong>
             @elseif(str_starts_with($t, '·') || str_starts_with($t, '-'))
-                <table style="width:100%;border-collapse:collapse;margin:0;padding:0"><tr>
+                <table style="width:100%;border-collapse:collapse;margin:0;padding:0;font-size:9.5px;color:#666666"><tr>
                   <td style="width:12px;vertical-align:top;padding:0">{{ mb_substr($t, 0, 1) }}</td>
                   <td style="vertical-align:top;padding:0">{{ trim(mb_substr($t, 1)) }}</td>
                 </tr></table>
             @else
-                <div>{{ $t }}</div>
+                <div style="font-size:9.5px;color:#666666">{{ $t }}</div>
             @endif
         @endforeach
       </td>
