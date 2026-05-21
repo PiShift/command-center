@@ -9,14 +9,44 @@
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
 {{-- Page header                                                               --}}
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
-<div class="mb-6 flex items-end justify-between">
+<div class="mb-6 flex items-start justify-between gap-4 flex-wrap">
     <div>
         <h1 class="text-2xl font-semibold text-ink">Dashboard</h1>
-        <p class="text-[13px] text-muted mt-0.5">{{ now()->format('l, F j, Y') }}</p>
+        <p class="text-[13px] text-muted mt-0.5">
+            Showing data for <span class="font-medium text-dim">{{ $periodLabel }}</span>
+        </p>
     </div>
-    <span class="text-[11px] text-muted bg-surface border border-line px-3 py-1.5 rounded-lg">
-        Auto-refreshes on page load · data cached 5 min
-    </span>
+
+    {{-- Date range picker --}}
+    <form method="GET" action="{{ route('dashboard') }}" class="flex items-center gap-2">
+        <div class="relative">
+            <select name="month" onchange="this.form.submit()"
+                    class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer"
+                    style="background:#F5F4EF; border:1px solid #e5e4df; color:#141413; outline:none">
+                @foreach(range(1, 12) as $m)
+                <option value="{{ $m }}" {{ $m == $month ? 'selected' : '' }}>{{ \Carbon\Carbon::create(null, $m)->format('F') }}</option>
+                @endforeach
+            </select>
+            <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+        </div>
+        <div class="relative">
+            <select name="year" onchange="this.form.submit()"
+                    class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer"
+                    style="background:#F5F4EF; border:1px solid #e5e4df; color:#141413; outline:none">
+                @foreach(range(now()->year - 2, now()->year) as $y)
+                <option value="{{ $y }}" {{ $y == $year ? 'selected' : '' }}>{{ $y }}</option>
+                @endforeach
+            </select>
+            <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+        </div>
+        <span class="text-[11px] text-muted bg-surface border border-line px-3 py-1.5 rounded-lg whitespace-nowrap">
+            Cached 5 min
+        </span>
+    </form>
 </div>
 
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}

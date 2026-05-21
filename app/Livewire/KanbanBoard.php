@@ -34,6 +34,15 @@ class KanbanBoard extends Component
 
         $task->update(['status' => $newStatus]);
 
+        // Track completion timestamp
+        if ($newStatus === 'done') {
+            $task->completed_at = now();
+            $task->saveQuietly();
+        } elseif ($oldStatus === 'done') {
+            $task->completed_at = null;
+            $task->saveQuietly();
+        }
+
         $mover      = auth()->user();
         $recipients = collect();
         if ($task->assigned_to && $task->assigned_to !== $mover->id) {
@@ -70,7 +79,7 @@ class KanbanBoard extends Component
         activity()
             ->performedOn($task)
             ->causedBy($user)
-            ->log("Task claimed by {$user->name} — status changed to todo");
+            ->log('claimed task');
 
         session()->flash('success', 'You are now assigned to this task.');
 

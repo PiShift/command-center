@@ -101,6 +101,17 @@ class TaskController extends Controller
 
         $task->update($data);
 
+        // Set/clear completed_at based on status transition
+        if (isset($data['status'])) {
+            if ($data['status'] === 'done' && $oldStatus !== 'done') {
+                $task->completed_at = now();
+                $task->saveQuietly();
+            } elseif ($data['status'] !== 'done' && $oldStatus === 'done') {
+                $task->completed_at = null;
+                $task->saveQuietly();
+            }
+        }
+
         // Notify new assignee
         if (! empty($data['assigned_to']) && $data['assigned_to'] != $oldAssignedTo) {
             $assignee = User::find($data['assigned_to']);
@@ -172,7 +183,7 @@ class TaskController extends Controller
         activity()
             ->performedOn($task)
             ->causedBy($user)
-            ->log("Task claimed by {$user->name} — status changed to todo");
+            ->log('claimed task');
 
         $managers = User::whereHas('roleModel', fn($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
         foreach ($managers as $manager) {
