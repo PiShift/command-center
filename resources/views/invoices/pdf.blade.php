@@ -263,17 +263,14 @@
         @foreach($descLines as $descLine)
             @php $t = rtrim($descLine); @endphp
             @if($t === '')
-                <br>
+                <div style="height:4px;"></div>
             @elseif($firstNonEmpty)
                 @php $firstNonEmpty = false; @endphp
-                <strong style="font-size:11px;font-weight:bold;color:#1a1a1a">{{ $t }}</strong>
+                <div style="font-size:11px;font-weight:bold;color:#1a1a1a;margin-bottom:4px;">{{ $t }}</div>
             @elseif(str_starts_with($t, '·') || str_starts_with($t, '-'))
-                <table style="width:100%;border-collapse:collapse;margin:0;padding:0;font-size:9.5px;color:#666666"><tr>
-                  <td style="width:12px;vertical-align:top;padding:0">{{ mb_substr($t, 0, 1) }}</td>
-                  <td style="vertical-align:top;padding:0">{{ trim(mb_substr($t, 1)) }}</td>
-                </tr></table>
+                <div style="font-size:9.5px;color:#666666;padding-left:10px;margin-bottom:2px;">· {{ trim(mb_substr($t, 1)) }}</div>
             @else
-                <div style="font-size:9.5px;color:#666666">{{ $t }}</div>
+                <div style="font-size:9.5px;color:#666666;margin-bottom:2px;">{{ $t }}</div>
             @endif
         @endforeach
       </td>
