@@ -52,85 +52,117 @@
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
 {{-- SECTION 1 — KPI Cards                                                    --}}
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
-<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+@php
+    $expGrowthCard = $expensesLastMonth > 0 ? round((($expensesThisMonth - $expensesLastMonth) / $expensesLastMonth) * 100, 1) : null;
+    $kpiR = 22; $kpiCirc = round(2 * M_PI * $kpiR, 2);
+    $kpiOffset = round($kpiCirc * (1 - min(100, max(0, $collectionRate)) / 100), 2);
+@endphp
+
+{{-- Row 1: Financial --}}
+<div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
 
     {{-- Revenue this month --}}
-    <div class="bg-white border border-line rounded-xl p-5 border-l-4 border-l-[#3d9970] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Revenue / Month</p>
-        <p class="text-2xl font-bold text-ink leading-none mb-2">{{ $fmt($revenueThisMonth) }}</p>
-        @if($revenueGrowth != 0)
-        <span class="inline-flex items-center gap-1 text-[11px] font-semibold {{ $revenueGrowth > 0 ? 'text-[#3d9970]' : 'text-[#b94040]' }}">
-            @if($revenueGrowth > 0)
-            <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 2l4 5H2z"/></svg>
-            @else
-            <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 10L2 5h8z"/></svg>
-            @endif
+    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)] flex flex-col">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Revenue this month</p>
+        <p class="text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($revenueThisMonth) }}</p>
+        @if($revenueLastMonth > 0)
+        <span class="inline-flex items-center gap-1 text-[11px] font-semibold {{ $revenueGrowth >= 0 ? 'text-[#3d9970]' : 'text-[#b94040]' }}">
+            @if($revenueGrowth >= 0)<svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 2l4 5H2z"/></svg>
+            @else<svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 10L2 5h8z"/></svg>@endif
             {{ abs($revenueGrowth) }}% vs last month
         </span>
         @else
-        <span class="text-[11px] text-muted">Same as last month</span>
+        <span class="text-[11px] text-muted">First month</span>
         @endif
+        <div class="mt-auto -mx-2 pt-2">
+            <div id="card-sparkline-revenue" style="height:44px"></div>
+        </div>
     </div>
 
     {{-- Outstanding --}}
-    <div class="bg-white border border-line rounded-xl p-5 border-l-4 border-l-[#e07b39] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Outstanding</p>
-        <p class="text-2xl font-bold text-ink leading-none mb-2">{{ $fmt($outstandingAmount) }}</p>
+    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Outstanding</p>
+        <p class="text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($outstandingAmount) }}</p>
+        <p class="text-[11px] text-muted mb-1">{{ $outstandingInvoicesCount }} invoice{{ $outstandingInvoicesCount != 1 ? 's' : '' }} unpaid</p>
         @if($overdueInvoicesCount > 0)
-        <span class="text-[11px] font-semibold text-[#b94040]">{{ $overdueInvoicesCount }} invoice{{ $overdueInvoicesCount > 1 ? 's' : '' }} overdue</span>
-        @else
-        <span class="text-[11px] text-muted">No overdue invoices</span>
+        <p class="text-[11px] font-semibold text-[#b94040]">{{ $fmt($overdueInvoicesAmount) }} overdue ({{ $overdueInvoicesCount }})</p>
         @endif
     </div>
 
     {{-- Expenses this month --}}
-    <div class="bg-white border border-line rounded-xl p-5 border-l-4 border-l-[#b94040] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Expenses / Month</p>
-        <p class="text-2xl font-bold text-ink leading-none mb-2">{{ $fmt($expensesThisMonth) }}</p>
-        @php $expGrowth = $expensesLastMonth > 0 ? round((($expensesThisMonth - $expensesLastMonth) / $expensesLastMonth) * 100, 1) : 0; @endphp
-        @if($expGrowth != 0)
-        <span class="inline-flex items-center gap-1 text-[11px] font-semibold {{ $expGrowth > 0 ? 'text-[#b94040]' : 'text-[#3d9970]' }}">
-            @if($expGrowth > 0)
-            <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 2l4 5H2z"/></svg>
-            @else
-            <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 10L2 5h8z"/></svg>
-            @endif
-            {{ abs($expGrowth) }}% vs last month
+    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)] flex flex-col">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Expenses this month</p>
+        <p class="text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($expensesThisMonth) }}</p>
+        @if($expGrowthCard !== null)
+        <span class="inline-flex items-center gap-1 text-[11px] font-semibold {{ $expGrowthCard <= 0 ? 'text-[#3d9970]' : 'text-[#b94040]' }}">
+            @if($expGrowthCard > 0)<svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 2l4 5H2z"/></svg>
+            @else<svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 10L2 5h8z"/></svg>@endif
+            {{ abs($expGrowthCard) }}% vs last month
         </span>
         @else
-        <span class="text-[11px] text-muted">Same as last month</span>
+        <span class="text-[11px] text-muted">First month</span>
         @endif
+        <div class="mt-auto -mx-2 pt-2">
+            <div id="card-sparkline-expenses" style="height:44px"></div>
+        </div>
     </div>
 
     {{-- Net this month --}}
-    <div class="bg-white border border-line rounded-xl p-5 border-l-4 border-l-[#4a90d9] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Net / Month</p>
-        <p class="text-2xl font-bold leading-none mb-2 {{ $netThisMonth >= 0 ? 'text-[#3d9970]' : 'text-[#b94040]' }}">
-            {{ $fmt($netThisMonth) }}
-        </p>
-        <span class="text-[11px] text-muted">Revenue − Expenses</span>
+    <div class="border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)] {{ $netThisMonth >= 0 ? 'bg-[#edf7f2]' : 'bg-[#fdf0f0]' }}">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Net this month</p>
+        <p class="text-3xl font-bold leading-none mb-1 {{ $netThisMonth >= 0 ? 'text-[#2e7d55]' : 'text-[#b94040]' }}">{{ $fmt($netThisMonth) }}</p>
+        <p class="text-[11px] text-muted">Revenue − Expenses</p>
     </div>
 
+</div>
+
+{{-- Row 2: Operational --}}
+<div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+
     {{-- Active projects --}}
-    <div class="bg-white border border-line rounded-xl p-5 border-l-4 border-l-[#7c5cbf] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Active Projects</p>
-        <p class="text-2xl font-bold text-ink leading-none mb-2">{{ $projectCounts['active'] }}</p>
-        @if($atRiskBlocked > 0)
-        <span class="text-[11px] font-semibold text-[#b94040]">{{ $atRiskBlocked }} at risk / blocked</span>
-        @else
-        <span class="text-[11px] text-muted">All on track</span>
-        @endif
+    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Active Projects</p>
+        <p class="text-2xl font-bold text-ink leading-none mb-1">{{ $projectCounts['active'] }}</p>
+        <p class="text-[11px] leading-relaxed">
+            <span class="text-[#3d9970]">{{ $projectsByHealth['on_track'] }} on track</span>@if($projectsByHealth['at_risk'] > 0) · <span class="text-[#e07b39]">{{ $projectsByHealth['at_risk'] }} at risk</span>@endif@if($projectsByHealth['blocked'] > 0) · <span class="text-[#b94040]">{{ $projectsByHealth['blocked'] }} blocked</span>@endif
+        </p>
     </div>
 
     {{-- Open tasks --}}
-    <div class="bg-white border border-line rounded-xl p-5 border-l-4 border-l-[#8c8c8a] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Open Tasks</p>
-        <p class="text-2xl font-bold text-ink leading-none mb-2">{{ $openTasksTotal }}</p>
+    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Open Tasks</p>
+        <p class="text-2xl font-bold text-ink leading-none mb-1">{{ $openTasksTotal }}</p>
         @if($overdueTasksCount > 0)
-        <span class="text-[11px] font-semibold text-[#b94040]">{{ $overdueTasksCount }} overdue</span>
+        <p class="text-[11px] font-semibold text-[#b94040]">{{ $overdueTasksCount }} overdue</p>
         @else
-        <span class="text-[11px] text-muted">None overdue</span>
+        <p class="text-[11px] text-muted">None overdue</p>
         @endif
+    </div>
+
+    {{-- Collection rate --}}
+    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Collection Rate</p>
+        <div class="flex items-center gap-3">
+            <svg width="52" height="52" viewBox="0 0 52 52" class="shrink-0">
+                <circle cx="26" cy="26" r="{{ $kpiR }}" fill="none" stroke="#eeeee9" stroke-width="4"/>
+                <circle cx="26" cy="26" r="{{ $kpiR }}" fill="none" stroke="#3d9970" stroke-width="4"
+                        stroke-dasharray="{{ $kpiCirc }}" stroke-dashoffset="{{ $kpiOffset }}"
+                        stroke-linecap="round" transform="rotate(-90 26 26)"/>
+                <text x="26" y="30" text-anchor="middle" font-size="10" font-weight="700" fill="#141413">{{ $collectionRate }}%</text>
+            </svg>
+            <div class="min-w-0">
+                <p class="text-xl font-bold text-ink leading-none">{{ $collectionRate }}%</p>
+                <p class="text-[11px] text-muted mt-1">{{ $fmt($totalCollectedThisYear) }} collected</p>
+                <p class="text-[10px] text-muted">of {{ $fmt($totalInvoicedThisYear) }} invoiced</p>
+            </div>
+        </div>
+    </div>
+
+    {{-- Available credits --}}
+    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Available Credits</p>
+        <p class="text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($availableCreditsSum) }}</p>
+        <p class="text-[11px] text-muted">{{ $customersWithCredit }} customer{{ $customersWithCredit != 1 ? 's' : '' }} with credit</p>
     </div>
 
 </div>
@@ -159,6 +191,9 @@
         </div>
         <div class="p-4">
             <div id="chart-revenue-customer" style="min-height:240px"></div>
+            @if(count($revenueByCustomer) === 1)
+            <p class="text-[11px] text-muted text-center pb-3">All revenue from one customer this period.</p>
+            @endif
         </div>
     </div>
 
@@ -286,6 +321,11 @@
         </div>
         <div class="p-4">
             <div id="chart-task-pipeline" style="min-height:250px"></div>
+            @if($tasksOpenCount > 0)
+            <p class="text-[11px] text-muted text-center -mt-1 pb-1">
+                <a href="{{ route('tasks.index', ['status' => 'open']) }}" class="hover:underline text-accent">{{ $tasksOpenCount }} unclaimed task{{ $tasksOpenCount != 1 ? 's' : '' }}</a> not in pipeline
+            </p>
+            @endif
         </div>
     </div>
 
@@ -339,7 +379,13 @@
             <p class="text-3xl font-bold text-ink">{{ array_sum($tasksCompletedFilled) }}</p>
             <p class="text-[12px] text-muted">tasks done this period</p>
         </div>
+        @if(array_sum($tasksCompletedFilled) > 0)
         <div id="chart-sparkline" style="min-height:120px"></div>
+        @else
+        <div class="flex items-center justify-center" style="min-height:120px">
+            <p class="text-[13px] text-muted">No completed tasks this period</p>
+        </div>
+        @endif
     </div>
 
 </div>
@@ -440,7 +486,7 @@
     </div>
 
     {{-- Top performers --}}
-    @if(!empty($topPerformers))
+    @if(!empty($topPerformers) && collect($topPerformers)->sum('completed_month') > 0)
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-5 border-b border-hairline">
         @foreach($topPerformers as $i => $p)
         <div class="bg-canvas border border-line rounded-xl p-4 flex items-center gap-4">
@@ -460,6 +506,10 @@
         </div>
         @endforeach
     </div>
+    @elseif(!empty($topPerformers))
+    <div class="px-6 py-5 border-b border-hairline">
+        <p class="text-[13px] text-muted text-center">No completed tasks recorded this month yet.</p>
+    </div>
     @endif
 
     {{-- Full team table --}}
@@ -470,10 +520,15 @@
             <thead>
                 <tr class="bg-canvas text-[11px] font-bold uppercase tracking-wider text-muted border-b border-hairline">
                     <th class="px-6 py-2.5 text-left">Developer</th>
-                    <th class="px-4 py-2.5 text-center">Done / Month</th>
-                    <th class="px-4 py-2.5 text-center">In Progress</th>
-                    <th class="px-4 py-2.5 text-center">Total Active</th>
-                    <th class="px-4 py-2.5 text-center">Weight Done</th>
+                    <th class="px-4 py-2.5 text-center">Completed this month</th>
+                    <th class="px-4 py-2.5 text-center">Active now</th>
+                    <th class="px-4 py-2.5 text-center">Total assigned</th>
+                    <th class="px-4 py-2.5 text-center">
+                        <span class="inline-flex items-center gap-1">
+                            Points completed
+                            <span title="Sum of task weights completed this month (1=trivial, 5=complex)." class="cursor-help text-muted border border-line rounded-full w-3.5 h-3.5 inline-flex items-center justify-center text-[9px] leading-none">?</span>
+                        </span>
+                    </th>
                     <th class="px-6 py-2.5 text-left w-40">Workload</th>
                 </tr>
             </thead>
@@ -531,11 +586,21 @@
         <div class="px-6 py-3 flex items-start gap-3 hover:bg-canvas transition-colors">
             <div class="w-1.5 h-1.5 rounded-full bg-accent mt-2 shrink-0"></div>
             <div class="min-w-0 flex-1">
+                @php
+                    $actDesc = $act['description'];
+                    $actTitle = $act['subject_title'];
+                    $actProject = $act['project_name'];
+                @endphp
                 <p class="text-[13px] text-dim">
                     <span class="font-semibold text-ink">{{ $act['causer_name'] }}</span>
-                    {{ $act['description'] }}
-                    @if($act['subject_type'])
-                    <span class="text-muted text-[12px]">· {{ $act['subject_type'] }}</span>
+                    @if(str_contains($actDesc, 'claimed') && $actTitle)
+                        claimed <span class="font-medium text-dim">{{ $actTitle }}</span>@if($actProject) <span class="text-muted">· {{ $actProject }}</span>@endif
+                    @elseif(str_contains($actDesc, 'status changed') && $actTitle)
+                        {{ $actDesc }} <span class="font-medium text-dim">{{ $actTitle }}</span>@if($actProject) <span class="text-muted">· {{ $actProject }}</span>@endif
+                    @elseif(str_contains($actDesc, 'comment') && $actTitle)
+                        commented on <span class="font-medium text-dim">{{ $actTitle }}</span>@if($actProject) <span class="text-muted">· {{ $actProject }}</span>@endif
+                    @else
+                        {{ $actDesc }}@if($actTitle) — <span class="font-medium text-dim">{{ $actTitle }}</span>@if($actProject) <span class="text-muted">· {{ $actProject }}</span>@endif@endif
                     @endif
                 </p>
             </div>
@@ -560,11 +625,10 @@
     const customerNames     = Object.keys(revenueByCustomer);
     const customerRevenues  = Object.values(revenueByCustomer);
 
-    const tasksByStatus = @json($tasksByStatus);
-    const statusLabels  = ['open', 'todo', 'in-progress', 'in-review', 'done'];
-    const statusColors  = ['#7c5cbf', '#8c8c8a', '#4a90d9', '#e07b39', '#3d9970'];
-    const statusNames   = ['Open', 'To Do', 'In Progress', 'In Review', 'Done'];
-    const statusValues  = statusLabels.map(s => tasksByStatus[s] ?? 0);
+    const tasksPipeline   = @json($tasksPipeline);
+    const pipelineLabels  = ['To Do', 'In Progress', 'In Review'];
+    const pipelineColors  = ['#8c8c8a', '#4a90d9', '#e07b39'];
+    const pipelineValues  = [tasksPipeline['todo'] ?? 0, tasksPipeline['in-progress'] ?? 0, tasksPipeline['in-review'] ?? 0];
 
     const sparkValues = @json(array_values($tasksCompletedFilled));
     const sparkDays   = @json(array_keys($tasksCompletedFilled));
@@ -573,6 +637,26 @@
 
     const FONT    = "'Inter', ui-sans-serif, system-ui, sans-serif";
     const TOOLBAR = { show: false };
+
+    // ── Card sparkline — Revenue ──────────────────────────────────────────────
+    new ApexCharts(document.getElementById('card-sparkline-revenue'), {
+        chart: { type: 'area', height: 44, fontFamily: FONT, toolbar: TOOLBAR, sparkline: { enabled: true }, animations: { enabled: false } },
+        series: [{ name: 'Revenue', data: revenueByMonth }],
+        colors: ['#3d9970'],
+        stroke: { curve: 'smooth', width: 2 },
+        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.0 } },
+        tooltip: { x: { show: false }, y: { formatter: v => 'MRU ' + Math.round(v).toLocaleString() } },
+    }).render();
+
+    // ── Card sparkline — Expenses ─────────────────────────────────────────────
+    new ApexCharts(document.getElementById('card-sparkline-expenses'), {
+        chart: { type: 'area', height: 44, fontFamily: FONT, toolbar: TOOLBAR, sparkline: { enabled: true }, animations: { enabled: false } },
+        series: [{ name: 'Expenses', data: expensesByMonth }],
+        colors: ['#b94040'],
+        stroke: { curve: 'smooth', width: 2 },
+        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.0 } },
+        tooltip: { x: { show: false }, y: { formatter: v => 'MRU ' + Math.round(v).toLocaleString() } },
+    }).render();
 
     // ── Revenue vs Expenses ───────────────────────────────────────────────────
     new ApexCharts(document.getElementById('chart-revenue-expenses'), {
@@ -610,9 +694,9 @@
     // ── Task Pipeline Donut ───────────────────────────────────────────────────
     new ApexCharts(document.getElementById('chart-task-pipeline'), {
         chart: { type: 'donut', height: 250, fontFamily: FONT, animations: { enabled: true, speed: 600 } },
-        series: statusValues,
-        labels: statusNames,
-        colors: statusColors,
+        series: pipelineValues,
+        labels: pipelineLabels,
+        colors: pipelineColors,
         dataLabels: { enabled: false },
         legend: { position: 'bottom', fontSize: '12px', fontFamily: FONT, labels: { colors: '#5c5c5a' } },
         plotOptions: {
@@ -622,7 +706,7 @@
                     labels: {
                         show: true,
                         total: {
-                            show: true, label: 'Total', color: '#8c8c8a',
+                            show: true, label: 'In Pipeline', color: '#8c8c8a',
                             fontSize: '12px', fontWeight: 600,
                             formatter: w => w.globals.seriesTotals.reduce((a, b) => a + b, 0)
                         }
@@ -635,15 +719,18 @@
     }).render();
 
     // ── Completion Sparkline ──────────────────────────────────────────────────
-    new ApexCharts(document.getElementById('chart-sparkline'), {
-        chart: { type: 'area', height: 120, fontFamily: FONT, toolbar: TOOLBAR, sparkline: { enabled: true }, animations: { enabled: true, speed: 600 } },
-        series: [{ name: 'Tasks done', data: sparkValues }],
-        colors: ['#3d9970'],
-        stroke: { curve: 'smooth', width: 2 },
-        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 } },
-        xaxis: { categories: sparkDays },
-        tooltip: { x: { show: true }, y: { formatter: v => v + ' tasks' } },
-    }).render();
+    const sparkEl = document.getElementById('chart-sparkline');
+    if (sparkEl) {
+        new ApexCharts(sparkEl, {
+            chart: { type: 'area', height: 120, fontFamily: FONT, toolbar: TOOLBAR, sparkline: { enabled: true }, animations: { enabled: true, speed: 600 } },
+            series: [{ name: 'Tasks done', data: sparkValues }],
+            colors: ['#3d9970'],
+            stroke: { curve: 'smooth', width: 2 },
+            fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 } },
+            xaxis: { categories: sparkDays },
+            tooltip: { x: { show: true }, y: { formatter: v => v + ' tasks' } },
+        }).render();
+    }
 
     // ── Workload Distribution ─────────────────────────────────────────────────
     const wlEl = document.getElementById('chart-workload');

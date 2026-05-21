@@ -55,6 +55,10 @@ class DashboardController extends Controller
                 ->whereNotIn('payment_status', ['paid'])
                 ->sum(DB::raw('total - amount_paid'));
 
+            $outstandingInvoicesCount = Invoice::where('status', 'published')
+                ->whereNotIn('payment_status', ['paid'])
+                ->count();
+
             $overdueInvoices = Invoice::where('status', 'published')
                 ->whereNotIn('payment_status', ['paid'])
                 ->whereDate('due_date', '<', $now->toDateString())
@@ -178,6 +182,13 @@ class DashboardController extends Controller
                 ->pluck('count', 'status')
                 ->toArray();
 
+            $tasksPipeline = [
+                'todo'        => $tasksByStatus['todo'] ?? 0,
+                'in-progress' => $tasksByStatus['in-progress'] ?? 0,
+                'in-review'   => $tasksByStatus['in-review'] ?? 0,
+            ];
+            $tasksOpenCount = $tasksByStatus['open'] ?? 0;
+
             $tasksByPriority = Task::select('priority', DB::raw('count(*) as count'))
                 ->whereNotIn('status', ['done'])
                 ->groupBy('priority')
@@ -299,9 +310,28 @@ class DashboardController extends Controller
 
             $activeCustomersCount = Customer::whereHas('projects', fn($q) => $q->where('status', 'active'))->count();
 
+            // ── Collection Rate ───────────────────────────────────────────────
+
+            $totalInvoicedThisYear  = Invoice::whereYear('created_at', $year)->sum('total');
+            $totalCollectedThisYear = InvoicePayment::whereYear('payment_date', $year)->sum('amount');
+            $collectionRate = $totalInvoicedThisYear > 0
+                ? round($totalCollectedThisYear / $totalInvoicedThisYear * 100, 1)
+                : 0;
+
+            // ── Available Credits ─────────────────────────────────────────────
+
+            $availableCreditsSum = DB::table('customer_credits')
+                ->whereIn('status', ['available', 'partially_used'])
+                ->sum('amount_remaining');
+
+            $customersWithCredit = DB::table('customer_credits')
+                ->whereIn('status', ['available', 'partially_used'])
+                ->distinct('customer_id')
+                ->count('customer_id');
+
             // ── Recent Activity (Fix 3: load subject, format nicely) ─────────
 
-            $recentActivity = \Spatie\Activitylog\Models\Activity::with(['causer', 'subject'])
+            $recentActivity = \Spatie\Activitylog\Models\Activity::with(['causer', 'subject', 'subject.project'])
                 ->latest()
                 ->limit(20)
                 ->get()
@@ -311,8 +341,7 @@ class DashboardController extends Controller
 
                     if ($a->subject) {
                         $subjectTitle = $a->subject->title ?? $a->subject->name ?? null;
-                        // Try to get project name from subject
-                        if (method_exists($a->subject, 'project') && $a->subject->relationLoaded('project')) {
+                        if ($a->subject->relationLoaded('project')) {
                             $projectName = $a->subject->project?->name;
                         } elseif (isset($a->subject->project_id)) {
                             $projectName = \App\Models\Project::find($a->subject->project_id)?->name;
@@ -347,15 +376,17 @@ class DashboardController extends Controller
 
             return compact(
                 'revenueThisMonth', 'revenueLastMonth', 'revenueGrowth',
-                'outstandingAmount', 'overdueInvoicesAmount', 'overdueInvoicesCount',
+                'outstandingAmount', 'outstandingInvoicesCount', 'overdueInvoicesAmount', 'overdueInvoicesCount',
                 'expensesThisMonth', 'expensesLastMonth', 'netThisMonth',
                 'revenueByMonth', 'expensesByMonth', 'revenueByCustomer',
                 'projectCounts', 'projectsByHealth', 'activeProjects', 'sprintDeadlines',
-                'tasksByStatus', 'tasksByPriority', 'tasksByType',
+                'tasksByStatus', 'tasksPipeline', 'tasksOpenCount', 'tasksByPriority', 'tasksByType',
                 'tasksCompletedFilled', 'overdueTasksCount', 'overdueTasksList',
                 'unclaimedTasksCount', 'highPriorityOpenCount',
                 'teamPerformance', 'topPerformers', 'teamWorkload',
                 'customerCounts', 'activeCustomersCount',
+                'collectionRate', 'totalInvoicedThisYear', 'totalCollectedThisYear',
+                'availableCreditsSum', 'customersWithCredit',
                 'recentActivity'
             );
         });
