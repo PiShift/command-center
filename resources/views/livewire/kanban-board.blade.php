@@ -129,46 +129,107 @@
 
                         {{-- Notes preview --}}
                         @if($task->description)
-                        <p class="text-[12px] text-muted leading-relaxed mb-3 truncate">{{ $task->description }}</p>
+                        <p class="text-[12px] text-muted leading-relaxed mb-2 truncate">{{ $task->description }}</p>
                         @endif
 
-                        {{-- Tag row: project · assignee · priority (in that order, max 3) --}}
+                        {{-- Chips row: type · due · hours · labels · project · assignee · priority --}}
+                        @php
+                            $typeConfig = match($task->type ?? 'feature') {
+                                'bug'    => ['B', '#b94040', '#fdf0f0', 'Bug'],
+                                'change' => ['C', '#7a4fa3', '#f5f0fc', 'Change'],
+                                default  => ['F', '#2563a8', '#eef3fb', 'Feature'],
+                            };
+                            $isOverdue  = $task->due_date && $task->due_date->isPast() && $task->status !== 'done';
+                            $pBadge     = match($task->priority) {
+                                'critical' => ['C', '#b94040', '#fdf0f0', 'Critical'],
+                                'high'     => ['H', '#b94040', '#fdf0f0', 'High'],
+                                'medium'   => ['M', '#9a7a1a', '#fef9ec', 'Medium'],
+                                default    => ['L', '#2e7d55', '#edf7f2', 'Low'],
+                            };
+                            $pInitials = '';
+                            if ($task->project) {
+                                $pWords    = preg_split('/[\s\-_]+/', trim($task->project->name));
+                                $pInitials = strtoupper(implode('', array_map(fn($w) => substr($w, 0, 1), array_slice($pWords, 0, 2))));
+                            }
+                        @endphp
                         <div class="flex items-center gap-1.5 flex-wrap">
-                            {{-- Project tag --}}
+                            {{-- Type --}}
+                            <x-tooltip :text="$typeConfig[3]" position="end">
+                                <span class="inline-flex items-center text-[10px] font-bold rounded-[4px] px-1 py-0.5"
+                                      style="background:{{ $typeConfig[2] }};color:{{ $typeConfig[1] }}">{{ $typeConfig[0] }}</span>
+                            </x-tooltip>
+
+                            {{-- Due date --}}
+                            @if($task->due_date)
+                            <x-tooltip :text="($isOverdue ? 'Overdue — ' : 'Due ') . $task->due_date->format('M d, Y')" position="end">
+                                <span class="inline-flex items-center gap-1 text-[11px] font-semibold rounded-[4px] px-1.5 py-0.5"
+                                      style="background:{{ $isOverdue ? '#fdf0f0' : '#F5F4EF' }};color:{{ $isOverdue ? '#b94040' : '#5c5c5a' }}">
+                                    <svg class="w-2.5 h-2.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                    {{ $task->due_date->format('M d') }}
+                                </span>
+                            </x-tooltip>
+                            @endif
+
+                            {{-- Estimated hours --}}
+                            @if($task->estimated_hours)
+                            <x-tooltip :text="$task->estimated_hours . 'h estimated'" position="end">
+                                <span class="inline-flex items-center gap-1 text-[11px] font-semibold rounded-[4px] px-1.5 py-0.5"
+                                      style="background:#F5F4EF;color:#5c5c5a">
+                                    <svg class="w-2.5 h-2.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    {{ $task->estimated_hours }}h
+                                </span>
+                            </x-tooltip>
+                            @endif
+
+                            {{-- Labels --}}
+                            @if($task->labels && count($task->labels) > 0)
+                            @foreach(array_slice($task->labels, 0, 2) as $label)
+                            <span class="inline-flex items-center text-[10px] font-semibold rounded-[4px] px-1.5 py-0.5"
+                                  style="background:#F5F4EF;color:#5c5c5a;border:1px solid #e5e4df">{{ $label }}</span>
+                            @endforeach
+                            @if(count($task->labels) > 2)
+                            <x-tooltip :text="implode(', ', array_slice($task->labels, 2))" position="end">
+                                <span class="inline-flex items-center text-[10px] font-semibold rounded-[4px] px-1.5 py-0.5"
+                                      style="background:#F5F4EF;color:#8c8c8a">+{{ count($task->labels) - 2 }}</span>
+                            </x-tooltip>
+                            @endif
+                            @endif
+
+                            {{-- Project initials --}}
                             @if($task->project)
-                            <span class="inline-flex items-center text-[11px] font-semibold rounded-[5px] px-2 py-0.5"
-                                  style="background: #eef3fb; color: #3a6fba; border-left: 3px solid {{ $task->project->color ?? '#D97757' }}; padding-left: 5px;">
-                                {{ $task->project->name }}
-                            </span>
+                            <x-tooltip :text="$task->project->name" position="end">
+                                <span class="inline-flex items-center text-[11px] font-semibold rounded-[5px] px-1.5 py-0.5"
+                                      style="background:#eef3fb;color:#3a6fba;border-left:3px solid {{ $task->project->color ?? '#D97757' }}">
+                                    {{ $pInitials }}
+                                </span>
+                            </x-tooltip>
                             @endif
 
-                            {{-- Assignee tag --}}
+                            {{-- Assignee avatar --}}
                             @if($task->assignee)
-                            <span class="inline-flex items-center gap-1 text-[11px] font-semibold rounded-[5px] px-2 py-0.5"
-                                  style="background: #fdf3ee; color: #b55a2f;">
-                                <span class="w-3.5 h-3.5 rounded-full text-[8px] font-bold text-white flex items-center justify-center shrink-0"
-                                      style="background: {{ $task->assignee->color ?? '#D97757' }}">{{ strtoupper(substr($task->assignee->name, 0, 1)) }}</span>
-                                {{ $task->assignee->name }}
-                            </span>
+                            <x-tooltip :text="$task->assignee->name" position="top">
+                                <span class="w-5 h-5 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
+                                      style="background:{{ $task->assignee->color ?? '#D97757' }}">
+                                    {{ strtoupper(substr($task->assignee->name, 0, 1)) }}
+                                </span>
+                            </x-tooltip>
                             @endif
 
-                            {{-- Right: comment count + priority badge --}}
-                            @php
-                                $pBadge = match($task->priority) {
-                                    'critical' => ['↑↑ Critical', '#b94040', '#fdf0f0'],
-                                    'high'     => ['↑ High',     '#b94040', '#fdf0f0'],
-                                    'medium'   => ['→ Medium',   '#9a7a1a', '#fef9ec'],
-                                    default    => ['↓ Low',      '#2e7d55', '#edf7f2'],
-                                };
-                            @endphp
+                            {{-- Right side: comments · checklist · priority --}}
                             <span class="ml-auto flex items-center gap-1.5">
                                 @if(($task->comments_count ?? 0) > 0)
-                                <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-muted">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.963 9.963 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                                    </svg>
-                                    {{ $task->comments_count }}
-                                </span>
+                                <x-tooltip :text="$task->comments_count . ' comment' . ($task->comments_count !== 1 ? 's' : '')" position="start">
+                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-muted">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.963 9.963 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                                        </svg>
+                                        {{ $task->comments_count }}
+                                    </span>
+                                </x-tooltip>
                                 @endif
                                 @if($task->relationLoaded('checklists') && $task->checklists->count() > 0)
                                 @php
@@ -176,16 +237,20 @@
                                     $clDone    = $task->checklists->where('is_checked', true)->count();
                                     $clAllDone = $clDone === $clTotal;
                                 @endphp
-                                <span class="inline-flex items-center gap-1 text-[11px] font-semibold"
-                                      style="color: {{ $clAllDone ? '#2e7d55' : '#8c8c8a' }}">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                    {{ $clDone }}/{{ $clTotal }}
-                                </span>
+                                <x-tooltip :text="$clDone . '/' . $clTotal . ' checklist items done'" position="start">
+                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold"
+                                          style="color: {{ $clAllDone ? '#2e7d55' : '#8c8c8a' }}">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        {{ $clDone }}/{{ $clTotal }}
+                                    </span>
+                                </x-tooltip>
                                 @endif
-                                <span class="inline-flex items-center text-[11px] font-semibold rounded-[5px] px-2 py-0.5"
-                                      style="background: {{ $pBadge[2] }}; color: {{ $pBadge[1] }}">{{ $pBadge[0] }}</span>
+                                <x-tooltip :text="$pBadge[3] . ' priority'" position="start">
+                                    <span class="inline-flex items-center text-[11px] font-bold rounded-[5px] px-1.5 py-0.5"
+                                          style="background: {{ $pBadge[2] }}; color: {{ $pBadge[1] }}">{{ $pBadge[0] }}</span>
+                                </x-tooltip>
                             </span>
                         </div>
                     </div>

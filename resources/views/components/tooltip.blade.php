@@ -13,12 +13,16 @@ $posClasses = match($position) {
 @endphp
 
 <span class="relative inline-flex items-center cursor-default group">
+    @if($slot->isEmpty())
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted">
         <circle cx="12" cy="12" r="10"/>
         <line x1="12" y1="8" x2="12" y2="8"/>
         <path d="M12 12v4"/>
     </svg>
-    <span class="absolute {{ $posClasses }} w-56 px-2.5 py-1.5 text-[11px] leading-relaxed text-white bg-gray-900 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal">
+    @else
+    {{ $slot }}
+    @endif
+    <span class="absolute {{ $posClasses }} px-2 py-1 text-[11px] text-white bg-gray-900 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap w-max max-w-[220px]">
         {{ $text }}
     </span>
 </span>
