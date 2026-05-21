@@ -268,7 +268,10 @@
                 @php $firstNonEmpty = false; @endphp
                 <div style="font-size:11px;font-weight:bold;color:#1a1a1a;margin-bottom:4px;">{{ $t }}</div>
             @elseif(str_starts_with($t, '·') || str_starts_with($t, '-'))
-                <div style="font-size:9.5px;color:#666666;padding-left:10px;margin-bottom:2px;">· {{ trim(mb_substr($t, 1)) }}</div>
+                <table style="width:100%;border-collapse:collapse;margin:0 0 2px 0;padding:0"><tr>
+                  <td style="width:10px;vertical-align:top;padding:0;border:none;border-bottom:none;font-size:9.5px;color:#666666">·</td>
+                  <td style="vertical-align:top;padding:0;border:none;border-bottom:none;font-size:9.5px;color:#666666">{{ trim(mb_substr($t, 1)) }}</td>
+                </tr></table>
             @else
                 <div style="font-size:9.5px;color:#666666;margin-bottom:2px;">{{ $t }}</div>
             @endif
