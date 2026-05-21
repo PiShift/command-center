@@ -77,6 +77,8 @@ class ExpenseService
         activity()
             ->performedOn($expense)
             ->log('Expense confirmed: ' . $expense->title);
+
+        \Illuminate\Support\Facades\Cache::tags(['dashboard'])->flush();
     }
 
     /**

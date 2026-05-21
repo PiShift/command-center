@@ -111,6 +111,7 @@ class TaskController extends Controller
 
         // Notify on status change
         if (isset($data['status']) && $data['status'] !== $oldStatus) {
+            \Illuminate\Support\Facades\Cache::tags(['dashboard'])->flush();
             $recipients = collect();
 
             if ($task->assigned_to && $task->assigned_to !== auth()->id()) {

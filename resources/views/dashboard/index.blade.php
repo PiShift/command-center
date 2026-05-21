@@ -1,83 +1,644 @@
-<x-layouts.app title="War Room">
+<x-layouts.app title="Dashboard">
 
-{{-- Stats row --}}
-<div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+@php
+    $fmt = fn($n) => 'MRU ' . number_format((float)$n, 0, '.', ',');
+    $openTasksTotal = ($tasksByStatus['open'] ?? 0) + ($tasksByStatus['todo'] ?? 0) + ($tasksByStatus['in-progress'] ?? 0) + ($tasksByStatus['in-review'] ?? 0);
+    $atRiskBlocked  = ($projectsByHealth['at_risk'] ?? 0) + ($projectsByHealth['blocked'] ?? 0);
+@endphp
 
-    @php
-    $stats = [
-        ['label' => 'Active Projects', 'value' => $activeProjects,  'desc' => $blockedProjects . ' blocked · ' . $atRiskProjects . ' at risk',  'color' => $blockedProjects > 0 ? 'danger' : ($atRiskProjects > 0 ? 'warn' : 'success')],
-        ['label' => 'Open Tasks',      'value' => $openTasks,       'desc' => $inProgressTasks . ' in progress · ' . $highPrioTasks . ' high priority', 'color' => $highPrioTasks > 0 ? 'warn' : 'info'],
-        ['label' => 'Overdue Tasks',   'value' => $overdueTasks,    'desc' => $overdueTasks > 0 ? 'Need immediate attention' : 'All tasks on time', 'color' => $overdueTasks > 0 ? 'danger' : 'success'],
-        ['label' => 'Done This Week',  'value' => $doneTasks,       'desc' => 'Tasks completed in last 7 days', 'color' => 'success'],
-        ['label' => 'Active Customers','value' => $activeCustomers, 'desc' => '', 'color' => 'info'],
-    ];
-    $colorMap = ['danger' => '#b94040', 'warn' => '#e07b39', 'success' => '#3d9970', 'info' => '#4a90d9'];
-    @endphp
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- Page header                                                               --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+<div class="mb-6 flex items-end justify-between">
+    <div>
+        <h1 class="text-2xl font-semibold text-ink">Dashboard</h1>
+        <p class="text-[13px] text-muted mt-0.5">{{ now()->format('l, F j, Y') }}</p>
+    </div>
+    <span class="text-[11px] text-muted bg-surface border border-line px-3 py-1.5 rounded-lg">
+        Auto-refreshes on page load · data cached 5 min
+    </span>
+</div>
 
-    @foreach ($stats as $stat)
-    <div class="bg-white border border-line rounded-xl p-4">
-        <p class="text-[12px] text-dim font-medium mb-1">{{ $stat['label'] }}</p>
-        <p class="text-3xl font-bold text-ink mb-1">{{ $stat['value'] }}</p>
-        @if ($stat['desc'])
-            <p class="text-[11px]" style="color: {{ $colorMap[$stat['color']] }}">{{ $stat['desc'] }}</p>
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- SECTION 1 — KPI Cards                                                    --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+
+    {{-- Revenue this month --}}
+    <div class="bg-white border border-line rounded-xl p-5 border-l-4 border-l-[#3d9970] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Revenue / Month</p>
+        <p class="text-2xl font-bold text-ink leading-none mb-2">{{ $fmt($revenueThisMonth) }}</p>
+        @if($revenueGrowth != 0)
+        <span class="inline-flex items-center gap-1 text-[11px] font-semibold {{ $revenueGrowth > 0 ? 'text-[#3d9970]' : 'text-[#b94040]' }}">
+            @if($revenueGrowth > 0)
+            <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 2l4 5H2z"/></svg>
+            @else
+            <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 10L2 5h8z"/></svg>
+            @endif
+            {{ abs($revenueGrowth) }}% vs last month
+        </span>
+        @else
+        <span class="text-[11px] text-muted">Same as last month</span>
         @endif
     </div>
-    @endforeach
+
+    {{-- Outstanding --}}
+    <div class="bg-white border border-line rounded-xl p-5 border-l-4 border-l-[#e07b39] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Outstanding</p>
+        <p class="text-2xl font-bold text-ink leading-none mb-2">{{ $fmt($outstandingAmount) }}</p>
+        @if($overdueInvoicesCount > 0)
+        <span class="text-[11px] font-semibold text-[#b94040]">{{ $overdueInvoicesCount }} invoice{{ $overdueInvoicesCount > 1 ? 's' : '' }} overdue</span>
+        @else
+        <span class="text-[11px] text-muted">No overdue invoices</span>
+        @endif
+    </div>
+
+    {{-- Expenses this month --}}
+    <div class="bg-white border border-line rounded-xl p-5 border-l-4 border-l-[#b94040] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Expenses / Month</p>
+        <p class="text-2xl font-bold text-ink leading-none mb-2">{{ $fmt($expensesThisMonth) }}</p>
+        @php $expGrowth = $expensesLastMonth > 0 ? round((($expensesThisMonth - $expensesLastMonth) / $expensesLastMonth) * 100, 1) : 0; @endphp
+        @if($expGrowth != 0)
+        <span class="inline-flex items-center gap-1 text-[11px] font-semibold {{ $expGrowth > 0 ? 'text-[#b94040]' : 'text-[#3d9970]' }}">
+            @if($expGrowth > 0)
+            <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 2l4 5H2z"/></svg>
+            @else
+            <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 10L2 5h8z"/></svg>
+            @endif
+            {{ abs($expGrowth) }}% vs last month
+        </span>
+        @else
+        <span class="text-[11px] text-muted">Same as last month</span>
+        @endif
+    </div>
+
+    {{-- Net this month --}}
+    <div class="bg-white border border-line rounded-xl p-5 border-l-4 border-l-[#4a90d9] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Net / Month</p>
+        <p class="text-2xl font-bold leading-none mb-2 {{ $netThisMonth >= 0 ? 'text-[#3d9970]' : 'text-[#b94040]' }}">
+            {{ $fmt($netThisMonth) }}
+        </p>
+        <span class="text-[11px] text-muted">Revenue − Expenses</span>
+    </div>
+
+    {{-- Active projects --}}
+    <div class="bg-white border border-line rounded-xl p-5 border-l-4 border-l-[#7c5cbf] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Active Projects</p>
+        <p class="text-2xl font-bold text-ink leading-none mb-2">{{ $projectCounts['active'] }}</p>
+        @if($atRiskBlocked > 0)
+        <span class="text-[11px] font-semibold text-[#b94040]">{{ $atRiskBlocked }} at risk / blocked</span>
+        @else
+        <span class="text-[11px] text-muted">All on track</span>
+        @endif
+    </div>
+
+    {{-- Open tasks --}}
+    <div class="bg-white border border-line rounded-xl p-5 border-l-4 border-l-[#8c8c8a] shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Open Tasks</p>
+        <p class="text-2xl font-bold text-ink leading-none mb-2">{{ $openTasksTotal }}</p>
+        @if($overdueTasksCount > 0)
+        <span class="text-[11px] font-semibold text-[#b94040]">{{ $overdueTasksCount }} overdue</span>
+        @else
+        <span class="text-[11px] text-muted">None overdue</span>
+        @endif
+    </div>
 
 </div>
 
-{{-- My Tasks --}}
-<div class="bg-white border border-line rounded-xl overflow-hidden">
-    <div class="flex items-center justify-between px-6 py-4 border-b border-line">
-        <h2 class="text-[14px] font-semibold text-ink">My Tasks</h2>
-        <a href="{{ route('tasks.create') }}"
-           class="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent hover:underline">
-            @include('components.icon', ['name' => 'plus'])
-            New task
-        </a>
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- SECTION 2 — Financial Charts                                              --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+
+    {{-- Revenue vs Expenses bar chart --}}
+    <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden">
+        <div class="px-5 py-4 border-b border-hairline">
+            <h2 class="text-[14px] font-semibold text-ink">Revenue vs Expenses</h2>
+            <p class="text-[12px] text-muted mt-0.5">Last 6 months · MRU</p>
+        </div>
+        <div class="p-4">
+            <div id="chart-revenue-expenses" style="min-height:240px"></div>
+        </div>
     </div>
 
-    @if ($myTasks->isEmpty())
-        <div class="px-6 py-10 text-center text-[13px] text-muted">No open tasks assigned to you.</div>
+    {{-- Revenue by customer --}}
+    <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden">
+        <div class="px-5 py-4 border-b border-hairline">
+            <h2 class="text-[14px] font-semibold text-ink">Revenue by Customer</h2>
+            <p class="text-[12px] text-muted mt-0.5">Top 5 · this year · MRU</p>
+        </div>
+        <div class="p-4">
+            <div id="chart-revenue-customer" style="min-height:240px"></div>
+        </div>
+    </div>
+
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- SECTION 3 — Active Projects Health                                        --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+<div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-hairline flex items-center justify-between">
+        <h2 class="text-[14px] font-semibold text-ink">Active Projects</h2>
+        <a href="{{ route('projects.index') }}" class="text-[12px] text-accent hover:underline">View all →</a>
+    </div>
+
+    @if(empty($activeProjects))
+    <div class="px-6 py-12 text-center text-[13px] text-muted">No active projects.</div>
     @else
+    <div class="overflow-x-auto">
         <table class="w-full text-[13px]">
             <thead>
-                <tr class="text-[11px] font-semibold uppercase tracking-wider text-muted border-b border-hairline">
-                    <th class="px-6 py-2 text-left">Task</th>
-                    <th class="px-4 py-2 text-left">Project</th>
-                    <th class="px-4 py-2 text-left">Status</th>
-                    <th class="px-4 py-2 text-left">Priority</th>
-                    <th class="px-4 py-2 text-left">Due</th>
-                    <th class="px-4 py-2 text-left"></th>
+                <tr class="bg-canvas text-[11px] font-bold uppercase tracking-wider text-muted border-b border-hairline">
+                    <th class="px-6 py-2.5 text-left">Project</th>
+                    <th class="px-4 py-2.5 text-left">Customer</th>
+                    <th class="px-4 py-2.5 text-left">Active Sprint</th>
+                    <th class="px-4 py-2.5 text-left w-36">Progress</th>
+                    <th class="px-4 py-2.5 text-left">Tasks</th>
+                    <th class="px-4 py-2.5 text-left">Health</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-hairline">
-                @foreach ($myTasks as $task)
-                <tr class="{{ $task->isOverdue() ? 'bg-red-50' : '' }} hover:bg-hairline">
-                    <td class="px-6 py-3 font-medium text-ink">
-                        <a href="{{ route('tasks.show', $task) }}" class="hover:text-accent">
-                            {{ $task->title }}
+                @foreach($activeProjects as $p)
+                @php
+                    $dot = match($p['health']) {
+                        'blocked'  => 'bg-[#b94040]',
+                        'at-risk'  => 'bg-[#e07b39]',
+                        default    => 'bg-[#3d9970]',
+                    };
+                    $healthBadgeClass = match($p['health']) {
+                        'blocked' => 'bg-[#fdf0f0] text-[#b94040]',
+                        'at-risk' => 'bg-[#fef9ec] text-[#9a7a1a]',
+                        default   => 'bg-[#edf7f2] text-[#2e7d55]',
+                    };
+                    $healthLabel = match($p['health']) {
+                        'blocked' => 'Blocked',
+                        'at-risk' => 'At Risk',
+                        default   => 'On Track',
+                    };
+                @endphp
+                <tr class="hover:bg-canvas transition-colors">
+                    <td class="px-6 py-3">
+                        <a href="{{ route('projects.show', $p['id']) }}" class="font-medium text-ink hover:text-accent transition-colors flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full shrink-0 {{ $dot }}"></span>
+                            {{ $p['name'] }}
                         </a>
                     </td>
-                    <td class="px-4 py-3 text-dim">{{ $task->project?->name ?? '—' }}</td>
-                    <td class="px-4 py-3">@include('components.badge', ['type' => 'status', 'value' => $task->status])</td>
-                    <td class="px-4 py-3">@include('components.badge', ['type' => 'priority', 'value' => $task->priority])</td>
-                    <td class="px-4 py-3 {{ $task->isOverdue() ? 'text-red-600 font-medium' : 'text-dim' }}">
-                        {{ $task->due_date?->format('M d') ?? '—' }}
+                    <td class="px-4 py-3 text-muted">{{ $p['customer_name'] ?? '—' }}</td>
+                    <td class="px-4 py-3">
+                        @if($p['sprint_name'])
+                        <div class="text-[13px] text-dim">{{ $p['sprint_name'] }}</div>
+                        @if($p['sprint_deadline'])
+                        @php $dl = is_string($p['sprint_deadline']) ? \Carbon\Carbon::parse($p['sprint_deadline']) : $p['sprint_deadline']; @endphp
+                        <div class="text-[11px] {{ ($p['sprint_days_left'] ?? 99) <= 3 ? 'text-[#b94040]' : 'text-muted' }}">
+                            {{ $dl->format('M j') }}
+                            @if(($p['sprint_days_left'] ?? null) !== null)
+                                · {{ $p['sprint_days_left'] >= 0 ? $p['sprint_days_left'] . 'd left' : abs($p['sprint_days_left']) . 'd overdue' }}
+                            @endif
+                        </div>
+                        @endif
+                        @else
+                        <span class="text-muted text-[12px]">No active sprint</span>
+                        @endif
                     </td>
-                    <td class="px-4 py-3 text-right">
-                        <form method="POST" action="{{ route('tasks.advance', $task) }}" class="inline">
-                            @csrf @method('PATCH')
-                            <button type="submit" class="text-[11px] text-dim hover:text-accent font-medium">
-                                {{ match($task->status) { 'backlog' => 'Start', 'in-progress' => 'Done', default => 'Re-open' } }}
-                            </button>
-                        </form>
+                    <td class="px-4 py-3">
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1 h-1.5 bg-hairline rounded-full overflow-hidden">
+                                <div class="h-full bg-[#3d9970] rounded-full" style="width: {{ $p['progress_pct'] }}%"></div>
+                            </div>
+                            <span class="text-[11px] text-muted shrink-0">{{ $p['progress_pct'] }}%</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="px-1.5 py-0.5 rounded text-[11px] font-semibold bg-surface text-muted">{{ $p['open'] }} open</span>
+                            <span class="px-1.5 py-0.5 rounded text-[11px] font-semibold bg-[#fdf3ee] text-[#D97757]">{{ $p['in_progress'] }} active</span>
+                            <span class="px-1.5 py-0.5 rounded text-[11px] font-semibold bg-[#edf7f2] text-[#2e7d55]">{{ $p['done'] }} done</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-semibold {{ $healthBadgeClass }}">{{ $healthLabel }}</span>
                     </td>
                 </tr>
                 @endforeach
             </tbody>
         </table>
+    </div>
+    @endif
+
+    {{-- Health summary row --}}
+    <div class="px-6 py-4 border-t border-hairline bg-canvas grid grid-cols-3 gap-4">
+        <div class="text-center">
+            <p class="text-xl font-bold text-[#3d9970]">{{ $projectsByHealth['on_track'] }}</p>
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mt-0.5">On Track</p>
+        </div>
+        <div class="text-center border-x border-hairline">
+            <p class="text-xl font-bold text-[#e07b39]">{{ $projectsByHealth['at_risk'] }}</p>
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mt-0.5">At Risk</p>
+        </div>
+        <div class="text-center">
+            <p class="text-xl font-bold text-[#b94040]">{{ $projectsByHealth['blocked'] }}</p>
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mt-0.5">Blocked</p>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- SECTION 4 — Tasks Overview                                                --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+
+    {{-- Task pipeline donut --}}
+    <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden">
+        <div class="px-5 py-4 border-b border-hairline">
+            <h2 class="text-[14px] font-semibold text-ink">Task Pipeline</h2>
+            <p class="text-[12px] text-muted mt-0.5">By status · all projects</p>
+        </div>
+        <div class="p-4">
+            <div id="chart-task-pipeline" style="min-height:250px"></div>
+        </div>
+    </div>
+
+    {{-- Priority & Type --}}
+    <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden">
+        <div class="px-5 py-4 border-b border-hairline">
+            <h2 class="text-[14px] font-semibold text-ink">Priority & Type</h2>
+            <p class="text-[12px] text-muted mt-0.5">Open tasks only</p>
+        </div>
+        <div class="p-5 space-y-5">
+            {{-- Priority bars --}}
+            <div>
+                <p class="text-[11px] font-bold uppercase tracking-wide text-muted mb-2">By Priority</p>
+                @php $maxPri = max(array_values($tasksByPriority) ?: [1]); @endphp
+                @foreach([['high','#b94040'],['medium','#9a7a1a'],['low','#2e7d55']] as [$pri, $tc])
+                @php $cnt = $tasksByPriority[$pri] ?? 0; $pct = $maxPri > 0 ? round($cnt/$maxPri*100) : 0; @endphp
+                <div class="flex items-center gap-2 mb-1.5">
+                    <span class="w-14 text-[11px] font-semibold capitalize" style="color:{{ $tc }}">{{ $pri }}</span>
+                    <div class="flex-1 h-2 bg-hairline rounded-full overflow-hidden">
+                        <div class="h-full rounded-full" style="width:{{ $pct }}%; background:{{ $tc }};"></div>
+                    </div>
+                    <span class="w-6 text-right text-[11px] text-muted">{{ $cnt }}</span>
+                </div>
+                @endforeach
+            </div>
+            {{-- Type bars --}}
+            <div>
+                <p class="text-[11px] font-bold uppercase tracking-wide text-muted mb-2">By Type</p>
+                @php $maxType = max(array_values($tasksByType) ?: [1]); @endphp
+                @foreach([['feature','#4a90d9'],['bug','#b94040'],['change','#7c5cbf']] as [$type, $tc])
+                @php $cnt = $tasksByType[$type] ?? 0; $pct = $maxType > 0 ? round($cnt/$maxType*100) : 0; @endphp
+                <div class="flex items-center gap-2 mb-1.5">
+                    <span class="w-14 text-[11px] font-semibold capitalize" style="color:{{ $tc }}">{{ $type }}</span>
+                    <div class="flex-1 h-2 bg-hairline rounded-full overflow-hidden">
+                        <div class="h-full rounded-full" style="width:{{ $pct }}%; background:{{ $tc }};"></div>
+                    </div>
+                    <span class="w-6 text-right text-[11px] text-muted">{{ $cnt }}</span>
+                </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
+
+    {{-- Completion sparkline --}}
+    <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden">
+        <div class="px-5 py-4 border-b border-hairline">
+            <h2 class="text-[14px] font-semibold text-ink">Tasks Completed</h2>
+            <p class="text-[12px] text-muted mt-0.5">Last 30 days</p>
+        </div>
+        <div class="px-5 py-3">
+            <p class="text-3xl font-bold text-ink">{{ array_sum($tasksCompletedFilled) }}</p>
+            <p class="text-[12px] text-muted">tasks done this period</p>
+        </div>
+        <div id="chart-sparkline" style="min-height:120px"></div>
+    </div>
+
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- SECTION 5 — Alerts & Deadlines                                            --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+
+    {{-- Overdue tasks --}}
+    <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden">
+        <div class="px-5 py-4 border-b border-hairline flex items-center gap-2">
+            <h2 class="text-[14px] font-semibold text-ink">Overdue Tasks</h2>
+            @if($overdueTasksCount > 0)
+            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-[#fdf0f0] text-[#b94040]">{{ $overdueTasksCount }}</span>
+            @endif
+        </div>
+        @if($overdueTasksCount === 0)
+        <div class="px-5 py-10 text-center">
+            <p class="text-[14px] font-medium text-[#3d9970]">✓ All tasks on time</p>
+        </div>
+        @else
+        <div class="divide-y divide-hairline">
+            @foreach($overdueTasksList as $t)
+            <div class="px-5 py-3 flex items-center justify-between hover:bg-canvas transition-colors">
+                <div class="min-w-0 flex-1">
+                    <a href="{{ route('tasks.show', $t['id']) }}" class="text-[13px] font-medium text-ink hover:text-accent transition-colors block truncate">
+                        {{ $t['title'] }}
+                    </a>
+                    <div class="flex items-center gap-2 mt-0.5">
+                        <span class="text-[11px] text-muted">{{ $t['project_name'] }}</span>
+                        @if($t['assignee'])
+                        <span class="text-[11px] text-muted">· {{ $t['assignee'] }}</span>
+                        @endif
+                    </div>
+                </div>
+                <span class="ml-3 shrink-0 text-[11px] font-semibold text-[#b94040]">{{ $t['days_overdue'] }}d overdue</span>
+            </div>
+            @endforeach
+        </div>
+        <div class="px-5 py-3 border-t border-hairline bg-canvas">
+            <a href="{{ route('tasks.index', ['overdue' => 1]) }}" class="text-[12px] text-accent hover:underline">View all overdue tasks →</a>
+        </div>
+        @endif
+    </div>
+
+    {{-- Sprint deadlines --}}
+    <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden">
+        <div class="px-5 py-4 border-b border-hairline flex items-center gap-2">
+            <h2 class="text-[14px] font-semibold text-ink">Upcoming Sprint Deadlines</h2>
+            @if(count($sprintDeadlines) > 0)
+            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-surface text-muted">{{ count($sprintDeadlines) }}</span>
+            @endif
+        </div>
+        @if(empty($sprintDeadlines))
+        <div class="px-5 py-10 text-center">
+            <p class="text-[13px] text-muted">No sprints ending in the next 14 days.</p>
+        </div>
+        @else
+        <div class="divide-y divide-hairline">
+            @foreach($sprintDeadlines as $s)
+            @php
+                $dayColor = $s['days_left'] < 3 ? 'text-[#b94040]' : ($s['days_left'] < 7 ? 'text-[#e07b39]' : 'text-[#3d9970]');
+                $dl = is_string($s['deadline']) ? \Carbon\Carbon::parse($s['deadline']) : $s['deadline'];
+            @endphp
+            <div class="px-5 py-3 hover:bg-canvas transition-colors">
+                <div class="flex items-center justify-between mb-1.5">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-[13px] font-medium text-ink truncate">{{ $s['sprint_name'] }}</p>
+                        <p class="text-[11px] text-muted">{{ $s['project_name'] }}</p>
+                    </div>
+                    <div class="ml-3 text-right shrink-0">
+                        <p class="text-[12px] font-semibold {{ $dayColor }}">{{ $s['days_left'] }}d left</p>
+                        <p class="text-[11px] text-muted">{{ $dl->format('M j') }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="flex-1 h-1.5 bg-hairline rounded-full overflow-hidden">
+                        <div class="h-full bg-[#4a90d9] rounded-full" style="width:{{ $s['progress_pct'] }}%"></div>
+                    </div>
+                    <span class="text-[11px] text-muted shrink-0">{{ $s['progress_pct'] }}%</span>
+                    <a href="{{ route('projects.show', $s['project_id']) }}" class="text-[11px] text-accent hover:underline shrink-0">View →</a>
+                </div>
+            </div>
+            @endforeach
+        </div>
+        @endif
+    </div>
+
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- SECTION 6 — Team Performance                                              --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+<div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-hairline">
+        <h2 class="text-[14px] font-semibold text-ink">Team Performance — This Month</h2>
+    </div>
+
+    {{-- Top performers --}}
+    @if(!empty($topPerformers))
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-5 border-b border-hairline">
+        @foreach($topPerformers as $i => $p)
+        <div class="bg-canvas border border-line rounded-xl p-4 flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full flex items-center justify-center text-white text-[15px] font-bold shrink-0"
+                 style="background: {{ $p['color'] }}">
+                {{ $p['initials'] }}
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="text-[13px] font-semibold text-ink truncate">{{ $p['name'] }}</p>
+                <p class="text-2xl font-bold text-ink leading-none mt-0.5">{{ $p['completed_month'] }}</p>
+                <p class="text-[11px] text-muted">tasks done · {{ $p['in_progress'] }} in progress</p>
+            </div>
+            @if($i === 0)<span class="ml-auto text-xl shrink-0">🥇</span>
+            @elseif($i === 1)<span class="ml-auto text-xl shrink-0">🥈</span>
+            @else<span class="ml-auto text-xl shrink-0">🥉</span>
+            @endif
+        </div>
+        @endforeach
+    </div>
+    @endif
+
+    {{-- Full team table --}}
+    @if(!empty($teamPerformance))
+    @php $maxActive = max(array_column($teamPerformance, 'active_total') ?: [1]); @endphp
+    <div class="overflow-x-auto">
+        <table class="w-full text-[13px]">
+            <thead>
+                <tr class="bg-canvas text-[11px] font-bold uppercase tracking-wider text-muted border-b border-hairline">
+                    <th class="px-6 py-2.5 text-left">Developer</th>
+                    <th class="px-4 py-2.5 text-center">Done / Month</th>
+                    <th class="px-4 py-2.5 text-center">In Progress</th>
+                    <th class="px-4 py-2.5 text-center">Total Active</th>
+                    <th class="px-4 py-2.5 text-center">Weight Done</th>
+                    <th class="px-6 py-2.5 text-left w-40">Workload</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-hairline">
+                @foreach($teamPerformance as $m)
+                @php $loadPct = $maxActive > 0 ? round($m['active_total'] / $maxActive * 100) : 0; @endphp
+                <tr class="hover:bg-canvas transition-colors">
+                    <td class="px-6 py-3">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0"
+                                 style="background: {{ $m['color'] }}">{{ $m['initials'] }}</div>
+                            <span class="font-medium text-ink">{{ $m['name'] }}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 text-center font-semibold text-[#3d9970]">{{ $m['completed_month'] }}</td>
+                    <td class="px-4 py-3 text-center text-[#D97757] font-medium">{{ $m['in_progress'] }}</td>
+                    <td class="px-4 py-3 text-center text-dim">{{ $m['active_total'] }}</td>
+                    <td class="px-4 py-3 text-center text-muted">{{ $m['weight_completed'] }}</td>
+                    <td class="px-6 py-3">
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1 h-2 bg-hairline rounded-full overflow-hidden">
+                                <div class="h-full rounded-full" style="width:{{ $loadPct }}%; background: {{ $m['color'] }};"></div>
+                            </div>
+                            <span class="text-[11px] text-muted w-8 text-right">{{ $m['active_total'] }}</span>
+                        </div>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+
+    {{-- Workload chart --}}
+    @if(!empty($teamWorkload))
+    <div class="p-5 border-t border-hairline">
+        <p class="text-[12px] font-semibold text-muted uppercase tracking-wide mb-3">Workload Distribution</p>
+        <div id="chart-workload" style="min-height:{{ max(80, count($teamWorkload) * 36) }}px"></div>
+    </div>
+    @endif
     @endif
 </div>
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- SECTION 7 — Recent Activity                                               --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+<div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-hairline">
+        <h2 class="text-[14px] font-semibold text-ink">Recent Activity</h2>
+    </div>
+    @if(empty($recentActivity))
+    <div class="px-6 py-10 text-center text-[13px] text-muted">No recent activity.</div>
+    @else
+    <div class="divide-y divide-hairline">
+        @foreach($recentActivity as $act)
+        <div class="px-6 py-3 flex items-start gap-3 hover:bg-canvas transition-colors">
+            <div class="w-1.5 h-1.5 rounded-full bg-accent mt-2 shrink-0"></div>
+            <div class="min-w-0 flex-1">
+                <p class="text-[13px] text-dim">
+                    <span class="font-semibold text-ink">{{ $act['causer_name'] }}</span>
+                    {{ $act['description'] }}
+                    @if($act['subject_type'])
+                    <span class="text-muted text-[12px]">· {{ $act['subject_type'] }}</span>
+                    @endif
+                </p>
+            </div>
+            <span class="text-[11px] text-muted shrink-0 mt-0.5">{{ $act['time_ago'] }}</span>
+        </div>
+        @endforeach
+    </div>
+    @endif
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+{{-- Charts — ApexCharts                                                       --}}
+{{-- ══════════════════════════════════════════════════════════════════════════ --}}
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3/dist/apexcharts.min.js"></script>
+<script>
+    const revenueByMonth  = @json(array_values($revenueByMonth));
+    const expensesByMonth = @json(array_values($expensesByMonth));
+    const monthLabels     = @json(array_keys($revenueByMonth));
+
+    const revenueByCustomer = @json($revenueByCustomer);
+    const customerNames     = Object.keys(revenueByCustomer);
+    const customerRevenues  = Object.values(revenueByCustomer);
+
+    const tasksByStatus = @json($tasksByStatus);
+    const statusLabels  = ['open', 'todo', 'in-progress', 'in-review', 'done'];
+    const statusColors  = ['#7c5cbf', '#8c8c8a', '#4a90d9', '#e07b39', '#3d9970'];
+    const statusNames   = ['Open', 'To Do', 'In Progress', 'In Review', 'Done'];
+    const statusValues  = statusLabels.map(s => tasksByStatus[s] ?? 0);
+
+    const sparkValues = @json(array_values($tasksCompletedFilled));
+    const sparkDays   = @json(array_keys($tasksCompletedFilled));
+
+    const workloadData = @json($teamWorkload);
+
+    const FONT    = "'Inter', ui-sans-serif, system-ui, sans-serif";
+    const TOOLBAR = { show: false };
+
+    // ── Revenue vs Expenses ───────────────────────────────────────────────────
+    new ApexCharts(document.getElementById('chart-revenue-expenses'), {
+        chart: { type: 'bar', height: 240, fontFamily: FONT, toolbar: TOOLBAR, animations: { enabled: true, speed: 600 } },
+        series: [
+            { name: 'Revenue',  data: revenueByMonth },
+            { name: 'Expenses', data: expensesByMonth },
+        ],
+        colors: ['#3d9970', '#b94040'],
+        xaxis: { categories: monthLabels, labels: { style: { colors: '#8c8c8a', fontSize: '11px' } } },
+        yaxis: { labels: { formatter: v => 'MRU ' + Math.round(v).toLocaleString(), style: { colors: '#8c8c8a', fontSize: '11px' } } },
+        plotOptions: { bar: { columnWidth: '55%', borderRadius: 4 } },
+        dataLabels: { enabled: false },
+        legend: { position: 'top', fontSize: '12px', fontFamily: FONT, labels: { colors: '#5c5c5a' } },
+        tooltip: { y: { formatter: v => 'MRU ' + v.toLocaleString() } },
+        grid: { borderColor: '#eeeee9' },
+        responsive: [{ breakpoint: 640, options: { chart: { height: 200 } } }],
+    }).render();
+
+    // ── Revenue by Customer ───────────────────────────────────────────────────
+    new ApexCharts(document.getElementById('chart-revenue-customer'), {
+        chart: { type: 'bar', height: 240, fontFamily: FONT, toolbar: TOOLBAR, animations: { enabled: true, speed: 600 } },
+        series: [{ name: 'Revenue', data: customerRevenues }],
+        colors: ['#4a90d9', '#3d9970', '#e07b39', '#7c5cbf', '#D97757'],
+        plotOptions: { bar: { horizontal: true, borderRadius: 4, distributed: true, barHeight: '60%' } },
+        xaxis: { categories: customerNames, labels: { style: { colors: '#8c8c8a', fontSize: '11px' } } },
+        yaxis: { labels: { style: { colors: '#5c5c5a', fontSize: '12px' } } },
+        dataLabels: { enabled: false },
+        legend: { show: false },
+        tooltip: { y: { formatter: v => 'MRU ' + v.toLocaleString() } },
+        grid: { borderColor: '#eeeee9' },
+        responsive: [{ breakpoint: 640, options: { chart: { height: 200 } } }],
+    }).render();
+
+    // ── Task Pipeline Donut ───────────────────────────────────────────────────
+    new ApexCharts(document.getElementById('chart-task-pipeline'), {
+        chart: { type: 'donut', height: 250, fontFamily: FONT, animations: { enabled: true, speed: 600 } },
+        series: statusValues,
+        labels: statusNames,
+        colors: statusColors,
+        dataLabels: { enabled: false },
+        legend: { position: 'bottom', fontSize: '12px', fontFamily: FONT, labels: { colors: '#5c5c5a' } },
+        plotOptions: {
+            pie: {
+                donut: {
+                    size: '65%',
+                    labels: {
+                        show: true,
+                        total: {
+                            show: true, label: 'Total', color: '#8c8c8a',
+                            fontSize: '12px', fontWeight: 600,
+                            formatter: w => w.globals.seriesTotals.reduce((a, b) => a + b, 0)
+                        }
+                    }
+                }
+            }
+        },
+        tooltip: { y: { formatter: v => v + ' tasks' } },
+        responsive: [{ breakpoint: 640, options: { chart: { height: 200 } } }],
+    }).render();
+
+    // ── Completion Sparkline ──────────────────────────────────────────────────
+    new ApexCharts(document.getElementById('chart-sparkline'), {
+        chart: { type: 'area', height: 120, fontFamily: FONT, toolbar: TOOLBAR, sparkline: { enabled: true }, animations: { enabled: true, speed: 600 } },
+        series: [{ name: 'Tasks done', data: sparkValues }],
+        colors: ['#3d9970'],
+        stroke: { curve: 'smooth', width: 2 },
+        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 } },
+        xaxis: { categories: sparkDays },
+        tooltip: { x: { show: true }, y: { formatter: v => v + ' tasks' } },
+    }).render();
+
+    // ── Workload Distribution ─────────────────────────────────────────────────
+    const wlEl = document.getElementById('chart-workload');
+    if (wlEl && workloadData.length > 0) {
+        new ApexCharts(wlEl, {
+            chart: {
+                type: 'bar',
+                height: Math.max(80, workloadData.length * 36),
+                fontFamily: FONT, toolbar: TOOLBAR,
+                animations: { enabled: true, speed: 600 }
+            },
+            series: [{
+                name: 'Active tasks',
+                data: workloadData.map(m => ({ x: m.name, y: m.active_tasks, fillColor: m.color }))
+            }],
+            plotOptions: { bar: { horizontal: true, borderRadius: 4, distributed: true, barHeight: '55%' } },
+            dataLabels: { enabled: false },
+            legend: { show: false },
+            xaxis: { labels: { style: { colors: '#8c8c8a', fontSize: '11px' } } },
+            yaxis: { labels: { style: { colors: '#5c5c5a', fontSize: '12px' } } },
+            tooltip: { y: { formatter: v => v + ' active tasks' } },
+            grid: { borderColor: '#eeeee9' },
+        }).render();
+    }
+</script>
+@endpush
 
 </x-layouts.app>

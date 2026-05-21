@@ -7,6 +7,7 @@ use App\Models\CustomerCredit;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\InvoicePayment;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -74,6 +75,8 @@ class InvoiceService
             if (!empty($proofFile)) {
                 $payment->addMedia($proofFile)->toMediaCollection('proof');
             }
+
+            Cache::tags(['dashboard'])->flush();
 
             return $payment;
         });

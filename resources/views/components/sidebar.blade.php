@@ -6,7 +6,7 @@
 @php
     $user = auth()->user();
     $nav = [
-        ['route' => 'dashboard', 'label' => 'War Room',  'icon' => 'grid'],
+        ['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'grid'],
     ];
     if ($user->hasPermission('tasks.view')) {
         $nav[] = ['route' => 'board', 'label' => 'Board', 'icon' => 'columns', 'badge' => \App\Models\Task::where('status','!=','done')->count()];
