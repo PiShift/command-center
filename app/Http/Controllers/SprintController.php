@@ -29,6 +29,7 @@ class SprintController extends Controller
         $project->sprints()->create($data);
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('sprints')
             ->with('success', 'Sprint created.');
     }
 
@@ -46,6 +47,7 @@ class SprintController extends Controller
         $sprint->update($data);
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('sprints')
             ->with('success', 'Sprint updated.');
     }
 
@@ -57,6 +59,7 @@ class SprintController extends Controller
         $sprint->delete();
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('sprints')
             ->with('success', 'Sprint deleted.');
     }
 
@@ -68,12 +71,14 @@ class SprintController extends Controller
         $taskCount = $sprint->tasks()->count();
         if ($taskCount === 0) {
             return redirect()->route('projects.show', $project)
+                ->withFragment('sprints')
                 ->with('error', 'Cannot publish an empty sprint. Add tasks first.');
         }
 
         $openCount = $sprint->tasks()->where('status', 'open')->count();
         if ($openCount === 0) {
             return redirect()->route('projects.show', $project)
+                ->withFragment('sprints')
                 ->with('error', 'No open tasks to publish. Promote backlog items to this sprint first.');
         }
 
@@ -98,6 +103,7 @@ class SprintController extends Controller
         SlackNotificationHelper::notifyOnce(new SprintPublishedNotification($sprint, $taskCount));
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('sprints')
             ->with('success', 'Sprint published. Tasks are now visible to developers.');
     }
 
@@ -109,6 +115,7 @@ class SprintController extends Controller
         $sprint->unpublish();
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('sprints')
             ->with('success', 'Sprint moved back to draft.');
     }
 
@@ -123,6 +130,7 @@ class SprintController extends Controller
 
         if ($unfinishedCount > 0) {
             return redirect()->route('projects.show', $project)
+                ->withFragment('sprints')
                 ->with('error', 'Sprint has unfinished tasks. Complete or reassign them before closing the sprint.');
         }
 
@@ -137,6 +145,7 @@ class SprintController extends Controller
         SlackNotificationHelper::notifyOnce(new SprintCompletedNotification($sprint->load('project'), $doneCount));
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('sprints')
             ->with('success', 'Sprint marked as completed.');
     }
 }

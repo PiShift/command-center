@@ -79,7 +79,7 @@ class ProjectController extends Controller
         $user = auth()->user();
         Gate::authorize('view', $project);
 
-        $project->load(['customer', 'teams.members', 'tasks', 'tasks.assignee', 'sprints.tasks', 'backlogItems.sprint', 'backlogItems.promotedTask']);
+        $project->load(['customer', 'teams.members', 'tasks.assignee']);
 
         $canManage = $user->can('manage', $project);
 
@@ -101,13 +101,7 @@ class ProjectController extends Controller
 
         $assignedTeams = $project->teams;
 
-        $recentTasks = $allTasks->sortByDesc('updated_at')->take(5)->values();
-
-        $sprints = $canManage
-            ? $project->sprints
-            : $project->sprints->whereIn('status', ['active', 'completed'])->values();
-
-        $backlogItems = $project->backlogItems->where('promoted', false)->values();
+        $recentTasks = $allTasks->sortByDesc('updated_at')->take(8)->values();
 
         $allTeams = \App\Models\Team::orderBy('name')->get(['id', 'name']);
 
@@ -115,12 +109,15 @@ class ProjectController extends Controller
         $availableTasks = collect();
         $myTasks        = collect();
         if (! $canManage) {
-            $activeSprintIds = $sprints->where('status', 'active')->pluck('id');
+            $activeSprintIds = \App\Models\Sprint::where('project_id', $project->id)
+                ->where('status', 'active')
+                ->pluck('id');
             if ($activeSprintIds->isNotEmpty()) {
                 $availableTasks = Task::where('project_id', $project->id)
                     ->whereIn('sprint_id', $activeSprintIds)
                     ->where('status', 'open')
                     ->whereNull('assigned_to')
+                    ->with('sprint')
                     ->orderByDesc('weight')
                     ->get();
             }
@@ -133,7 +130,7 @@ class ProjectController extends Controller
 
         return view('projects.show', compact(
             'project', 'totalTasks', 'openTasks', 'doneTasks', 'overdueTasks',
-            'progressPercent', 'teamMembers', 'assignedTeams', 'recentTasks', 'sprints', 'backlogItems', 'allTeams',
+            'progressPercent', 'teamMembers', 'assignedTeams', 'recentTasks', 'allTeams',
             'canManage', 'availableTasks', 'myTasks'
         ));
     }

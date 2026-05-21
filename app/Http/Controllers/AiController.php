@@ -125,6 +125,7 @@ class AiController extends Controller
 
         return redirect()
             ->route('projects.show', $project)
+            ->withFragment('backlog')
             ->with('success', "{$sprintCount} sprint(s) and {$itemCount} backlog items created. Review and promote items when ready.");
     }
 

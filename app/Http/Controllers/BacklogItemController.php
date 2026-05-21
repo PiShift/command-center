@@ -41,6 +41,7 @@ class BacklogItemController extends Controller
         $project->backlogItems()->create($data);
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('backlog')
             ->with('success', 'Backlog item added.');
     }
 
@@ -72,6 +73,7 @@ class BacklogItemController extends Controller
         $backlogItem->update($data);
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('backlog')
             ->with('success', 'Backlog item updated.');
     }
 
@@ -83,6 +85,7 @@ class BacklogItemController extends Controller
         $backlogItem->delete();
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('backlog')
             ->with('success', 'Backlog item deleted.');
     }
 
@@ -133,6 +136,7 @@ class BacklogItemController extends Controller
         ]);
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('backlog')
             ->with('success', 'Backlog item promoted to task successfully.');
     }
 
@@ -159,6 +163,7 @@ class BacklogItemController extends Controller
             ->update(['sprint_id' => $data['sprint_id'] ?? null]);
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('backlog')
             ->with('success', 'Sprint assigned to selected items.');
     }
 
@@ -198,6 +203,7 @@ class BacklogItemController extends Controller
         }
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('backlog')
             ->with('success', count($items) . ' item(s) promoted to tasks.');
     }
 
@@ -216,6 +222,7 @@ class BacklogItemController extends Controller
             ->delete();
 
         return redirect()->route('projects.show', $project)
+            ->withFragment('backlog')
             ->with('success', $deleted . ' item(s) deleted.');
     }
 }
