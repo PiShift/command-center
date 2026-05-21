@@ -272,7 +272,7 @@
     </div>
 
     {{-- Right: discount & tax --}}
-    <div>
+    <div style="position:sticky;top:24px;align-self:start">
         <div class="rounded-xl p-5" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)">
             <p style="font-size:13px;font-weight:600;color:#141413;margin-bottom:14px">Discount & Tax</p>
             <div class="flex flex-col gap-4">
