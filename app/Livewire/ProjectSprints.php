@@ -162,6 +162,8 @@ class ProjectSprints extends Component
             'editTaskWeight'     => 'required|integer|between:1,5',
         ]);
 
+        $oldStatus = $task->status;
+
         $task->update([
             'title'       => $this->editTaskTitle,
             'status'      => $this->editTaskStatus,
@@ -170,6 +172,14 @@ class ProjectSprints extends Component
             'due_date'    => $this->editTaskDueDate ?: null,
             'weight'      => $this->editTaskWeight,
         ]);
+
+        if ($this->editTaskStatus === 'done' && $oldStatus !== 'done') {
+            $task->completed_at = now();
+            $task->saveQuietly();
+        } elseif ($this->editTaskStatus !== 'done' && $oldStatus === 'done') {
+            $task->completed_at = null;
+            $task->saveQuietly();
+        }
 
         $this->editingTask = null;
         $this->dispatch('task-updated');

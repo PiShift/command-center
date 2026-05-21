@@ -133,7 +133,20 @@ class TaskModal extends Component
             'dueDate'        => 'due_date',
             'estimatedHours' => 'estimated_hours',
         ];
+
+        $oldStatus = $task->status;
         $task->update([$map[$field] => $this->$field ?: null]);
+
+        if ($field === 'status') {
+            if ($this->status === 'done' && $oldStatus !== 'done') {
+                $task->completed_at = now();
+                $task->saveQuietly();
+            } elseif ($this->status !== 'done' && $oldStatus === 'done') {
+                $task->completed_at = null;
+                $task->saveQuietly();
+            }
+        }
+
         $this->editingTitle = false;
         $this->editingDescription = false;
     }
@@ -237,7 +250,7 @@ class TaskModal extends Component
         activity()
             ->performedOn($task)
             ->causedBy($user)
-            ->log("Task claimed by {$user->name} — status changed to todo");
+            ->log('claimed task');
 
         $this->open = false;
         session()->flash('success', 'Task claimed! It now appears in your tasks.');
