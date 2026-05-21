@@ -113,6 +113,7 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     // Invoices
     Route::resource('invoices', InvoiceController::class)->names('invoices');
     Route::post('invoices/{invoice}/publish',       [InvoiceController::class, 'publish'])->name('invoices.publish');
+    Route::post('invoices/{invoice}/resend',        [InvoiceController::class, 'resend'])->name('invoices.resend');
     Route::patch('invoices/{invoice}/cancel',       [InvoiceController::class, 'cancel'])->name('invoices.cancel');
     Route::patch('invoices/{invoice}/reset-draft',  [InvoiceController::class, 'resetToDraft'])->name('invoices.reset-draft');
     Route::get('invoices/{invoice}/preview',        [InvoiceController::class, 'preview'])->name('invoices.preview');

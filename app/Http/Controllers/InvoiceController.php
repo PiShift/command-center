@@ -120,6 +120,14 @@ class InvoiceController extends Controller
         return back()->with('success', 'Invoice published.');
     }
 
+    public function resend(Invoice $invoice)
+    {
+        abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
+        Mail::to($invoice->customer->email)
+            ->queue(new InvoicePublishedMailable($invoice->load(['customer', 'items'])));
+        return back()->with('success', 'Invoice resent to ' . $invoice->customer->email . '.');
+    }
+
     public function cancel(Invoice $invoice)
     {
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);

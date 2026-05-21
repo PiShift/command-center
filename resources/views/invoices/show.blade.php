@@ -80,6 +80,14 @@
                style="display:inline-flex;align-items:center;padding:8px 16px;font-size:13px;font-weight:500;background:#D97757;color:#fff;border-radius:8px;text-decoration:none;transition:background 150ms ease"
                onmouseover="this.style.background='#c4684a'" onmouseout="this.style.background='#D97757'">Download PDF</a>
         @endif
+        @if(in_array($invoice->status, ['published', 'partially_paid', 'paid']) && $invoice->customer?->email)
+            <form method="POST" action="{{ route('invoices.resend', $invoice) }}" class="inline" onsubmit="return confirm('Resend invoice to {{ $invoice->customer->email }}?')">
+                @csrf
+                <button type="submit"
+                        style="display:inline-flex;align-items:center;padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer;transition:background 150ms ease"
+                        onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Resend to customer</button>
+            </form>
+        @endif
         @if($invoice->status !== 'cancelled' && $invoice->payment_status !== 'paid')
             <form method="POST" action="{{ route('invoices.cancel', $invoice) }}" class="inline" onsubmit="return confirm('Cancel this invoice?')">@csrf @method('PATCH')
                 <button type="submit"

@@ -6,8 +6,8 @@
     <title>@yield('subject', 'PiShift Notification')</title>
     <style>
         body { margin: 0; padding: 0; background: #faf9f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #141413; }
-        .wrapper { max-width: 580px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #e5e4df; }
-        .header { background: #141413; padding: 24px 32px; }
+        .wrapper { max-width: 580px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #e5e4df; border-top: 3px solid #1a1a1a; }
+        .header { background: #ffffff; padding: 24px 32px; border-bottom: 1px solid #e5e4df; }
         .header-logo { color: #fff; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; text-decoration: none; }
         .header-logo span { color: #D97757; }
         .body { padding: 32px; }
@@ -23,7 +23,9 @@
 <body>
     <div class="wrapper">
         <div class="header">
-            <a href="{{ config('app.url') }}" class="header-logo">PiShift<span>.</span></a>
+            <a href="{{ config('app.url') }}">
+                <img src="data:image/png;base64,{{ base64_encode(file_get_contents(public_path('images/logo.png'))) }}" alt="PiShift" style="height:32px;width:auto;">
+            </a>
         </div>
         <div class="body">
             @yield('content')

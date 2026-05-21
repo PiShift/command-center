@@ -8,10 +8,10 @@
         <br>
     @elseif($firstNonEmpty)
         @php $firstNonEmpty = false; @endphp
-        <strong style="font-weight:600">{{ $trimmed }}</strong>
+        <strong style="font-weight:600;border:none">{{ $trimmed }}</strong>
     @elseif(str_starts_with($trimmed, '·') || str_starts_with($trimmed, '-'))
-        <div style="padding-left:8px">{{ $trimmed }}</div>
+        <div style="padding-left:8px;border:none">{{ $trimmed }}</div>
     @else
-        <div>{{ $trimmed }}</div>
+        <div style="border:none">{{ $trimmed }}</div>
     @endif
 @endforeach
