@@ -1,6 +1,6 @@
 {{-- Usage: @include('invoices.form', ['invoice' => $invoice, 'customers' => $customers, 'projects' => $projects]) --}}
 
-<div class="grid grid-cols-3 gap-6">
+<div class="grid grid-cols-3 gap-6" x-data="itemsManager()">
 
     {{-- Left: main form --}}
     <div class="col-span-2 flex flex-col gap-5">
@@ -117,7 +117,7 @@
                 ])->values()->all())
                 ->all();
         @endphp
-        <div class="rounded-xl overflow-hidden" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)" x-data="itemsManager()">
+        <div class="rounded-xl overflow-hidden" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)">
             <div class="px-6 py-4 flex items-center justify-between gap-3 flex-wrap" style="border-bottom:1px solid #eeeee9">
                 <p style="font-size:13px;font-weight:600;color:#141413">Line Items</p>
                 <div class="flex items-center gap-2 flex-wrap">
@@ -279,11 +279,11 @@
                 <div>
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Discount Type</label>
                     <div class="relative">
-                        <select name="discount_type" class="w-full appearance-none rounded-lg text-[13px] pl-3 pr-8 py-2"
+                        <select name="discount_type" x-model="discountType" class="w-full appearance-none rounded-lg text-[13px] pl-3 pr-8 py-2"
                                 style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none">
                             <option value="">None</option>
-                            <option value="percent" {{ old('discount_type', $invoice->discount_type ?? '') === 'percent' ? 'selected' : '' }}>Percentage (%)</option>
-                            <option value="fixed" {{ old('discount_type', $invoice->discount_type ?? '') === 'fixed' ? 'selected' : '' }}>Fixed amount</option>
+                            <option value="percent">Percentage (%)</option>
+                            <option value="fixed">Fixed amount</option>
                         </select>
                         <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style="color:#8c8c8a">
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
@@ -292,7 +292,7 @@
                 </div>
                 <div>
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Discount Value</label>
-                    <input type="number" name="discount_value" value="{{ old('discount_value', $invoice->discount_value ?? '') }}" step="0.01" min="0"
+                    <input type="number" name="discount_value" x-model.number="discountValue" step="0.01" min="0"
                            class="w-full rounded-lg text-[13px] px-3 py-2"
                            style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none"
                            onfocus="this.style.borderColor='#D97757';this.style.background='#fff'"
@@ -300,11 +300,35 @@
                 </div>
                 <div>
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Tax Rate (%)</label>
-                    <input type="number" name="tax_rate" value="{{ old('tax_rate', $invoice->tax_rate ?? '') }}" step="0.01" min="0" max="100"
+                    <input type="number" name="tax_rate" x-model.number="taxRate" step="0.01" min="0" max="100"
                            class="w-full rounded-lg text-[13px] px-3 py-2"
                            style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none"
                            onfocus="this.style.borderColor='#D97757';this.style.background='#fff'"
                            onblur="this.style.borderColor='#e5e4df';this.style.background='#F5F4EF'">
+                </div>
+
+                {{-- Live totals --}}
+                <div style="border-top:1px solid #eeeee9;padding-top:14px;margin-top:2px">
+                    <div class="flex justify-between" style="font-size:12px;color:#8c8c8a;margin-bottom:6px">
+                        <span>Items subtotal</span>
+                        <span x-text="'MRU ' + itemsSubtotal.toFixed(2)"></span>
+                    </div>
+                    <template x-if="discountAmount > 0">
+                        <div class="flex justify-between" style="font-size:12px;color:#b94040;margin-bottom:6px">
+                            <span x-text="discountType === 'percent' ? 'Discount (' + discountValue + '%)' : 'Discount'"></span>
+                            <span x-text="'- MRU ' + discountAmount.toFixed(2)"></span>
+                        </div>
+                    </template>
+                    <template x-if="taxAmount > 0">
+                        <div class="flex justify-between" style="font-size:12px;color:#5c5c5a;margin-bottom:6px">
+                            <span x-text="'Tax (' + taxRate + '%)'" ></span>
+                            <span x-text="'MRU ' + taxAmount.toFixed(2)"></span>
+                        </div>
+                    </template>
+                    <div class="flex justify-between" style="font-size:14px;font-weight:700;color:#141413;padding-top:8px;border-top:1px solid #eeeee9;margin-top:4px">
+                        <span>Total</span>
+                        <span x-text="'MRU ' + grandTotal.toFixed(2)"></span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -336,6 +360,25 @@ function itemsManager() {
         showSprintSelect: false,
         selectedTaskIds:  [],
         selectedSprintId: '',
+        discountType:  '{{ old('discount_type', $invoice->discount_type ?? '') }}',
+        discountValue: {{ (float)(old('discount_value', $invoice->discount_value ?? 0)) }},
+        taxRate:       {{ (float)(old('tax_rate', $invoice->tax_rate ?? 0)) }},
+
+        get itemsSubtotal() {
+            return this.items.reduce((s, i) => s + (i.subtotal || 0), 0);
+        },
+        get discountAmount() {
+            const sub = this.itemsSubtotal;
+            if (this.discountType === 'percent' && this.discountValue > 0) return sub * this.discountValue / 100;
+            if (this.discountType === 'fixed' && this.discountValue > 0) return Math.min(sub, this.discountValue);
+            return 0;
+        },
+        get taxAmount() {
+            return Math.max(0, this.itemsSubtotal - this.discountAmount) * (this.taxRate || 0) / 100;
+        },
+        get grandTotal() {
+            return Math.max(0, this.itemsSubtotal - this.discountAmount) + this.taxAmount;
+        },
 
         init() {
             window.addEventListener('project-changed', (e) => {
