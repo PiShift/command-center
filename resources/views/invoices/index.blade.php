@@ -223,7 +223,7 @@
             <tr class="inv-row cursor-pointer" data-bg="{{ $bg }}"
                 style="background:{{ $bg }};border-bottom:1px solid #eeeee9;transition:background 100ms ease"
                 onmouseover="this.style.background='#faf9f5'" onmouseout="this.style.background=this.dataset.bg"
-                onclick="if(!event.target.closest('input')&&!event.target.closest('button')&&!event.target.closest('a')&&!event.target.closest('.inv-menu'))window.location='{{ route('invoices.show', $invoice) }}'">
+                onclick="handleRowClick(event,'{{ route('invoices.show', $invoice) }}')">
 
                 <td class="p-0" style="width:44px">
                     <label class="flex items-center justify-center min-h-[44px] min-w-[44px] cursor-pointer">
@@ -358,6 +358,14 @@
 </style>
 
 <script>
+// ── Row click navigation ───────────────────────────────────────────────────
+function handleRowClick(event, url) {
+    if (!event.target.closest('input') && !event.target.closest('button') &&
+        !event.target.closest('a') && !event.target.closest('.inv-menu')) {
+        window.location = url;
+    }
+}
+
 // ── Dropdown ──────────────────────────────────────────────────────────────
 function toggleMenu(btn) {
     const menu = btn.nextElementSibling;

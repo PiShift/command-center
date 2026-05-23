@@ -17,7 +17,7 @@
 <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-3">
     <div class="flex flex-wrap items-center gap-2">
         <a href="{{ route('invoices.index') }}" style="color:#8c8c8a;text-decoration:none;font-size:13px" onmouseover="this.style.color='#141413'" onmouseout="this.style.color='#8c8c8a'">&larr; Invoices</a>
-        <h1 class="text-2xl md:text-4xl" style="font-weight:600; color:#141413">{{ $invoice->invoice_number }}</h1>
+        <h1 class="text-2xl md:text-4xl font-semibold" style="color:#141413">{{ $invoice->invoice_number }}</h1>
         <span class="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold"
               style="{{ $statusStyles[$invoice->status] ?? '' }}">
             {{ ucfirst($invoice->status) }}
