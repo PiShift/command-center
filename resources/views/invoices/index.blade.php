@@ -184,7 +184,8 @@
     @if($invoices->isEmpty())
         <div class="py-16 text-center" style="color:#8c8c8a;font-size:13px">No invoices found.</div>
     @else
-    <table class="w-full" style="font-size:13.5px">
+    <div class="overflow-x-auto">
+    <table class="w-full" style="font-size:13.5px;min-width:600px">
         <thead>
             <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
                 <th class="p-0" style="width:44px">
@@ -332,6 +333,7 @@
             @endforeach
         </tbody>
     </table>
+    </div>
     <div class="px-6 py-4" style="border-top:1px solid #eeeee9">{{ $invoices->links() }}</div>
     @endif
 </div>
