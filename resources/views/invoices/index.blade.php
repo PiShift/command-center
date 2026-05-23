@@ -107,7 +107,7 @@
 @include('components.flash')
 
 {{-- ── Filters ──────────────────────────────────────────────────────────────── --}}
-<form method="GET" class="flex flex-wrap gap-2 mb-4">
+<form method="GET" class="flex flex-col sm:flex-row flex-wrap gap-2 mb-4">
     <input type="hidden" name="sort" value="{{ $sort }}">
     <input type="hidden" name="direction" value="{{ $direction }}">
 
@@ -187,18 +187,20 @@
     <table class="w-full" style="font-size:13.5px">
         <thead>
             <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
-                <th class="px-4 py-3" style="width:36px">
-                    <input type="checkbox" id="select-all" onchange="toggleAll(this)"
-                           style="width:15px;height:15px;cursor:pointer;accent-color:#D97757">
+                <th class="p-0" style="width:44px">
+                    <label class="flex items-center justify-center min-h-[44px] min-w-[44px] cursor-pointer">
+                        <input type="checkbox" id="select-all" onchange="toggleAll(this)"
+                               style="width:15px;height:15px;cursor:pointer;accent-color:#D97757">
+                    </label>
                 </th>
                 @php $cols = [
                     ['col'=>'invoice_number','label'=>'Invoice', 'cls'=>'px-4 py-3 text-left'],
                     ['col'=>null,            'label'=>'Customer','cls'=>'px-4 py-3 text-left'],
                     ['col'=>'status',        'label'=>'Status',  'cls'=>'px-4 py-3 text-left'],
-                    ['col'=>'issue_date',    'label'=>'Issued',  'cls'=>'px-4 py-3 text-left'],
-                    ['col'=>'due_date',      'label'=>'Due',     'cls'=>'px-4 py-3 text-left'],
-                    ['col'=>'total',         'label'=>'Total',   'cls'=>'px-4 py-3 text-right'],
-                    ['col'=>null,            'label'=>'Due Amt', 'cls'=>'px-4 py-3 text-right'],
+                    ['col'=>'issue_date',    'label'=>'Issued',  'cls'=>'px-4 py-3 text-left hidden sm:table-cell'],
+                    ['col'=>'due_date',      'label'=>'Due',     'cls'=>'px-4 py-3 text-left hidden sm:table-cell'],
+                    ['col'=>'total',         'label'=>'Total',   'cls'=>'px-4 py-3 text-right hidden sm:table-cell'],
+                    ['col'=>null,            'label'=>'Due Amt', 'cls'=>'px-4 py-3 text-right hidden sm:table-cell'],
                     ['col'=>null,            'label'=>'',        'cls'=>'px-4 py-3'],
                 ]; @endphp
                 @foreach($cols as $th)
@@ -218,16 +220,19 @@
         <tbody>
             @foreach($invoices as $invoice)
             @php $overdue = $invoice->is_overdue; $bg = $overdue ? '#fff8f8' : '#fff'; @endphp
-            <tr class="inv-row" data-bg="{{ $bg }}"
+            <tr class="inv-row cursor-pointer" data-bg="{{ $bg }}"
                 style="background:{{ $bg }};border-bottom:1px solid #eeeee9;transition:background 100ms ease"
-                onmouseover="this.style.background='#faf9f5'" onmouseout="this.style.background=this.dataset.bg">
+                onmouseover="this.style.background='#faf9f5'" onmouseout="this.style.background=this.dataset.bg"
+                onclick="if(!event.target.closest('input')&&!event.target.closest('button')&&!event.target.closest('a')&&!event.target.closest('.inv-menu'))window.location='{{ route('invoices.show', $invoice) }}'">
 
-                <td class="px-4 py-3" style="width:36px">
-                    <input type="checkbox" class="row-check" value="{{ $invoice->id }}" onchange="onRowCheck()"
-                           style="width:15px;height:15px;cursor:pointer;accent-color:#D97757">
+                <td class="p-0" style="width:44px">
+                    <label class="flex items-center justify-center min-h-[44px] min-w-[44px] cursor-pointer">
+                        <input type="checkbox" class="row-check" value="{{ $invoice->id }}" onchange="onRowCheck()"
+                               style="width:15px;height:15px;cursor:pointer;accent-color:#D97757">
+                    </label>
                 </td>
 
-                <td class="px-4 py-3">
+                <td class="px-4 py-3 whitespace-nowrap">
                     <a href="{{ route('invoices.show', $invoice) }}" style="font-weight:500;color:#141413;text-decoration:none"
                        onmouseover="this.style.color='#D97757'" onmouseout="this.style.color='#141413'">{{ $invoice->invoice_number }}</a>
                     @if($invoice->project)<p style="font-size:11px;color:#8c8c8a;margin-top:2px">{{ $invoice->project->name }}</p>@endif
@@ -246,13 +251,13 @@
                     @endif
                 </td>
 
-                <td class="px-4 py-3" style="color:#5c5c5a;font-size:12px">{{ $invoice->issue_date->format('M d, Y') }}</td>
-                <td class="px-4 py-3" style="color:{{ $overdue?'#b94040':'#5c5c5a' }};font-weight:{{ $overdue?'500':'400' }};font-size:12px">
+                <td class="px-4 py-3 hidden sm:table-cell" style="color:#5c5c5a;font-size:12px">{{ $invoice->issue_date->format('M d, Y') }}</td>
+                <td class="px-4 py-3 hidden sm:table-cell" style="color:{{ $overdue?'#b94040':'#5c5c5a' }};font-weight:{{ $overdue?'500':'400' }};font-size:12px">
                     {{ $invoice->due_date->format('M d, Y') }}
                 </td>
 
-                <td class="px-4 py-3 text-right" style="font-weight:500;color:#141413">{{ $invoice->currency }} {{ number_format($invoice->total,2) }}</td>
-                <td class="px-4 py-3 text-right" style="color:{{ $invoice->amount_due>0?'#b94040':'#2e7d55' }};font-weight:500">
+                <td class="px-4 py-3 text-right hidden sm:table-cell" style="font-weight:500;color:#141413">{{ $invoice->currency }} {{ number_format($invoice->total,2) }}</td>
+                <td class="px-4 py-3 text-right hidden sm:table-cell" style="color:{{ $invoice->amount_due>0?'#b94040':'#2e7d55' }};font-weight:500">
                     {{ $invoice->amount_due>0 ? $invoice->currency.' '.number_format($invoice->amount_due,2) : '—' }}
                 </td>
 
