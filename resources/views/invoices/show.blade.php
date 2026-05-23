@@ -29,7 +29,7 @@
         </span>
         @endif
     </div>
-    <div class="flex flex-wrap gap-2">
+    <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         @if($invoice->status === 'draft')
             <a href="{{ route('invoices.edit', $invoice) }}"
                class="flex sm:inline-flex w-full sm:w-auto justify-center items-center"
@@ -97,7 +97,7 @@
         @if($invoice->status !== 'cancelled' && $invoice->payment_status !== 'paid')
             <form method="POST" action="{{ route('invoices.cancel', $invoice) }}" class="contents" onsubmit="return confirm('Cancel this invoice?')">@csrf @method('PATCH')
                 <button type="submit"
-                        class="w-full sm:w-auto"
+                        class="col-span-2 w-full sm:w-auto"
                         style="padding:8px 14px;font-size:13px;font-weight:500;background:#fff0f0;border:1px solid #ffd0d0;color:#b94040;border-radius:8px;cursor:pointer;transition:background 150ms ease"
                         onmouseover="this.style.background='#ffe0e0'" onmouseout="this.style.background='#fff0f0'">Cancel</button>
             </form>
@@ -166,14 +166,15 @@
             <div class="px-6 py-4" style="border-bottom:1px solid #eeeee9">
                 <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Line Items</p>
             </div>
+            <div class="overflow-x-auto">
             <table class="w-full" style="font-size:13px">
                 <thead>
                     <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
-                        <th class="px-6 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Description</th>
+                        <th class="px-6 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;min-width:200px">Description</th>
                         <th class="px-4 py-3 text-center hidden sm:table-cell" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Unit</th>
                         <th class="px-4 py-3 text-right hidden sm:table-cell" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Qty</th>
-                        <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Price</th>
-                        <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Subtotal</th>
+                        <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;min-width:100px">Price</th>
+                        <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;min-width:100px">Subtotal</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -188,6 +189,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
             {{-- Totals --}}
             <div class="px-6 py-4" style="border-top:1px solid #eeeee9">
                 <div class="flex flex-col items-end gap-1" style="font-size:13px">
@@ -404,7 +406,7 @@
             @endif
 
             @if($invoice->reminders->where('sent', false)->count() < 2)
-            <form method="POST" action="{{ route('invoices.reminders.store', $invoice) }}" class="flex gap-2 items-end">
+            <form method="POST" action="{{ route('invoices.reminders.store', $invoice) }}" class="flex gap-2 items-center">
                 @csrf
                 <div class="flex-1">
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Reminder Date</label>
@@ -418,6 +420,7 @@
                     @error('scheduled_date')<p style="font-size:11px;color:#b94040;margin-top:3px">{{ $message }}</p>@enderror
                 </div>
                 <button type="submit"
+                        class="shrink-0"
                         style="padding:8px 16px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer;transition:background 150ms ease;white-space:nowrap"
                         onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Schedule Reminder</button>
             </form>
