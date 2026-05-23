@@ -14,10 +14,10 @@
 @endphp
 
 {{-- Page title row --}}
-<div class="flex items-center justify-between mb-5">
-    <div class="flex items-center gap-3">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-3">
+    <div class="flex flex-wrap items-center gap-2">
         <a href="{{ route('invoices.index') }}" style="color:#8c8c8a;text-decoration:none;font-size:13px" onmouseover="this.style.color='#141413'" onmouseout="this.style.color='#8c8c8a'">&larr; Invoices</a>
-        <h1 style="font-size:24px; font-weight:600; color:#141413">{{ $invoice->invoice_number }}</h1>
+        <h1 class="text-2xl md:text-4xl font-semibold" style="color:#141413">{{ $invoice->invoice_number }}</h1>
         <span class="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold"
               style="{{ $statusStyles[$invoice->status] ?? '' }}">
             {{ ucfirst($invoice->status) }}
@@ -29,14 +29,16 @@
         </span>
         @endif
     </div>
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap gap-2">
         @if($invoice->status === 'draft')
             <a href="{{ route('invoices.edit', $invoice) }}"
-               style="display:inline-flex;align-items:center;padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;text-decoration:none;transition:background 150ms ease"
+               class="flex sm:inline-flex w-full sm:w-auto justify-center items-center"
+               style="padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;text-decoration:none;transition:background 150ms ease"
                onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Edit</a>
             {{-- Publish with notify_customer confirmation --}}
-            <div x-data="{ open: false, notify: true }">
+            <div x-data="{ open: false, notify: true }" class="w-full sm:w-auto">
                 <button @click="open = true"
+                        class="w-full sm:w-auto"
                         style="padding:8px 16px;font-size:13px;font-weight:500;background:#D97757;color:#fff;border:none;border-radius:8px;cursor:pointer;transition:background 150ms ease"
                         onmouseover="this.style.background='#c4684a'" onmouseout="this.style.background='#D97757'">Publish</button>
                 <div :style="open ? 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(20,20,19,0.4)' : 'display:none'"
@@ -66,31 +68,36 @@
             </div>
         @endif
         @if($invoice->status === 'published')
-            <form method="POST" action="{{ route('invoices.reset-draft', $invoice) }}" class="inline" onsubmit="return confirm('Reset to draft? This will allow editing.')">@csrf @method('PATCH')
+            <form method="POST" action="{{ route('invoices.reset-draft', $invoice) }}" class="contents" onsubmit="return confirm('Reset to draft? This will allow editing.')">@csrf @method('PATCH')
                 <button type="submit"
-                        style="display:inline-flex;align-items:center;padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer;transition:background 150ms ease"
+                        class="flex sm:inline-flex w-full sm:w-auto items-center justify-center"
+                        style="padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer;transition:background 150ms ease"
                         onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Reset to Draft</button>
             </form>
         @endif
         @if($invoice->status === 'published')
             <a href="{{ route('invoices.preview', $invoice) }}" target="_blank"
-               style="display:inline-flex;align-items:center;padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;text-decoration:none;transition:background 150ms ease"
+               class="flex sm:inline-flex w-full sm:w-auto justify-center items-center"
+               style="padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;text-decoration:none;transition:background 150ms ease"
                onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Preview PDF</a>
             <a href="{{ route('invoices.download', $invoice) }}"
-               style="display:inline-flex;align-items:center;padding:8px 16px;font-size:13px;font-weight:500;background:#D97757;color:#fff;border-radius:8px;text-decoration:none;transition:background 150ms ease"
+               class="flex sm:inline-flex w-full sm:w-auto justify-center items-center"
+               style="padding:8px 16px;font-size:13px;font-weight:500;background:#D97757;color:#fff;border-radius:8px;text-decoration:none;transition:background 150ms ease"
                onmouseover="this.style.background='#c4684a'" onmouseout="this.style.background='#D97757'">Download PDF</a>
         @endif
         @if(in_array($invoice->status, ['published', 'partially_paid', 'paid']) && $invoice->customer?->email)
-            <form method="POST" action="{{ route('invoices.resend', $invoice) }}" class="inline" onsubmit="return confirm('Resend invoice to {{ $invoice->customer->email }}?')">
+            <form method="POST" action="{{ route('invoices.resend', $invoice) }}" class="contents" onsubmit="return confirm('Resend invoice to {{ $invoice->customer->email }}?')">
                 @csrf
                 <button type="submit"
-                        style="display:inline-flex;align-items:center;padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer;transition:background 150ms ease"
+                        class="flex sm:inline-flex w-full sm:w-auto items-center justify-center"
+                        style="padding:8px 14px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer;transition:background 150ms ease"
                         onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Resend to customer</button>
             </form>
         @endif
         @if($invoice->status !== 'cancelled' && $invoice->payment_status !== 'paid')
-            <form method="POST" action="{{ route('invoices.cancel', $invoice) }}" class="inline" onsubmit="return confirm('Cancel this invoice?')">@csrf @method('PATCH')
+            <form method="POST" action="{{ route('invoices.cancel', $invoice) }}" class="contents" onsubmit="return confirm('Cancel this invoice?')">@csrf @method('PATCH')
                 <button type="submit"
+                        class="w-full sm:w-auto"
                         style="padding:8px 14px;font-size:13px;font-weight:500;background:#fff0f0;border:1px solid #ffd0d0;color:#b94040;border-radius:8px;cursor:pointer;transition:background 150ms ease"
                         onmouseover="this.style.background='#ffe0e0'" onmouseout="this.style.background='#fff0f0'">Cancel</button>
             </form>
@@ -120,10 +127,10 @@
 </div>
 @endif
 
-<div class="grid grid-cols-3 gap-6">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
     {{-- Left: main content --}}
-    <div class="col-span-2 flex flex-col gap-6">
+    <div class="col-span-1 md:col-span-2 flex flex-col gap-6">
 
         {{-- Meta card --}}
         <div class="rounded-xl p-6" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)">
@@ -163,8 +170,8 @@
                 <thead>
                     <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
                         <th class="px-6 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Description</th>
-                        <th class="px-4 py-3 text-center" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Unit</th>
-                        <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Qty</th>
+                        <th class="px-4 py-3 text-center hidden sm:table-cell" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Unit</th>
+                        <th class="px-4 py-3 text-right hidden sm:table-cell" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Qty</th>
                         <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Price</th>
                         <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Subtotal</th>
                     </tr>
@@ -173,8 +180,8 @@
                     @foreach($invoice->items as $item)
                     <tr style="border-bottom:1px solid #eeeee9">
                         <td class="px-6 py-3" style="color:#141413;line-height:1.6">@include('invoices._item_description', ['description' => $item->description])</td>
-                        <td class="px-4 py-3 text-center" style="color:#5c5c5a">{{ $item->unit }}</td>
-                        <td class="px-4 py-3 text-right" style="color:#5c5c5a">{{ $item->quantity }}</td>
+                        <td class="px-4 py-3 text-center hidden sm:table-cell" style="color:#5c5c5a">{{ $item->unit }}</td>
+                        <td class="px-4 py-3 text-right hidden sm:table-cell" style="color:#5c5c5a">{{ $item->quantity }}</td>
                         <td class="px-4 py-3 text-right" style="color:#5c5c5a">{{ $invoice->currency }} {{ number_format($item->unit_price, 2) }}</td>
                         <td class="px-4 py-3 text-right" style="font-weight:500;color:#141413">{{ $invoice->currency }} {{ number_format($item->subtotal, 2) }}</td>
                     </tr>
