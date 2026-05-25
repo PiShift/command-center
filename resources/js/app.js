@@ -4,7 +4,9 @@ import './bootstrap';
 // picks it up (importing a second Alpine instance causes $store to be undefined).
 document.addEventListener('alpine:init', () => {
     Alpine.store('sidebar', {
-        isOpen: localStorage.getItem('sidebar_open') !== 'false',
+        isOpen: localStorage.getItem('sidebar_open') !== null
+            ? localStorage.getItem('sidebar_open') !== 'false'
+            : window.innerWidth >= 1024,
         toggle() {
             this.isOpen = !this.isOpen;
             localStorage.setItem('sidebar_open', this.isOpen);

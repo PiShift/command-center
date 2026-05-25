@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between gap-4 mb-6 flex-wrap">
 
         {{-- Tab switcher --}}
-        <div class="flex items-center gap-0.5 rounded-lg p-1" style="background:#F5F4EF">
+        <div class="flex items-center gap-0.5 rounded-lg p-1 flex-wrap" style="background:#F5F4EF">
             @foreach([['board','Board'],['projects', $scopedToUser ? 'My Projects' : 'Projects'],['team', $scopedToUser ? 'My Teams' : 'Team']] as [$tab,$label])
             <button wire:click="$set('activeTab', '{{ $tab }}')"
                     class="px-4 py-1.5 text-[13px] rounded-md transition-all duration-150 cursor-pointer"
@@ -20,8 +20,8 @@
 
         {{-- Filters + primary action (board only) --}}
         @if($activeTab === 'board')
-        <div class="flex items-center gap-2">
-            <div class="relative">
+        <div class="flex items-center gap-2 flex-wrap">
+            <div class="relative flex-shrink-0">
                 <select wire:model.live="filterProject"
                         class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer transition-colors"
                         style="background: #F5F4EF; border: 1px solid #e5e4df; color: #141413; outline: none">
@@ -34,7 +34,7 @@
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </span>
             </div>
-            <div class="relative">
+            <div class="relative flex-shrink-0">
                 <select wire:model.live="filterAssignee"
                         class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer transition-colors"
                         style="background: #F5F4EF; border: 1px solid #e5e4df; color: #141413; outline: none">
@@ -47,7 +47,7 @@
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </span>
             </div>
-            <div class="relative">
+            <div class="relative flex-shrink-0">
                 <select wire:model.live="filterPriority"
                         class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer transition-colors"
                         style="background: #F5F4EF; border: 1px solid #e5e4df; color: #141413; outline: none">
@@ -63,7 +63,7 @@
             </div>
             <button type="button"
                     x-on:click="$wire.dispatch('new-task', {})"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors whitespace-nowrap cursor-pointer">
+                    class="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors whitespace-nowrap cursor-pointer flex-shrink-0">
                 + Add Task
             </button>
         </div>

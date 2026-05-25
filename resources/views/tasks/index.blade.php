@@ -63,20 +63,21 @@
 </form>
 
 {{-- Table --}}
-<div class="rounded-xl overflow-hidden" style="background:#fff; border:1px solid #e5e4df; box-shadow:0 1px 3px rgba(20,20,19,0.04)">
+<div class="rounded-xl" style="background:#fff; border:1px solid #e5e4df; box-shadow:0 1px 3px rgba(20,20,19,0.04)">
+<div class="overflow-x-auto">
     @if($tasks->isEmpty())
         <div class="py-16 text-center" style="color:#8c8c8a; font-size:13px">No tasks found.</div>
     @else
-    <table class="w-full" style="font-size:13.5px">
+    <table class="w-full" style="font-size:13.5px; min-width:700px">
         <thead>
             <tr style="background:#faf9f5; border-bottom:1px solid #e5e4df">
                 @php
                     $headers = [
                         ['col' => 'title',      'label' => 'Task',     'cls' => 'px-6 py-3 text-left'],
-                        ['col' => null,         'label' => 'Type',     'cls' => 'px-4 py-3 text-left'],
+                        ['col' => null,         'label' => 'Type',     'cls' => 'px-4 py-3 text-left hidden sm:table-cell'],
                         ['col' => 'priority',   'label' => 'Priority', 'cls' => 'px-4 py-3 text-left'],
                         ['col' => 'status',     'label' => 'Status',   'cls' => 'px-4 py-3 text-left'],
-                        ['col' => null,         'label' => 'Assignee', 'cls' => 'px-4 py-3 text-left'],
+                        ['col' => null,         'label' => 'Assignee', 'cls' => 'px-4 py-3 text-left hidden sm:table-cell'],
                         ['col' => 'due_date',   'label' => 'Due',      'cls' => 'px-4 py-3 text-left'],
                         ['col' => 'created_at', 'label' => 'Created',  'cls' => 'px-4 py-3 text-left'],
                         ['col' => null,         'label' => '',         'cls' => 'px-4 py-3'],
@@ -104,10 +105,10 @@
                     <a href="{{ route('tasks.show', $task) }}" style="font-weight:500;color:#141413;text-decoration:none" onmouseover="this.style.color='#D97757'" onmouseout="this.style.color='#141413'">{{ $task->title }}</a>
                     @if($task->project)<p style="font-size:11px;color:#8c8c8a;margin-top:2px">{{ $task->project->name }}</p>@endif
                 </td>
-                <td class="px-4 py-3">@include('components.badge', ['type' => 'type', 'value' => $task->type])</td>
+                <td class="px-4 py-3 hidden sm:table-cell">@include('components.badge', ['type' => 'type', 'value' => $task->type])</td>
                 <td class="px-4 py-3">@include('components.badge', ['type' => 'priority', 'value' => $task->priority])</td>
                 <td class="px-4 py-3">@include('components.badge', ['type' => 'status', 'value' => $task->status])</td>
-                <td class="px-4 py-3" style="color:#5c5c5a">
+                <td class="px-4 py-3 hidden sm:table-cell" style="color:#5c5c5a">
                     @if($task->assignee)
                         {{ $task->assignee->name }}
                     @elseif(\Illuminate\Support\Facades\Gate::allows('claim', $task))
@@ -150,8 +151,9 @@
             @endforeach
         </tbody>
     </table>
-    <div class="px-6 py-4" style="border-top:1px solid #eeeee9">{{ $tasks->links() }}</div>
     @endif
+</div>
+<div class="mt-4 px-4 pb-4" style="border-top:1px solid #eeeee9">{{ $tasks->links() }}</div>
 </div>
 
 </x-layouts.app>

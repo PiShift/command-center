@@ -74,21 +74,22 @@
 </form>
 
 {{-- ── Table ────────────────────────────────────────────────────────────────── --}}
-<div class="rounded-xl overflow-hidden" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,.04)">
+<div class="rounded-xl" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,.04)">
     @if($payments->isEmpty())
         <div class="py-16 text-center" style="color:#8c8c8a;font-size:13px">No payments found.</div>
     @else
-    <table class="w-full" style="font-size:13.5px">
+    <div class="overflow-x-auto">
+    <table class="w-full" style="font-size:13.5px;min-width:680px">
         <thead>
             <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
                 @php $cols = [
                     ['col' => 'payment_date', 'label' => 'Date',     'cls' => 'px-6 py-3 text-left'],
                     ['col' => null,           'label' => 'Invoice',  'cls' => 'px-4 py-3 text-left'],
-                    ['col' => null,           'label' => 'Customer', 'cls' => 'px-4 py-3 text-left'],
+                    ['col' => null,           'label' => 'Customer', 'cls' => 'px-4 py-3 text-left hidden sm:table-cell'],
                     ['col' => 'method',       'label' => 'Method',   'cls' => 'px-4 py-3 text-left'],
-                    ['col' => null,           'label' => 'Reference','cls' => 'px-4 py-3 text-left'],
+                    ['col' => null,           'label' => 'Reference','cls' => 'px-4 py-3 text-left hidden sm:table-cell'],
                     ['col' => 'amount',       'label' => 'Amount',   'cls' => 'px-4 py-3 text-right'],
-                    ['col' => null,           'label' => 'Proof',    'cls' => 'px-4 py-3 text-center'],
+                    ['col' => null,           'label' => 'Proof',    'cls' => 'px-4 py-3 text-center hidden sm:table-cell'],
                 ]; @endphp
                 @foreach($cols as $th)
                 <th class="{{ $th['cls'] }}" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8c8c8a;white-space:nowrap">
@@ -128,7 +129,7 @@
                 </td>
 
                 {{-- Customer --}}
-                <td class="px-4 py-3" style="color:#5c5c5a">
+                <td class="px-4 py-3 hidden sm:table-cell" style="color:#5c5c5a">
                     {{ $payment->customer?->name ?? $payment->invoice?->customer?->name ?? '—' }}
                 </td>
 
@@ -140,7 +141,7 @@
                 </td>
 
                 {{-- Reference --}}
-                <td class="px-4 py-3" style="color:#5c5c5a;font-size:12px">
+                <td class="px-4 py-3 hidden sm:table-cell" style="color:#5c5c5a;font-size:12px">
                     {{ $payment->reference ?: '—' }}
                 </td>
 
@@ -150,7 +151,7 @@
                 </td>
 
                 {{-- Proof --}}
-                <td class="px-4 py-3 text-center">
+                <td class="px-4 py-3 text-center hidden sm:table-cell">
                     @if($payment->getFirstMediaUrl('proof'))
                         <a href="{{ $payment->getFirstMediaUrl('proof') }}" target="_blank"
                            title="View proof" style="color:#3a6fba;text-decoration:none;font-size:12px"
@@ -173,7 +174,8 @@
             @endforeach
         </tbody>
     </table>
-    <div class="px-6 py-4 flex items-center justify-between" style="border-top:1px solid #eeeee9">
+    </div>
+    <div class="mt-4 px-4 pb-4 flex items-center justify-between" style="border-top:1px solid #eeeee9">
         <div style="font-size:13px;color:#8c8c8a">
             {{ $payments->total() }} payment{{ $payments->total() !== 1 ? 's' : '' }}
         </div>

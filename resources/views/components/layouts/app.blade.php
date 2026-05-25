@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}"
       x-data
-      :class="$store.sidebar.isOpen ? '' : 'sidebar-collapsed'">
+      :class="{ 'sidebar-collapsed': !$store.sidebar.isOpen, 'sidebar-open': $store.sidebar.isOpen }">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -16,6 +16,22 @@
     <meta name="theme-color" content="#D97757">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
+    <style>
+        /* ── Mobile sidebar: fixed overlay, zero impact on flex layout ── */
+        @media (max-width: 1023px) {
+            .sidebar {
+                position: fixed !important;
+                top: 0;
+                left: 0;
+                z-index: 30;
+                transform: translateX(-100%);
+                transition: transform 0.22s cubic-bezier(0.4,0,0.2,1) !important;
+            }
+            .sidebar-open .sidebar {
+                transform: translateX(0);
+            }
+        }
+    </style>
 </head>
 <body class="bg-canvas text-ink antialiased min-h-screen">
 
@@ -23,6 +39,13 @@
 
     {{-- ── Sidebar (hidden for Developer) ──────────── --}}
     @if(!$isDeveloper)
+    {{-- Mobile backdrop — closes sidebar when tapped --}}
+    <div
+        x-show="$store.sidebar.isOpen"
+        x-cloak
+        @click="$store.sidebar.close()"
+        class="fixed inset-0 bg-black/50 z-20 lg:hidden">
+    </div>
     @include('components.sidebar')
     @endif
 

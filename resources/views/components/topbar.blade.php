@@ -1,10 +1,21 @@
 {{-- Top bar --}}
 <header class="h-14 border-b border-line flex items-center justify-between px-6 shrink-0">
 
-    {{-- Page title --}}
-    <h1 class="text-[15px] font-semibold text-ink">
+    <div class="flex items-center gap-3">
+        {{-- Hamburger — mobile only --}}
+        <button @click="$store.sidebar.toggle()"
+                class="lg:hidden flex items-center justify-center w-8 h-8 rounded-lg text-dim hover:text-ink hover:bg-hairline transition-colors cursor-pointer"
+                aria-label="Toggle sidebar">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+        </button>
+
+        {{-- Page title --}}
+        <h1 class="text-[15px] font-semibold text-ink">
         {{ $title ?? (View::hasSection('title') ? View::getSection('title') : '') }}
-    </h1>
+        </h1>
+    </div>
 
     {{-- Right side: user menu --}}
     <div class="flex items-center gap-3">

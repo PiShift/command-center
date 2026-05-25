@@ -22,17 +22,18 @@
 @include('components.flash')
 
 {{-- Table --}}
-<div class="rounded-xl overflow-hidden" style="background:#fff; border:1px solid #e5e4df; box-shadow:0 1px 3px rgba(20,20,19,0.04)">
+<div class="rounded-xl" style="background:#fff; border:1px solid #e5e4df; box-shadow:0 1px 3px rgba(20,20,19,0.04)">
     @if($users->isEmpty())
         <div class="py-16 text-center" style="color:#8c8c8a; font-size:13px">No team members.</div>
     @else
-    <table class="w-full" style="font-size:13.5px">
+    <div class="overflow-x-auto">
+    <table class="w-full" style="font-size:13.5px;min-width:560px">
         <thead>
             <tr style="background:#faf9f5; border-bottom:1px solid #e5e4df">
                 @php
                     $headers = [
                         ['col' => 'name',  'label' => 'Name',  'cls' => 'px-6 py-3 text-left'],
-                        ['col' => 'email', 'label' => 'Email', 'cls' => 'px-4 py-3 text-left'],
+                        ['col' => 'email', 'label' => 'Email', 'cls' => 'px-4 py-3 text-left hidden sm:table-cell'],
                         ['col' => null,    'label' => 'Role',  'cls' => 'px-4 py-3 text-left'],
                         ['col' => null,    'label' => '',      'cls' => 'px-4 py-3'],
                     ];
@@ -64,7 +65,7 @@
                         <span style="font-weight:500;color:#141413">{{ $member->name }}</span>
                     </div>
                 </td>
-                <td class="px-4 py-3" style="color:#5c5c5a">{{ $member->email }}</td>
+                <td class="px-4 py-3 hidden sm:table-cell" style="color:#5c5c5a">{{ $member->email }}</td>
                 <td class="px-4 py-3">
                     @if($member->roleModel)
                         <span class="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold text-white"
@@ -91,7 +92,8 @@
             @endforeach
         </tbody>
     </table>
-    <div class="px-6 py-4" style="border-top:1px solid #eeeee9">{{ $users->links() }}</div>
+    </div>
+    <div class="mt-4 px-4 pb-4" style="border-top:1px solid #eeeee9">{{ $users->links() }}</div>
     @endif
 </div>
 

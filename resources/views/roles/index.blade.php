@@ -13,15 +13,16 @@
 
 @include('components.flash')
 
-<div class="bg-white border border-line rounded-xl overflow-hidden">
+<div class="bg-white border border-line rounded-xl">
     @if($roles->isEmpty())
         <div class="px-6 py-12 text-center text-[13px] text-muted">No roles yet.</div>
     @else
-        <table class="w-full text-[13px]">
+        <div class="overflow-x-auto">
+        <table class="w-full text-[13px]" style="min-width:480px">
             <thead>
                 <tr class="text-[11px] font-semibold uppercase tracking-wider text-muted border-b border-line bg-surface">
                     <th class="px-6 py-3 text-left">Role</th>
-                    <th class="px-4 py-3 text-left">Slug</th>
+                    <th class="px-4 py-3 text-left hidden sm:table-cell">Slug</th>
                     <th class="px-4 py-3 text-left">Members</th>
                     <th class="px-4 py-3 text-left">Permissions</th>
                     <th class="px-4 py-3"></th>
@@ -36,7 +37,7 @@
                             {{ $role->name }}
                         </span>
                     </td>
-                    <td class="px-4 py-3 text-muted font-mono text-[11px]">{{ $role->slug }}</td>
+                    <td class="px-4 py-3 text-muted font-mono text-[11px] hidden sm:table-cell">{{ $role->slug }}</td>
                     <td class="px-4 py-3 text-dim">{{ $role->users_count }}</td>
                     <td class="px-4 py-3 text-dim">{{ $role->permissions_count }}</td>
                     <td class="px-4 py-3 text-right">
@@ -60,6 +61,7 @@
                 @endforeach
             </tbody>
         </table>
+        </div>
     @endif
 </div>
 

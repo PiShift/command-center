@@ -180,7 +180,7 @@
 </div>
 
 {{-- ── Table ────────────────────────────────────────────────────────────────── --}}
-<div class="rounded-xl overflow-hidden" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,.04)">
+<div class="rounded-xl" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,.04)">
     @if($invoices->isEmpty())
         <div class="py-16 text-center" style="color:#8c8c8a;font-size:13px">No invoices found.</div>
     @else
@@ -196,7 +196,7 @@
                 </th>
                 @php $cols = [
                     ['col'=>'invoice_number','label'=>'Invoice', 'cls'=>'px-4 py-3 text-left'],
-                    ['col'=>null,            'label'=>'Customer','cls'=>'px-4 py-3 text-left'],
+                    ['col'=>null,            'label'=>'Customer','cls'=>'px-4 py-3 text-left hidden sm:table-cell'],
                     ['col'=>'status',        'label'=>'Status',  'cls'=>'px-4 py-3 text-left'],
                     ['col'=>'issue_date',    'label'=>'Issued',  'cls'=>'px-4 py-3 text-left hidden sm:table-cell'],
                     ['col'=>'due_date',      'label'=>'Due',     'cls'=>'px-4 py-3 text-left hidden sm:table-cell'],
@@ -239,7 +239,7 @@
                     @if($invoice->project)<p style="font-size:11px;color:#8c8c8a;margin-top:2px">{{ $invoice->project->name }}</p>@endif
                 </td>
 
-                <td class="px-4 py-3" style="color:#5c5c5a">{{ $invoice->customer->name }}</td>
+                <td class="px-4 py-3 hidden sm:table-cell" style="color:#5c5c5a">{{ $invoice->customer->name }}</td>
 
                 <td class="px-4 py-3">
                     <span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;{{ $statusStyles[$invoice->status]??'' }}">
