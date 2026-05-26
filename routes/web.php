@@ -20,6 +20,7 @@ use App\Http\Controllers\SprintController;
 use App\Http\Controllers\BacklogItemController;
 use App\Http\Controllers\TaskChecklistController;
 use App\Http\Controllers\AiController;
+use App\Http\Controllers\AiConversationController;
 use App\Http\Controllers\TaskAttachmentController;
 use App\Http\Controllers\TaskCommentAttachmentController;
 use App\Http\Controllers\TaskCommentController;
@@ -140,6 +141,7 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::post('projects/{project}/ai/plan/confirm', [AiController::class, 'confirmPlan'])->name('ai.plan.confirm');
     Route::post('projects/{project}/ai/promote-suggestions', [AiController::class, 'promoteSuggestions'])->name('ai.promote-suggestions');
     Route::post('tasks/{task}/ai/generate-guide',     [AiController::class, 'generateGuide'])->name('ai.generate-guide');
+    Route::post('ai/conversation/stream',             [AiConversationController::class, 'stream'])->name('ai.conversation.stream')->middleware('throttle:30,1');
 
     // Attachments
     Route::post('tasks/{task}/attachments',                     [TaskAttachmentController::class, 'store'])->name('attachments.store');

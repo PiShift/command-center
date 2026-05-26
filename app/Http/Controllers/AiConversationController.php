@@ -1,0 +1,84 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Ai\Agents\ConversationAgent;
+use App\Models\AiConversation;
+use App\Models\Project;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
+use Laravel\Ai\Streaming\Events\TextDelta;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+class AiConversationController extends Controller
+{
+    /**
+     * POST /ai/conversation/stream
+     *
+     * Streams an AI response for the given project conversation via Server-Sent Events.
+     */
+    public function stream(Request $request): StreamedResponse
+    {
+        $data = $request->validate([
+            'project_id'      => ['required', 'integer', 'exists:projects,id'],
+            'message'         => ['required', 'string', 'max:10000'],
+            'conversation_id' => ['nullable', 'integer', 'exists:ai_conversations,id'],
+            'context'         => ['nullable', 'string', 'max:50000'],
+        ]);
+
+        $project = Project::findOrFail($data['project_id']);
+        Gate::authorize('view', $project);
+
+        // Rate-limit to 30 requests per minute per user.
+        $key = 'ai-stream:' . $request->user()->id;
+        if (RateLimiter::tooManyAttempts($key, 30)) {
+            abort(429, 'Too many AI requests. Please wait a moment.');
+        }
+        RateLimiter::hit($key, 60);
+
+        // Load prior conversation history (excluding the just-saved user message).
+        $history = [];
+        if (! empty($data['conversation_id'])) {
+            $conversation = AiConversation::where('id', $data['conversation_id'])
+                ->where('user_id', $request->user()->id)
+                ->first();
+
+            if ($conversation) {
+                $history = $conversation->messages()
+                    ->get(['role', 'content'])
+                    ->map(fn ($m) => ['role' => $m->role, 'content' => $m->content])
+                    ->toArray();
+
+                // The last entry is the user message we just saved — strip it so it
+                // doesn't appear twice (it's passed as the prompt below instead).
+                if (! empty($history) && end($history)['role'] === 'user') {
+                    array_pop($history);
+                }
+            }
+        }
+
+        $agent   = new ConversationAgent($project, $data['context'] ?? '', $history);
+        $message = $data['message'];
+
+        return new StreamedResponse(function () use ($agent, $message) {
+            $stream = $agent->stream($message);
+
+            foreach ($stream as $event) {
+                if ($event instanceof TextDelta) {
+                    echo 'data: ' . json_encode(['chunk' => $event->delta]) . "\n\n";
+                    ob_flush();
+                    flush();
+                }
+            }
+
+            echo "data: [DONE]\n\n";
+            ob_flush();
+            flush();
+        }, 200, [
+            'Content-Type'      => 'text/event-stream',
+            'Cache-Control'     => 'no-cache, no-store',
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
+}

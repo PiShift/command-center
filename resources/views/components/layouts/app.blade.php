@@ -31,6 +31,11 @@
                 transform: translateX(0);
             }
         }
+        /* ── AI typing indicator bounce ── */
+        @keyframes bounce {
+            0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+            40%            { transform: translateY(-4px); opacity: 1; }
+        }
     </style>
 </head>
 <body class="bg-canvas text-ink antialiased min-h-screen">
@@ -98,7 +103,16 @@
 
 </div>
 
+@livewire('ai-chat-panel')
 @livewireScripts
 @stack('scripts')
+<script>
+    document.addEventListener('keydown', function(e) {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+            e.preventDefault();
+            window.dispatchEvent(new CustomEvent('open-ai-chat'));
+        }
+    });
+</script>
 </body>
 </html>

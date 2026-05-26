@@ -11,6 +11,7 @@
              window.location.hash = '#' + t;
          }
      }"
+     x-init="$dispatch('ai-project-hint', { projectId: {{ $project->id }} })"
      x-on:switch-tab.window="setTab($event.detail.tab)">
 
     @include('components.flash')
