@@ -3,6 +3,8 @@
     x-data="{
         open: @entangle('isOpen').live,
         isStreaming: @entangle('isStreaming').live,
+        inputText: @entangle('input').live,
+        projectIdState: @entangle('projectId').live,
         streamingText: '',
         streamingError: '',
         scrollToBottom() {
@@ -512,29 +514,162 @@
                     @foreach($messages as $message)
                     <div
                         wire:key="msg-{{ $message['id'] ?? $loop->index }}"
-                        class="flex flex-col {{ $message['role'] === 'user' ? 'items-end' : 'items-start' }}"
+                        class="flex flex-col {{ $message['role'] === 'user' ? 'items-end' : 'items-start w-full' }}"
                     >
                         @if($message['role'] === 'user')
                             <div class="rounded-2xl rounded-tr-sm px-3.5 py-2 bg-accent text-white max-w-[82%]">
                                 <p class="text-[13px] leading-relaxed m-0 whitespace-pre-wrap">{{ $message['content'] }}</p>
                             </div>
+                            <span class="text-[10px] text-muted mt-0.5 px-0.5">
+                                {{ \Carbon\Carbon::parse($message['created_at'])->format('H:i') }}
+                            </span>
                         @else
-                            <div class="rounded-2xl rounded-tl-sm bg-gray-50 border border-gray-100 text-ink max-w-[82%] p-3">
+                            <div class="w-full px-2 py-1 text-ink">
+                                <div class="inline-flex items-center gap-1 text-[10px] text-muted mb-1">
+                                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+                                    </svg>
+                                    <span>AI</span>
+                                </div>
                                 <div class="prose prose-sm max-w-none text-[13px]">
                                     {!! \Illuminate\Support\Str::markdown(
                                         preg_replace('/<actions>.*?<\/actions>/s', '', $message['content'])
                                     ) !!}
                                 </div>
+                                <div class="text-right text-[10px] text-muted mt-1">
+                                    {{ \Carbon\Carbon::parse($message['created_at'])->format('H:i') }}
+                                </div>
+                            </div>
+
+                            {{-- ── Interactive question card ─────────────────── --}}
+                            @if(! empty($message['actions']) && (($message['actions']['type'] ?? null) === 'question'))
+                            @php
+                                $qAction    = $message['actions'];
+                                $qType      = $qAction['input_type'] ?? 'pills';
+                                $qOptions   = is_array($qAction['options'] ?? null) ? $qAction['options'] : [];
+                                $qFields    = is_array($qAction['form'] ?? null) ? $qAction['form'] : [];
+                                $msgDbId    = $message['id'];
+                                $isAnswered = ! empty($qAction['answered']);
+                            @endphp
+                            <div
+                                class="mt-2 w-full"
+                                x-data="{ answered: {{ $isAnswered ? 'true' : 'false' }}, otherOpen: false, textAnswer: '', selected: [], formValues: {} }"
+                            >
+                                <div
+                                    x-show="!answered"
+                                    x-transition:enter="transition ease-out duration-150"
+                                    x-transition:enter-start="opacity-0"
+                                    x-transition:enter-end="opacity-100"
+                                    class="bg-white border border-line rounded-lg p-3"
+                                >
+                                    <p class="text-[14px] font-semibold text-ink leading-snug mb-2">
+                                        {{ $qAction['question'] ?? 'Please provide more details.' }}
+                                    </p>
+
+                                    @if($qType === 'text')
+                                    <div class="flex items-center gap-2">
+                                        <input
+                                            x-model="textAnswer"
+                                            x-on:keydown.enter.prevent="if (textAnswer.trim() !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, textAnswer.trim()); }"
+                                            class="flex-1 text-[13px] text-ink bg-surface border border-line rounded-md px-2.5 py-1.5 outline-none focus:border-accent"
+                                            placeholder="Type your answer..."
+                                        >
+                                        <button
+                                            x-on:click="if (textAnswer.trim() !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, textAnswer.trim()); }"
+                                            class="px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
+                                        >Send</button>
+                                    </div>
+
+                                    @elseif($qType === 'multiselect')
+                                    <div class="space-y-2">
+                                        <div class="space-y-1.5">
+                                            @foreach($qOptions as $opt)
+                                            <label class="flex items-center gap-2 text-[13px] text-dim cursor-pointer">
+                                                <input type="checkbox" value="{{ $opt }}" x-model="selected" class="rounded accent-accent">
+                                                <span>{{ $opt }}</span>
+                                            </label>
+                                            @endforeach
+                                        </div>
+                                        <button
+                                            x-on:click="if (selected.length > 0) { answered = true; $wire.answerQuestion({{ $msgDbId }}, selected.join(', ')); }"
+                                            class="px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
+                                        >Confirm</button>
+                                    </div>
+
+                                    @elseif($qType === 'form')
+                                    <div class="space-y-2.5">
+                                        @foreach($qFields as $fIdx => $field)
+                                        @php
+                                            $fieldName  = (string) ($field['name'] ?? ('field_' . $fIdx));
+                                            $fieldLabel = (string) ($field['label'] ?? ucwords(str_replace('_', ' ', $fieldName)));
+                                            $fieldType  = (string) ($field['type'] ?? $field['input_type'] ?? 'text');
+                                            $fieldOpts  = is_array($field['options'] ?? null) ? $field['options'] : [];
+                                        @endphp
+                                        <div>
+                                            <label class="block text-[11px] font-bold uppercase tracking-wider text-muted mb-1">{{ $fieldLabel }}</label>
+                                            @if($fieldType === 'select' || $fieldType === 'pills')
+                                            <select x-model="formValues['{{ $fieldName }}']" class="w-full text-[13px] text-ink bg-surface border border-line rounded-md px-2.5 py-1.5 outline-none focus:border-accent">
+                                                <option value="">Select...</option>
+                                                @foreach($fieldOpts as $opt)
+                                                <option value="{{ $opt }}">{{ $opt }}</option>
+                                                @endforeach
+                                            </select>
+                                            @elseif($fieldType === 'textarea')
+                                            <textarea x-model="formValues['{{ $fieldName }}']" rows="2" class="w-full text-[13px] text-ink bg-surface border border-line rounded-md px-2.5 py-1.5 outline-none focus:border-accent resize-none" placeholder="{{ $fieldLabel }}"></textarea>
+                                            @else
+                                            <input x-model="formValues['{{ $fieldName }}']" type="text" class="w-full text-[13px] text-ink bg-surface border border-line rounded-md px-2.5 py-1.5 outline-none focus:border-accent" placeholder="{{ $fieldLabel }}">
+                                            @endif
+                                        </div>
+                                        @endforeach
+                                        <button
+                                            x-on:click="const payload = Object.entries(formValues).filter(([_, v]) => String(v).trim() !== '').map(([k, v]) => `${k}: ${v}`).join(', '); if (payload !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, payload); }"
+                                            class="px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
+                                        >Send</button>
+                                    </div>
+
+                                    @else
+                                    <div class="flex flex-wrap gap-1.5">
+                                        @foreach($qOptions as $opt)
+                                        <button
+                                            x-on:click="answered = true; $wire.answerQuestion({{ $msgDbId }}, {{ \Illuminate\Support\Js::from($opt) }});"
+                                            class="px-2.5 py-1 rounded-full text-[11px] font-medium bg-surface text-dim border border-line hover:border-accent hover:text-accent transition-colors cursor-pointer"
+                                        >{{ $opt }}</button>
+                                        @endforeach
+                                    </div>
+                                    @if(! empty($qAction['allow_custom']))
+                                    <div class="mt-2">
+                                        <button x-on:click="otherOpen = !otherOpen" class="text-[11px] text-accent hover:underline cursor-pointer">Other...</button>
+                                        <div x-show="otherOpen" x-cloak class="mt-1.5 flex items-center gap-2">
+                                            <input
+                                                x-model="textAnswer"
+                                                x-on:keydown.enter.prevent="if (textAnswer.trim() !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, textAnswer.trim()); }"
+                                                class="flex-1 text-[13px] text-ink bg-surface border border-line rounded-md px-2.5 py-1.5 outline-none focus:border-accent"
+                                                placeholder="Type custom answer..."
+                                            >
+                                            <button
+                                                x-on:click="if (textAnswer.trim() !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, textAnswer.trim()); }"
+                                                class="px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
+                                            >Send</button>
+                                        </div>
+                                    </div>
+                                    @endif
+                                    @endif
+                                </div>
+
+                                <div x-show="answered" x-cloak class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium bg-[#edf7f2] text-[#2e7d55] border border-hairline">
+                                    <span>✓</span>
+                                    <span>Answered</span>
+                                </div>
                             </div>
 
                             {{-- ── Action cards ─────────────────────────────── --}}
-                            @if(! empty($message['actions']['items']))
+                            @elseif(! empty($message['actions']['items']))
                             @php
                                 $actType  = $message['actions']['type'] ?? 'backlog';
                                 $actItems = $message['actions']['items'];
                                 $msgDbId  = $message['id'];
                             @endphp
-                            <div class="mt-2 space-y-2 w-full max-w-[82%]">
+                            <div class="mt-2 space-y-2 w-full">
                                 @foreach($actItems as $aIdx => $action)
                                 <div
                                     wire:key="action-{{ $msgDbId }}-{{ $aIdx }}"
@@ -715,9 +850,6 @@
                             </div>
                             @endif
                         @endif
-                        <span class="text-[10px] text-muted mt-0.5 px-0.5">
-                            {{ \Carbon\Carbon::parse($message['created_at'])->format('H:i') }}
-                        </span>
                     </div>
                     @endforeach
                 </div>
@@ -803,15 +935,15 @@
                         placeholder="{{ $projectId ? 'Ask about this project…' : 'Select a project first…' }}"
                         class="flex-1 text-[13px] text-ink bg-transparent outline-none resize-none placeholder:text-muted placeholder:italic px-1"
                         style="max-height: 120px; line-height: 1.5"
-                        x-on:keydown.enter.prevent="if (!$event.shiftKey && !isStreaming) $wire.sendMessage()"
+                        x-on:keydown.enter="if (!$event.shiftKey && !isStreaming) { $event.preventDefault(); $wire.sendMessage(); }"
                         x-on:input="$el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px'"
-                        x-bind:disabled="!{{ $projectId ? 'true' : 'false' }} || isStreaming"
+                        x-bind:disabled="!projectIdState || isStreaming"
                     ></textarea>
 
                     <button
                         wire:click="sendMessage"
-                        x-bind:disabled="isStreaming || !{{ ($projectId && trim($input)) ? 'false' : 'true' }}"
-                        x-bind:class="(!isStreaming && {{ ($projectId && trim($input)) ? 'true' : 'false' }})
+                        x-bind:disabled="isStreaming || !projectIdState || inputText.trim().length === 0"
+                        x-bind:class="(!isStreaming && projectIdState && inputText.trim().length > 0)
                             ? 'bg-accent hover:bg-accent-hover text-white cursor-pointer'
                             : 'bg-surface text-muted cursor-not-allowed opacity-50'"
                         class="inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0 transition-colors duration-150"

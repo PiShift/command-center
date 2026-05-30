@@ -231,6 +231,62 @@ class AiChatPanel extends Component
         $this->sendMessage();
     }
 
+    /**
+     * Inject a sample interactive question card for local/manual testing.
+     */
+    public function insertTestQuestion(string $inputType = 'pills'): void
+    {
+        if (! $this->conversationId || (! app()->isLocal() && ! config('app.debug'))) {
+            return;
+        }
+
+        $actions = match ($inputType) {
+            'text' => [
+                'type'       => 'question',
+                'question'   => 'What is the most important outcome for this sprint?',
+                'input_type' => 'text',
+            ],
+            'multiselect' => [
+                'type'       => 'question',
+                'question'   => 'Which constraints should we optimize for?',
+                'input_type' => 'multiselect',
+                'options'    => ['Speed', 'Quality', 'Scope', 'Cost'],
+            ],
+            'form' => [
+                'type'       => 'question',
+                'question'   => 'Please provide the planning inputs:',
+                'input_type' => 'form',
+                'form'       => [
+                    ['name' => 'goal', 'label' => 'Primary Goal', 'type' => 'text'],
+                    ['name' => 'deadline', 'label' => 'Deadline', 'type' => 'text'],
+                    ['name' => 'priority', 'label' => 'Priority', 'type' => 'select', 'options' => ['low', 'medium', 'high']],
+                ],
+            ],
+            default => [
+                'type'         => 'question',
+                'question'     => 'Which direction should we take first?',
+                'input_type'   => 'pills',
+                'options'      => ['Backlog cleanup', 'Sprint planning', 'Risk review'],
+                'allow_custom' => true,
+            ],
+        };
+
+        $message = AiConversationMessage::create([
+            'conversation_id' => $this->conversationId,
+            'role'            => 'assistant',
+            'content'         => 'I need one quick input before I continue.',
+            'actions'         => $actions,
+        ]);
+
+        $this->messages[] = [
+            'id'         => $message->id,
+            'role'       => 'assistant',
+            'content'    => $message->content,
+            'actions'    => $actions,
+            'created_at' => now()->toISOString(),
+        ];
+    }
+
     public function removeSprintContext(int $id): void
     {
         $this->selectedSprintIds = array_values(array_filter($this->selectedSprintIds, fn ($v) => (int) $v !== $id));
@@ -384,6 +440,48 @@ class AiChatPanel extends Component
     }
 
     /**
+     * Answer an interactive assistant question and continue the conversation.
+     */
+    public function answerQuestion(int $messageId, string $answer): void
+    {
+        $answer = trim($answer);
+
+        if ($answer === '' || ! $this->conversationId || $this->isStreaming) {
+            return;
+        }
+
+        foreach ($this->messages as $msgIdx => $msg) {
+            if (($msg['id'] ?? null) !== $messageId) {
+                continue;
+            }
+
+            if (($msg['actions']['type'] ?? null) !== 'question') {
+                return;
+            }
+
+            $this->messages[$msgIdx]['actions']['answered'] = true;
+            $this->messages[$msgIdx]['actions']['answer']   = $answer;
+            break;
+        }
+
+        $dbMessage = AiConversationMessage::where('id', $messageId)
+            ->where('conversation_id', $this->conversationId)
+            ->first();
+
+        if ($dbMessage && is_array($dbMessage->actions)) {
+            $actions             = $dbMessage->actions;
+            $actions['answered'] = true;
+            $actions['answer']   = $answer;
+            $dbMessage->update(['actions' => $actions]);
+        }
+
+        // Reuse existing message pipeline so answer is saved as a user message
+        // and immediately streamed to the assistant.
+        $this->input = $answer;
+        $this->sendMessage();
+    }
+
+    /**
      * Called by Alpine.js when the SSE stream completes.
      * Extracts any <actions> block, persists clean content + structured actions.
      */
@@ -406,8 +504,12 @@ class AiChatPanel extends Component
             $jsonStr = trim($jsonStr);
 
             $decoded = json_decode($jsonStr, true);
-            if (json_last_error() === JSON_ERROR_NONE && isset($decoded['items']) && is_array($decoded['items'])) {
-                $actions = $this->normalizeActions($decoded);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                if (($decoded['type'] ?? null) === 'question') {
+                    $actions = $this->normalizeQuestionAction($decoded);
+                } elseif (isset($decoded['items']) && is_array($decoded['items'])) {
+                    $actions = $this->normalizeActions($decoded);
+                }
             }
 
             $cleanContent = trim(preg_replace('/<actions>.*?<\/actions>/s', '', $content));
@@ -592,6 +694,27 @@ class AiChatPanel extends Component
         }, $decoded['items'] ?? []);
 
         return $decoded;
+    }
+
+    /**
+     * Normalize question action payload from AI responses.
+     */
+    private function normalizeQuestionAction(array $decoded): array
+    {
+        $options = isset($decoded['options']) && is_array($decoded['options'])
+            ? array_values(array_map(fn ($v) => (string) $v, $decoded['options']))
+            : [];
+
+        return [
+            'type'         => 'question',
+            'question'     => (string) ($decoded['question'] ?? $decoded['text'] ?? ''),
+            'input_type'   => (string) ($decoded['input_type'] ?? 'pills'),
+            'options'      => $options,
+            'form'         => isset($decoded['form']) && is_array($decoded['form']) ? $decoded['form'] : [],
+            'allow_custom' => (bool) ($decoded['allow_custom'] ?? false),
+            'answered'     => (bool) ($decoded['answered'] ?? false),
+            'answer'       => (string) ($decoded['answer'] ?? ''),
+        ];
     }
 
     public function render()

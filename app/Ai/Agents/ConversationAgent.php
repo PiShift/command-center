@@ -53,9 +53,18 @@ class ConversationAgent implements Agent, Conversational
         - Use type "tasks" when suggesting individual work items or tasks.
         - Use type "sprints" when suggesting sprint names/goals to create.
         - Use type "backlog" when suggesting items for the product backlog.
+        - Use type "question" when you need one specific missing detail from the user before continuing.
         - Item fields: title (required), description (optional), type (feature|bug|change), weight (1-5), priority (low|medium|high).
+        - Question fields: question (required), input_type (pills|text|multiselect|form), options (optional array), allow_custom (optional boolean), form (optional array of fields).
+        - Ask questions one at a time. Never bundle multiple questions in a single response.
+        - When asking a question, keep the prose response brief and put the interactive prompt in the <actions> block.
         - Only append <actions> when you are explicitly recommending items to create. Do NOT append it for general answers, explanations, or analysis.
         - The JSON must be valid and on a single line inside the <actions> tags.
+
+        Example question action:
+        <actions>
+        {"type":"question","question":"Which sprint should these tasks target?","input_type":"pills","options":["Current sprint","Next sprint","Backlog"],"allow_custom":true}
+        </actions>
         INSTRUCTIONS;
     }
 
