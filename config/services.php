@@ -36,4 +36,8 @@ return [
         'webhook_url' => env('SLACK_WEBHOOK_URL'),
     ],
 
+    'api' => [
+        'secret_key' => env('API_SECRET_KEY'),
+    ],
+
 ];
