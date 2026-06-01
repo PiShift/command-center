@@ -147,7 +147,7 @@ class ProjectController extends Controller
         $user = auth()->user();
         Gate::authorize('view', $project);
 
-        $project->load(['customer', 'teams.members', 'tasks.assignee']);
+        $project->load(['customer', 'teams.members', 'tasks.assignee', 'projectDocuments']);
 
         $canManage = $user->can('manage', $project);
 

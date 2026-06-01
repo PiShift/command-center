@@ -6,10 +6,12 @@ use App\Models\AiConversation;
 use App\Models\AiConversationMessage;
 use App\Models\BacklogItem;
 use App\Models\Project;
+use App\Models\ProjectDocument;
 use App\Models\Sprint;
 use App\Models\Task;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Throwable;
 use Livewire\Component;
 
 class AiChatPanel extends Component
@@ -22,10 +24,12 @@ class AiChatPanel extends Component
     public $projects;
 
     // Context properties
-    public string $projectGuide = '';
+    public int $documentsCount = 0;
     public int $activeSprintsCount = 0;
     public int $backlogCount = 0;
     public int $tasksCount = 0;
+    public array $projectDocuments = [];      // [{id, title, type, content}]
+    public array $selectedDocumentIds = [];   // checked document IDs
     public array $activeSprints = [];         // [{id, name, description}] active only — for action card sprint selector
     public array $selectedSprintIds = [];     // checked sprint IDs
     public array $selectedTaskIds = [];       // checked task IDs
@@ -89,16 +93,26 @@ class AiChatPanel extends Component
 
     public function selectProject(int $projectId): void
     {
-        $project = Project::with(['sprints', 'backlogItems', 'tasks'])->findOrFail($projectId);
+        $project = Project::with(['projectDocuments', 'sprints', 'backlogItems', 'tasks'])->findOrFail($projectId);
         Gate::authorize('view', $project);
 
         $this->projectId = $projectId;
 
         // Load context counts and data
-        $this->projectGuide       = (string) ($project->guide ?? '');
+        $this->documentsCount     = $project->projectDocuments->count();
         $this->activeSprintsCount = $project->sprints->where('status', 'active')->count();
         $this->backlogCount       = $project->backlogItems->where('status', 'pending')->count();
         $this->tasksCount         = $project->tasks->count();
+
+        $this->projectDocuments = $project->projectDocuments
+            ->values()
+            ->map(fn ($doc) => [
+                'id' => $doc->id,
+                'title' => (string) $doc->title,
+                'type' => (string) ($doc->type ?? ''),
+                'content' => (string) ($doc->content ?? ''),
+            ])
+            ->toArray();
 
         $this->activeSprints = $project->sprints
             ->where('status', 'active')
@@ -106,6 +120,7 @@ class AiChatPanel extends Component
             ->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'description' => (string) ($s->description ?? '')])
             ->toArray();
 
+        $this->selectedDocumentIds = [];
         $this->selectedSprintIds  = [];
         $this->selectedTaskIds    = [];
         $this->selectedBacklogIds = [];
@@ -292,6 +307,11 @@ class AiChatPanel extends Component
         $this->selectedSprintIds = array_values(array_filter($this->selectedSprintIds, fn ($v) => (int) $v !== $id));
     }
 
+    public function removeDocumentContext(int $id): void
+    {
+        $this->selectedDocumentIds = array_values(array_filter($this->selectedDocumentIds, fn ($v) => (int) $v !== $id));
+    }
+
     public function removeTaskContext(int $id): void
     {
         $this->selectedTaskIds = array_values(array_filter($this->selectedTaskIds, fn ($v) => (int) $v !== $id));
@@ -328,8 +348,25 @@ class AiChatPanel extends Component
         // Build context summary from selected sprints + uploaded file.
         $parts = [];
 
-        if ($this->projectGuide !== '') {
-            $parts[] = "## Project Guide\n" . $this->projectGuide;
+        if (! empty($this->selectedDocumentIds)) {
+            $documents = ProjectDocument::whereIn('id', $this->selectedDocumentIds)
+                ->where('project_id', $this->projectId)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get(['title', 'type', 'content']);
+
+            $documentSections = $documents->map(function ($doc) {
+                $heading = '### ' . $doc->title;
+                if (! empty($doc->type)) {
+                    $heading .= ' (' . $doc->type . ')';
+                }
+
+                return $heading . "\n" . $doc->content;
+            })->join("\n\n");
+
+            if ($documentSections !== '') {
+                $parts[] = "## Selected Documents\n" . $documentSections;
+            }
         }
 
         if (! empty($this->selectedSprintIds)) {
@@ -534,6 +571,59 @@ class AiChatPanel extends Component
         ];
 
         $this->isStreaming = false;
+    }
+
+    /**
+     * Save artifact content as a project document.
+     *
+     * @return array{ok: bool, error?: string, link?: string}
+     */
+    public function saveAsDocument(string $content, string $title, string $type): array
+    {
+        if (! $this->projectId) {
+            return ['ok' => false, 'error' => 'Select a project first'];
+        }
+
+        $content = trim($content);
+        $title   = trim($title) !== '' ? trim($title) : 'AI Response';
+        $type    = trim($type);
+
+        if ($content === '') {
+            return ['ok' => false, 'error' => 'Nothing to save'];
+        }
+
+        try {
+            $project = Project::findOrFail($this->projectId);
+
+            if (! auth()->user()?->hasPermission('projects.manage')) {
+                return ['ok' => false, 'error' => 'You do not have permission to save documents'];
+            }
+
+            Gate::authorize('view', $project);
+
+            $document = ProjectDocument::create([
+                'project_id'  => $this->projectId,
+                'title'       => Str::limit(strip_tags($title), 255, ''),
+                'content'     => $content,
+                'type'        => $type !== '' ? Str::limit(strip_tags($type), 50, '') : null,
+                'sort_order'  => (int) ProjectDocument::where('project_id', $this->projectId)->max('sort_order') + 1,
+            ]);
+
+            $this->projectDocuments[] = [
+                'id'      => $document->id,
+                'title'   => (string) $document->title,
+                'type'    => (string) ($document->type ?? ''),
+                'content' => (string) $document->content,
+            ];
+            $this->documentsCount = count($this->projectDocuments);
+
+            return [
+                'ok'   => true,
+                'link' => route('projects.show', $project) . '#guide',
+            ];
+        } catch (Throwable) {
+            return ['ok' => false, 'error' => 'Failed to save document'];
+        }
     }
 
     /**

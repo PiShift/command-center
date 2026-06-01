@@ -24,6 +24,7 @@ use App\Http\Controllers\AiConversationController;
 use App\Http\Controllers\TaskAttachmentController;
 use App\Http\Controllers\TaskCommentAttachmentController;
 use App\Http\Controllers\TaskCommentController;
+use App\Http\Controllers\ProjectDocumentController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\MonthlyBudgetController;
@@ -74,6 +75,12 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     // Projects
     Route::resource('projects', ProjectController::class)->names('projects');
     Route::post('projects/{project}/teams/sync', [ProjectController::class, 'assignTeams'])->name('projects.assign-teams');
+
+    // Project documents
+    Route::get('projects/{project}/documents', [ProjectDocumentController::class, 'index'])->name('projects.documents.index');
+    Route::post('projects/{project}/documents', [ProjectDocumentController::class, 'store'])->name('projects.documents.store');
+    Route::patch('projects/{project}/documents/{doc}', [ProjectDocumentController::class, 'update'])->name('projects.documents.update');
+    Route::delete('projects/{project}/documents/{doc}', [ProjectDocumentController::class, 'destroy'])->name('projects.documents.destroy');
 
     // Sprints (scoped under project)
     Route::post('projects/{project}/sprints', [SprintController::class, 'store'])->name('sprints.store');

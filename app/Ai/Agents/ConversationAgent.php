@@ -17,6 +17,7 @@ class ConversationAgent implements Agent, Conversational
      */
     public function __construct(
         private Project $project,
+        private array $documents = [],
         private string $additionalContext = '',
         private array $history = [],
     ) {}
@@ -27,7 +28,16 @@ class ConversationAgent implements Agent, Conversational
     public function instructions(): string
     {
         $name    = $this->project->name;
-        $guide   = $this->project->guide ?? 'No guide provided.';
+        $documents = empty($this->documents)
+            ? 'No project documents provided.'
+            : collect($this->documents)->map(function (array $doc): string {
+                $title = trim((string) ($doc['title'] ?? 'Untitled'));
+                $type = trim((string) ($doc['type'] ?? ''));
+                $content = trim((string) ($doc['content'] ?? ''));
+                $heading = $type !== '' ? "## {$title} ({$type})" : "## {$title}";
+
+                return $heading . "\n" . ($content !== '' ? $content : 'No content.');
+            })->implode("\n\n");
         $context = $this->additionalContext ?: 'None.';
 
         return <<<INSTRUCTIONS
@@ -35,8 +45,8 @@ class ConversationAgent implements Agent, Conversational
 
         Project: {$name}
 
-        Project Guide:
-        {$guide}
+        Project Documents:
+        {$documents}
 
         Additional Context:
         {$context}

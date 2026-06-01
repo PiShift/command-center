@@ -58,7 +58,18 @@ class AiConversationController extends Controller
             }
         }
 
-        $agent   = new ConversationAgent($project, $data['context'] ?? '', $history);
+        $documents = $project->projectDocuments()
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['title', 'type', 'content'])
+            ->map(fn ($doc) => [
+                'title' => (string) $doc->title,
+                'type' => (string) ($doc->type ?? ''),
+                'content' => (string) ($doc->content ?? ''),
+            ])
+            ->toArray();
+
+        $agent   = new ConversationAgent($project, $documents, $data['context'] ?? '', $history);
         $message = $data['message'];
 
         return new StreamedResponse(function () use ($agent, $message) {

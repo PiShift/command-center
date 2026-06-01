@@ -227,10 +227,14 @@
                 {{-- Stat pills — highlight when context enriched --}}
                 @if($projectId)
                 @php
+                    $selDocs    = count($selectedDocumentIds);
                     $selSprints = count($selectedSprintIds);
                     $selTasks   = count($selectedTaskIds);
                     $selBacklog = count($selectedBacklogIds);
                 @endphp
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $selDocs > 0 ? 'bg-indigo-50 text-indigo-700' : 'bg-surface text-muted' }}">
+                    @if($selDocs > 0){{ $selDocs }}/{{ $documentsCount }}@else{{ $documentsCount }}@endif doc{{ $documentsCount !== 1 ? 's' : '' }}
+                </span>
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $selSprints > 0 ? 'bg-blue-50 text-blue-700' : 'bg-surface text-muted' }}">
                     @if($selSprints > 0){{ $selSprints }}/{{ $activeSprintsCount }}@else{{ $activeSprintsCount }}@endif sprint{{ $activeSprintsCount !== 1 ? 's' : '' }}
                 </span>
@@ -240,14 +244,6 @@
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $selBacklog > 0 ? 'bg-amber-50 text-amber-700' : 'bg-surface text-muted' }}">
                     @if($selBacklog > 0){{ $selBacklog }}/{{ $backlogCount }}@else{{ $backlogCount }}@endif backlog
                 </span>
-                @if(! $projectGuide)
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#fef9ec] text-[#9a7a1a]">
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                    </svg>
-                    No guide
-                </span>
-                @endif
 
                 {{-- New chat button —— calls PHP method to create fresh conversation --}}
                 <button
@@ -280,6 +276,8 @@
                 allBacklog: @js($availableBacklogItems),
                 selectedTaskIds: @entangle('selectedTaskIds').live,
                 selectedBacklogIds: @entangle('selectedBacklogIds').live,
+                selectedDocumentIds: @entangle('selectedDocumentIds').live,
+                allDocuments: @js($projectDocuments),
                 get filteredTasks() {
                     const q = this.taskSearch.toLowerCase();
                     return q ? this.allTasks.filter(t => t.title.toLowerCase().includes(q)) : this.allTasks;
@@ -321,6 +319,27 @@
             </div>
 
             <div x-show="open" x-cloak x-transition class="px-4 pb-3 space-y-3">
+
+                {{-- Documents subsection --}}
+                @if(count($projectDocuments) > 0)
+                <div>
+                    <p class="text-[11px] font-bold uppercase tracking-wider text-muted mb-1.5">Documents</p>
+                    <div class="flex flex-col gap-0.5">
+                        <template x-for="doc in allDocuments" :key="doc.id">
+                            <label class="flex items-center gap-2 cursor-pointer py-0.5 group">
+                                <input
+                                    type="checkbox"
+                                    x-bind:checked="selectedDocumentIds.includes(doc.id)"
+                                    x-on:change="const i = selectedDocumentIds.indexOf(doc.id); i >= 0 ? selectedDocumentIds.splice(i, 1) : selectedDocumentIds.push(doc.id)"
+                                    class="rounded cursor-pointer accent-accent shrink-0"
+                                >
+                                <span x-text="doc.title" class="flex-1 text-[12px] text-ink truncate group-hover:text-accent transition-colors"></span>
+                                <span x-show="doc.type" x-text="doc.type" class="text-[10px] text-muted shrink-0"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+                @endif
 
                 {{-- Sprints subsection --}}
                 @if(count($availableSprints) > 0)
@@ -563,7 +582,7 @@
                                 </div>
                                 @if($isArtifact)
                                 <div
-                                    x-data="{ expanded: false, fullscreen: false, copied: false }"
+                                    x-data="{ expanded: false, fullscreen: false, copied: false, saveFormOpen: false, savedToDocs: false, saveError: '', saveTitle: {{ \Illuminate\Support\Js::from($artifactTitle) }}, saveType: 'guide', docsLink: '' }"
                                     class="border border-line rounded-lg bg-white overflow-hidden"
                                 >
                                     <div class="flex items-center gap-2 px-3 py-2 border-b border-hairline bg-surface">
@@ -582,9 +601,47 @@
                                             class="text-[10px] text-dim hover:text-ink border border-line bg-white rounded px-2 py-0.5 transition-colors cursor-pointer"
                                         >Download</button>
                                         <button
+                                            x-show="!savedToDocs"
+                                            x-on:click="saveFormOpen = true; saveError = ''"
+                                            class="text-[10px] text-dim hover:text-ink border border-line bg-white rounded px-2 py-0.5 transition-colors cursor-pointer"
+                                        >Save as doc</button>
+                                        <a
+                                            x-show="savedToDocs"
+                                            x-bind:href="docsLink"
+                                            class="text-[10px] text-accent hover:underline border border-accent/30 bg-accent-light rounded px-2 py-0.5 transition-colors"
+                                        >View in docs →</a>
+                                        <button
                                             x-on:click="fullscreen = true"
                                             class="text-[10px] text-dim hover:text-ink border border-line bg-white rounded px-2 py-0.5 transition-colors cursor-pointer"
                                         >Expand</button>
+                                    </div>
+
+                                    <div x-show="savedToDocs" x-cloak class="px-3 py-1.5 border-b border-hairline bg-success-light text-success-text text-[11px]">
+                                        Saved to project docs ✓
+                                    </div>
+
+                                    <div x-show="saveFormOpen" x-cloak class="px-3 py-2 border-b border-hairline bg-white space-y-2">
+                                        <div x-show="saveError !== ''" x-text="saveError" class="text-[11px] text-danger bg-[#fff5f5] border border-[#f5c6c6] rounded-md px-2 py-1"></div>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            <div>
+                                                <label class="block text-[10px] font-semibold text-muted mb-1">Title</label>
+                                                <input x-model="saveTitle" type="text" class="w-full text-[12px] text-ink bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent" placeholder="Document title">
+                                            </div>
+                                            <div>
+                                                <label class="block text-[10px] font-semibold text-muted mb-1">Type</label>
+                                                <input x-model="saveType" type="text" class="w-full text-[12px] text-ink bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent" placeholder="guide">
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center justify-end gap-1.5">
+                                            <button
+                                                x-on:click="saveFormOpen = false; saveError = ''"
+                                                class="px-2 py-1 rounded-md text-[11px] font-medium border border-line text-dim hover:text-ink hover:bg-surface transition-colors cursor-pointer"
+                                            >Cancel</button>
+                                            <button
+                                                x-on:click="$wire.saveAsDocument({{ \Illuminate\Support\Js::from($assistantContent) }}, saveTitle, saveType).then((res) => { if (res?.ok) { savedToDocs = true; saveError = ''; saveFormOpen = false; docsLink = res.link || (`/projects/${projectIdState}#guide`); } else { saveError = res?.error || 'Failed to save document'; } })"
+                                                class="px-2 py-1 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
+                                            >Confirm</button>
+                                        </div>
                                     </div>
 
                                     <div class="relative px-3 py-2">
@@ -967,9 +1024,21 @@
             <div class="border border-gray-200 rounded-xl p-2 focus-within:border-accent transition-colors">
 
                 {{-- Context pills row --}}
-                @php $hasPills = ! empty($selectedSprintIds) || ! empty($selectedTaskIds) || ! empty($selectedBacklogIds) || $additionalContext !== ''; @endphp
+                @php $hasPills = ! empty($selectedDocumentIds) || ! empty($selectedSprintIds) || ! empty($selectedTaskIds) || ! empty($selectedBacklogIds) || $additionalContext !== ''; @endphp
                 @if($hasPills)
                 <div class="flex flex-wrap gap-1 mb-1.5 px-1">
+                    {{-- Document pills (indigo) --}}
+                    @foreach($projectDocuments as $doc)
+                        @if(in_array($doc['id'], $selectedDocumentIds))
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700">
+                            {{ \Illuminate\Support\Str::limit($doc['title'], 20) }}
+                            <button
+                                wire:click="removeDocumentContext({{ $doc['id'] }})"
+                                class="cursor-pointer hover:opacity-70 transition-opacity leading-none"
+                            >&times;</button>
+                        </span>
+                        @endif
+                    @endforeach
                     {{-- Sprint pills (blue) --}}
                     @foreach($availableSprints as $sprint)
                         @if(in_array($sprint['id'], $selectedSprintIds))

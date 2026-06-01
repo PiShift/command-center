@@ -60,6 +60,13 @@ class Project extends Model
         return $this->hasMany(BacklogItem::class)->orderBy('sort_order');
     }
 
+    public function projectDocuments(): HasMany
+    {
+        return $this->hasMany(ProjectDocument::class)
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
     public function isOverdue(): bool
     {
         return $this->deadline && $this->deadline->isPast() && $this->status !== 'complete';
