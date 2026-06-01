@@ -7,10 +7,20 @@
         projectIdState: @entangle('projectId').live,
         streamingText: '',
         streamingError: '',
+        userScrolled: false,
+        onMessagesScroll() {
+            const el = this.$refs.messages;
+            if (!el) return;
+            const threshold = 50;
+            const atBottom = el.scrollTop >= (el.scrollHeight - el.clientHeight - threshold);
+            this.userScrolled = !atBottom;
+        },
         scrollToBottom() {
             this.$nextTick(() => {
                 const el = this.$refs.messages;
-                if (el) el.scrollTop = el.scrollHeight;
+                if (el && !this.userScrolled) {
+                    el.scrollTop = el.scrollHeight;
+                }
             });
         },
         async streamMessage(detail) {
@@ -51,7 +61,10 @@
                             const textToSave = this.streamingText;
                             this.streamingText = '';
                             await $wire.saveAssistantMessage(textToSave);
-                            this.$nextTick(() => this.scrollToBottom());
+                            this.$nextTick(() => {
+                                this.scrollToBottom();
+                                this.$refs.chatInput && this.$refs.chatInput.focus();
+                            });
                             return;
                         }
                         try {
@@ -67,6 +80,10 @@
                     const textToSave = this.streamingText;
                     this.streamingText = '';
                     await $wire.saveAssistantMessage(textToSave);
+                    this.$nextTick(() => {
+                        this.scrollToBottom();
+                        this.$refs.chatInput && this.$refs.chatInput.focus();
+                    });
                 }
             } catch (err) {
                 console.error('AI stream error:', err);
@@ -472,6 +489,7 @@
         <div
             class="flex-1 overflow-y-auto px-4 py-4 bg-white"
             x-ref="messages"
+            x-on:scroll="onMessagesScroll()"
         >
             @if(empty($messages) && ! $projectId)
                 <div class="h-full flex flex-col items-center justify-center gap-3">
@@ -524,6 +542,18 @@
                                 {{ \Carbon\Carbon::parse($message['created_at'])->format('H:i') }}
                             </span>
                         @else
+                            @php
+                                $assistantContent = trim(preg_replace('/<actions>.*?<\/actions>/s', '', (string) $message['content']));
+                                $hasCodeBlock = str_contains($assistantContent, '```');
+                                $hasLongBlock = collect(preg_split('/\R+/', $assistantContent) ?: [])
+                                    ->contains(fn ($line) => mb_strlen(trim((string) $line)) > 800);
+                                $isArtifact = $hasCodeBlock || $hasLongBlock;
+                                preg_match('/^#{1,6}\s+(.+)$/m', $assistantContent, $headingMatch);
+                                $artifactTitle = trim($headingMatch[1] ?? 'AI Response');
+                                $artifactCharCount = mb_strlen($assistantContent);
+                                $artifactPreview = collect(preg_split('/\R/', $assistantContent) ?: [])->take(3)->implode("\n");
+                                $artifactFilename = \Illuminate\Support\Str::slug($artifactTitle !== '' ? $artifactTitle : 'ai-response') . '.md';
+                            @endphp
                             <div class="w-full px-2 py-1 text-ink">
                                 <div class="inline-flex items-center gap-1 text-[10px] text-muted mb-1">
                                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -531,11 +561,70 @@
                                     </svg>
                                     <span>AI</span>
                                 </div>
-                                <div class="prose prose-sm max-w-none text-[13px]">
-                                    {!! \Illuminate\Support\Str::markdown(
-                                        preg_replace('/<actions>.*?<\/actions>/s', '', $message['content'])
-                                    ) !!}
+                                @if($isArtifact)
+                                <div
+                                    x-data="{ expanded: false, fullscreen: false, copied: false }"
+                                    class="border border-line rounded-lg bg-white overflow-hidden"
+                                >
+                                    <div class="flex items-center gap-2 px-3 py-2 border-b border-hairline bg-surface">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted shrink-0">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                                        </svg>
+                                        <span class="text-[13px] font-medium text-ink truncate">{{ $artifactTitle }}</span>
+                                        <span class="text-[10px] text-muted shrink-0">{{ $artifactCharCount }} chars</span>
+                                        <button
+                                            x-on:click="navigator.clipboard.writeText({{ \Illuminate\Support\Js::from($assistantContent) }}); copied = true; setTimeout(() => copied = false, 2000);"
+                                            class="ml-auto text-[10px] text-dim hover:text-ink border border-line bg-white rounded px-2 py-0.5 transition-colors cursor-pointer"
+                                            x-text="copied ? 'Copied!' : 'Copy'"
+                                        ></button>
+                                        <button
+                                            x-on:click="const blob = new Blob([{{ \Illuminate\Support\Js::from($assistantContent) }}], { type: 'text/markdown;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = {{ \Illuminate\Support\Js::from($artifactFilename) }}; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);"
+                                            class="text-[10px] text-dim hover:text-ink border border-line bg-white rounded px-2 py-0.5 transition-colors cursor-pointer"
+                                        >Download</button>
+                                        <button
+                                            x-on:click="fullscreen = true"
+                                            class="text-[10px] text-dim hover:text-ink border border-line bg-white rounded px-2 py-0.5 transition-colors cursor-pointer"
+                                        >Expand</button>
+                                    </div>
+
+                                    <div class="relative px-3 py-2">
+                                        <pre class="text-[12px] text-dim whitespace-pre-wrap leading-relaxed" x-show="!expanded">{{ $artifactPreview }}</pre>
+                                        <div x-show="!expanded" class="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent"></div>
+                                        <div class="prose prose-sm max-w-none text-[13px]" x-show="expanded">
+                                            {!! \Illuminate\Support\Str::markdown($assistantContent) !!}
+                                        </div>
+                                        <button x-on:click="expanded = !expanded" class="mt-1 text-[11px] text-accent hover:underline cursor-pointer" x-text="expanded ? 'Show less' : 'Show more'"></button>
+                                    </div>
+
+                                    <div
+                                        x-show="fullscreen"
+                                        x-cloak
+                                        x-transition:enter="transition-opacity duration-150"
+                                        x-transition:enter-start="opacity-0"
+                                        x-transition:enter-end="opacity-100"
+                                        x-transition:leave="transition-opacity duration-100"
+                                        x-transition:leave-start="opacity-100"
+                                        x-transition:leave-end="opacity-0"
+                                        class="fixed inset-0 z-[70] bg-black/40 p-4"
+                                    >
+                                        <div class="mx-auto max-w-4xl h-full bg-white rounded-xl border border-line shadow-[0_20px_60px_rgba(0,0,0,0.18)] flex flex-col">
+                                            <div class="flex items-center gap-2 px-4 py-3 border-b border-hairline">
+                                                <span class="text-[14px] font-semibold text-ink truncate">{{ $artifactTitle }}</span>
+                                                <button x-on:click="fullscreen = false" class="ml-auto w-7 h-7 rounded-full inline-flex items-center justify-center bg-surface text-muted hover:text-ink transition-colors cursor-pointer" title="Close">×</button>
+                                            </div>
+                                            <div class="flex-1 overflow-y-auto px-4 py-3">
+                                                <div class="prose prose-sm max-w-none text-[13px]">
+                                                    {!! \Illuminate\Support\Str::markdown($assistantContent) !!}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
+                                @else
+                                <div class="prose prose-sm max-w-none text-[13px]">
+                                    {!! \Illuminate\Support\Str::markdown($assistantContent) !!}
+                                </div>
+                                @endif
                                 <div class="text-right text-[10px] text-muted mt-1">
                                     {{ \Carbon\Carbon::parse($message['created_at'])->format('H:i') }}
                                 </div>
@@ -570,12 +659,12 @@
                                     <div class="flex items-center gap-2">
                                         <input
                                             x-model="textAnswer"
-                                            x-on:keydown.enter.prevent="if (textAnswer.trim() !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, textAnswer.trim()); }"
+                                            x-on:keydown.enter.prevent="if (textAnswer.trim() !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, textAnswer.trim()).then(() => $nextTick(() => $refs.chatInput && $refs.chatInput.focus())); }"
                                             class="flex-1 text-[13px] text-ink bg-surface border border-line rounded-md px-2.5 py-1.5 outline-none focus:border-accent"
                                             placeholder="Type your answer..."
                                         >
                                         <button
-                                            x-on:click="if (textAnswer.trim() !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, textAnswer.trim()); }"
+                                            x-on:click="if (textAnswer.trim() !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, textAnswer.trim()).then(() => $nextTick(() => $refs.chatInput && $refs.chatInput.focus())); }"
                                             class="px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
                                         >Send</button>
                                     </div>
@@ -591,7 +680,7 @@
                                             @endforeach
                                         </div>
                                         <button
-                                            x-on:click="if (selected.length > 0) { answered = true; $wire.answerQuestion({{ $msgDbId }}, selected.join(', ')); }"
+                                            x-on:click="if (selected.length > 0) { answered = true; $wire.answerQuestion({{ $msgDbId }}, selected.join(', ')).then(() => $nextTick(() => $refs.chatInput && $refs.chatInput.focus())); }"
                                             class="px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
                                         >Confirm</button>
                                     </div>
@@ -622,7 +711,7 @@
                                         </div>
                                         @endforeach
                                         <button
-                                            x-on:click="const payload = Object.entries(formValues).filter(([_, v]) => String(v).trim() !== '').map(([k, v]) => `${k}: ${v}`).join(', '); if (payload !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, payload); }"
+                                            x-on:click="const payload = Object.entries(formValues).filter(([_, v]) => String(v).trim() !== '').map(([k, v]) => `${k}: ${v}`).join(', '); if (payload !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, payload).then(() => $nextTick(() => $refs.chatInput && $refs.chatInput.focus())); }"
                                             class="px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
                                         >Send</button>
                                     </div>
@@ -631,7 +720,7 @@
                                     <div class="flex flex-wrap gap-1.5">
                                         @foreach($qOptions as $opt)
                                         <button
-                                            x-on:click="answered = true; $wire.answerQuestion({{ $msgDbId }}, {{ \Illuminate\Support\Js::from($opt) }});"
+                                            x-on:click="answered = true; $wire.answerQuestion({{ $msgDbId }}, {{ \Illuminate\Support\Js::from($opt) }}).then(() => $nextTick(() => $refs.chatInput && $refs.chatInput.focus()));"
                                             class="px-2.5 py-1 rounded-full text-[11px] font-medium bg-surface text-dim border border-line hover:border-accent hover:text-accent transition-colors cursor-pointer"
                                         >{{ $opt }}</button>
                                         @endforeach
@@ -642,12 +731,12 @@
                                         <div x-show="otherOpen" x-cloak class="mt-1.5 flex items-center gap-2">
                                             <input
                                                 x-model="textAnswer"
-                                                x-on:keydown.enter.prevent="if (textAnswer.trim() !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, textAnswer.trim()); }"
+                                                x-on:keydown.enter.prevent="if (textAnswer.trim() !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, textAnswer.trim()).then(() => $nextTick(() => $refs.chatInput && $refs.chatInput.focus())); }"
                                                 class="flex-1 text-[13px] text-ink bg-surface border border-line rounded-md px-2.5 py-1.5 outline-none focus:border-accent"
                                                 placeholder="Type custom answer..."
                                             >
                                             <button
-                                                x-on:click="if (textAnswer.trim() !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, textAnswer.trim()); }"
+                                                x-on:click="if (textAnswer.trim() !== '') { answered = true; $wire.answerQuestion({{ $msgDbId }}, textAnswer.trim()).then(() => $nextTick(() => $refs.chatInput && $refs.chatInput.focus())); }"
                                                 class="px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
                                             >Send</button>
                                         </div>
@@ -856,8 +945,8 @@
             @endif
 
             {{-- ── Streaming bubble ────────────────────────────────────────── --}}
-            <div x-show="isStreaming" style="display: none" class="flex flex-col items-start mt-3">
-                <div class="rounded-2xl rounded-tl-sm bg-gray-50 border border-gray-100 text-ink max-w-[82%] p-3">
+            <div x-show="isStreaming" style="display: none" class="w-full mt-3 px-2 py-1 text-ink">
+                <div class="w-full">
                     <div x-show="streamingText === ''" class="flex items-center gap-1 py-0.5">
                         <span class="inline-block w-1.5 h-1.5 rounded-full bg-muted" style="animation: bounce 1s infinite 0ms"></span>
                         <span class="inline-block w-1.5 h-1.5 rounded-full bg-muted" style="animation: bounce 1s infinite 150ms"></span>
@@ -931,17 +1020,18 @@
                 <div class="flex items-end gap-1">
                     <textarea
                         wire:model="input"
+                        x-ref="chatInput"
                         rows="2"
                         placeholder="{{ $projectId ? 'Ask about this project…' : 'Select a project first…' }}"
                         class="flex-1 text-[13px] text-ink bg-transparent outline-none resize-none placeholder:text-muted placeholder:italic px-1"
                         style="max-height: 120px; line-height: 1.5"
-                        x-on:keydown.enter="if (!$event.shiftKey && !isStreaming) { $event.preventDefault(); $wire.sendMessage(); }"
+                        x-on:keydown.enter="if (!$event.shiftKey && !isStreaming) { $event.preventDefault(); $wire.sendMessage().then(() => $nextTick(() => $refs.chatInput && $refs.chatInput.focus())); }"
                         x-on:input="$el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px'"
                         x-bind:disabled="!projectIdState || isStreaming"
                     ></textarea>
 
                     <button
-                        wire:click="sendMessage"
+                        x-on:click="if (!isStreaming && projectIdState && inputText.trim().length > 0) { $wire.sendMessage().then(() => $nextTick(() => $refs.chatInput && $refs.chatInput.focus())); }"
                         x-bind:disabled="isStreaming || !projectIdState || inputText.trim().length === 0"
                         x-bind:class="(!isStreaming && projectIdState && inputText.trim().length > 0)
                             ? 'bg-accent hover:bg-accent-hover text-white cursor-pointer'
