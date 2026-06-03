@@ -28,6 +28,7 @@ use App\Http\Controllers\ProjectDocumentController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\MonthlyBudgetController;
+use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\InvoiceReminderController;
 use App\Http\Controllers\SettingsNotificationController;
@@ -53,6 +54,9 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
             : redirect()->route('dashboard');
     });
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Global Search
+    Route::get('/search', [GlobalSearchController::class, 'search'])->name('search');
 
     // Board (Kanban) — Livewire component mounted in a Blade view
     Route::get('/board', fn () => view('board.index'))->name('board');

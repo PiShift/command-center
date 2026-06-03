@@ -67,6 +67,19 @@
             </div>
             <a href="{{ route('board') }}" class="ml-4 text-[11px] font-bold uppercase tracking-widest text-muted hover:text-ink transition-colors">My Board</a>
             <div class="ml-auto flex items-center gap-3">
+                <button
+                    type="button"
+                    onclick="window.dispatchEvent(new CustomEvent('open-global-search'))"
+                    class="hidden md:flex items-center gap-2 w-56 px-3 py-2 bg-surface border border-line rounded-lg text-[13px] text-muted hover:text-dim hover:border-muted transition-colors cursor-pointer"
+                    aria-label="Open global search"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/>
+                    </svg>
+                    <span class="flex-1 text-left">Search...</span>
+                    <span class="px-1.5 py-0.5 text-[11px] font-semibold text-muted bg-canvas border border-line rounded">⌘/</span>
+                </button>
+
                 <livewire:notification-bell />
 
                 <div class="relative" x-data="{ open: false }">
@@ -104,15 +117,93 @@
 </div>
 
 @livewire('ai-chat-panel')
+@livewire('global-search')
 @livewireScripts
 @stack('scripts')
 <script>
-    document.addEventListener('keydown', function(e) {
+(function () {
+    var _pendingN = false;
+    var _nTimer   = null;
+
+    document.addEventListener('keydown', function (e) {
+        // ── Always-on shortcuts (work even inside inputs) ────────────
         if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
             e.preventDefault();
             window.dispatchEvent(new CustomEvent('open-ai-chat'));
+            return;
+        }
+        if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+            e.preventDefault();
+            window.dispatchEvent(new CustomEvent('open-global-search'));
+            return;
+        }
+
+        // ── Guard: skip when an input is focused ──────────────────────
+        var tag = document.activeElement ? document.activeElement.tagName : '';
+        var editable = document.activeElement && document.activeElement.contentEditable === 'true';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || editable) return;
+
+        // ── Cmd/Ctrl + Shift shortcuts ────────────────────────────────
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey) {
+            switch (e.key.toUpperCase()) {
+                case 'P':
+                    e.preventDefault();
+                    window.location.href = '/projects/create';
+                    return;
+                case 'C':
+                    e.preventDefault();
+                    window.dispatchEvent(new CustomEvent('open-quick-customer-modal'));
+                    return;
+                case 'I':
+                    e.preventDefault();
+                    window.location.href = '/invoices/create';
+                    return;
+                case 'D':
+                    e.preventDefault();
+                    window.location.href = '/dashboard';
+                    return;
+                case 'B':
+                    e.preventDefault();
+                    window.location.href = '/board';
+                    return;
+                case 'T':
+                    e.preventDefault();
+                    window.location.href = '/tasks';
+                    return;
+                case 'E':
+                    e.preventDefault();
+                    window.location.href = '/expenses';
+                    return;
+            }
+            return;
+        }
+
+        // ── n → x two-key sequence ────────────────────────────────────
+        if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+            if (e.key === 'n') {
+                _pendingN = true;
+                clearTimeout(_nTimer);
+                _nTimer = setTimeout(function () { _pendingN = false; }, 700);
+                return;
+            }
+            if (_pendingN) {
+                clearTimeout(_nTimer);
+                _pendingN = false;
+                if (e.key === 'p') {
+                    e.preventDefault();
+                    window.location.href = '/projects/create';
+                } else if (e.key === 'c') {
+                    e.preventDefault();
+                    window.dispatchEvent(new CustomEvent('open-quick-customer-modal'));
+                } else if (e.key === 'i') {
+                    e.preventDefault();
+                    window.location.href = '/invoices/create';
+                }
+            }
         }
     });
+}());
 </script>
+@include('components.quick-customer-modal')
 </body>
 </html>
