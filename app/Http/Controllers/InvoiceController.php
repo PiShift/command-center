@@ -195,6 +195,7 @@ class InvoiceController extends Controller
                 'unit_price'     => $row['unit_price'] ?? 0,
                 'discount_type'  => $row['discount_type'] ?? null,
                 'discount_value' => $row['discount_value'] ?? null,
+                'cost_price'     => isset($row['cost_price']) && $row['cost_price'] !== '' ? $row['cost_price'] : null,
                 'sort_order'     => $i,
             ]);
         }

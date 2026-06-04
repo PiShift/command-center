@@ -16,6 +16,7 @@ class Expense extends Model implements HasMedia
 
     protected $fillable = [
         'title', 'category_id', 'project_id', 'recurring_charge_id',
+        'source_invoice_item_id',
         'amount', 'expense_date', 'status', 'notes',
     ];
 

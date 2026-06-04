@@ -124,6 +124,12 @@
                     <button type="button" @click="addItem()"
                             style="font-size:12px;font-weight:500;color:#D97757;background:none;border:none;cursor:pointer">+ Add line</button>
 
+                    <button type="button" @click="showCost = !showCost"
+                            :style="showCost
+                                ? 'font-size:12px;font-weight:500;color:#fff;background:#5c5c5a;border:1px solid #5c5c5a;cursor:pointer;border-radius:6px;padding:3px 10px'
+                                : 'font-size:12px;font-weight:500;color:#5c5c5a;background:none;border:1px solid #e5e4df;cursor:pointer;border-radius:6px;padding:3px 10px'"
+                    >Cost</button>
+
                     <template x-if="currentProjectId">
                         <button type="button"
                                 @click="showTaskPanel = !showTaskPanel; showSprintSelect = false"
@@ -172,6 +178,7 @@
                         <th class="px-3 py-2.5 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;width:10%">Qty</th>
                         <th class="px-3 py-2.5 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;width:15%">Unit Price</th>
                         <th class="px-3 py-2.5 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;width:10%">Disc</th>
+                        <th x-show="showCost" class="px-3 py-2.5 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;width:10%">Cost</th>
                         <th class="px-3 py-2.5 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;width:12%">Subtotal</th>
                         <th class="px-2 py-2.5" style="width:5%"></th>
                     </tr>
@@ -209,6 +216,12 @@
                                    @input="recalc(item)" placeholder="%" class="w-full rounded text-[12.5px] px-2 py-1.5 text-right"
                                    style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none">
                             <input type="hidden" :name="`items[${idx}][discount_type]`" :value="item.discount_value > 0 ? 'percent' : ''">
+                        </td>
+                        <td x-show="showCost" class="px-3 py-2">
+                            <input type="number" :name="`items[${idx}][cost_price]`" x-model.number="item.cost_price" step="0.01" min="0"
+                                   placeholder="0.00"
+                                   class="w-full rounded text-[12.5px] px-2 py-1.5 text-right"
+                                   style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none">
                         </td>
                         <td class="px-3 py-2 text-right" style="color:#141413;font-weight:500" x-text="item.subtotal.toFixed(2)"></td>
                         <td class="px-2 py-2 text-center">
@@ -345,6 +358,7 @@
             'discount_value' => $i->discount_value,
             'discount_type'  => $i->discount_type,
             'subtotal'       => $i->subtotal,
+            'cost_price'     => $i->cost_price,
         ])->values()->all()
         : [];
 @endphp
@@ -354,10 +368,11 @@ const _allProjectSprints = @json($allProjectSprints);
 
 function itemsManager() {
     return {
-        items: @json($existingItems).map(i => ({ isMultiline: false, ...i })),
+        items: @json($existingItems).map(i => ({ isMultiline: false, cost_price: null, ...i })),
         currentProjectId: '{{ old('project_id', $invoice->project_id ?? '') }}',
         showTaskPanel:    false,
         showSprintSelect: false,
+        showCost:         @json($existingItems) && @json($existingItems).some(i => i.cost_price > 0),
         selectedTaskIds:  [],
         selectedSprintId: '',
         discountType:  '{{ old('discount_type', $invoice->discount_type ?? '') }}',
@@ -404,7 +419,7 @@ function itemsManager() {
             this.items.push({
                 isMultiline: false, type: 'manual', task_id: null,
                 description: '', quantity: 1, unit: 'units',
-                unit_price: 0, discount_value: null, discount_type: '', subtotal: 0,
+                unit_price: 0, discount_value: null, discount_type: '', subtotal: 0, cost_price: null,
             });
         },
 
@@ -420,7 +435,7 @@ function itemsManager() {
                         type: 'manual', task_id: null,
                         description: t.title,
                         quantity: qty, unit: unit,
-                        unit_price: 0, discount_value: null, discount_type: '', subtotal: 0,
+                        unit_price: 0, discount_value: null, discount_type: '', subtotal: 0, cost_price: null,
                     });
                 });
             this.selectedTaskIds = [];
@@ -438,7 +453,7 @@ function itemsManager() {
                 type: 'manual', task_id: null,
                 description: desc,
                 quantity: 1, unit: 'fixed',
-                unit_price: 0, discount_value: null, discount_type: '', subtotal: 0,
+                unit_price: 0, discount_value: null, discount_type: '', subtotal: 0, cost_price: null,
             });
             this.selectedSprintId = '';
             this.showSprintSelect = false;

@@ -36,6 +36,11 @@ class ExpenseController extends Controller
             $query->where('month', $monthDate);
         }
 
+        if ($sourceInvoice = $request->source_invoice) {
+            $itemIds = \App\Models\InvoiceItem::where('invoice_id', $sourceInvoice)->pluck('id');
+            $query->whereIn('source_invoice_item_id', $itemIds);
+        }
+
         $expenses   = $query->paginate(50)->withQueryString();
         $categories = ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
 

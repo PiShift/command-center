@@ -180,7 +180,12 @@
                 <tbody>
                     @foreach($invoice->items as $item)
                     <tr style="border-bottom:1px solid #eeeee9">
-                        <td class="px-6 py-3" style="color:#141413;line-height:1.6">@include('invoices._item_description', ['description' => $item->description])</td>
+                        <td class="px-6 py-3" style="color:#141413;line-height:1.6">
+                            @include('invoices._item_description', ['description' => $item->description])
+                            @if($item->cost_price > 0)
+                            <span style="display:block;font-size:11px;color:#8c8c8a;margin-top:2px">cost: {{ $invoice->currency }} {{ number_format($item->cost_price, 2) }}</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-center hidden sm:table-cell" style="color:#5c5c5a">{{ $item->unit }}</td>
                         <td class="px-4 py-3 text-right hidden sm:table-cell" style="color:#5c5c5a">{{ $item->quantity }}</td>
                         <td class="px-4 py-3 text-right" style="color:#5c5c5a">{{ $invoice->currency }} {{ number_format($item->unit_price, 2) }}</td>
@@ -207,6 +212,40 @@
                     <div class="flex gap-8"><span style="font-weight:600;color:{{ $invoice->amount_due > 0 ? '#b94040' : '#2e7d55' }}">Amount Due</span><span style="font-weight:600;color:{{ $invoice->amount_due > 0 ? '#b94040' : '#2e7d55' }}">{{ $invoice->currency }} {{ number_format($invoice->amount_due, 2) }}</span></div>
                 </div>
             </div>
+
+            @php
+                $totalCost = $invoice->items->sum(fn($i) => (float) $i->cost_price);
+                $revenue   = (float) $invoice->total;
+                $margin    = $revenue - $totalCost;
+                $marginPct = $revenue > 0 ? ($margin / $revenue * 100) : 0;
+                $autoExpenseCount = \App\Models\Expense::whereIn('source_invoice_item_id', $invoice->items->pluck('id'))->count();
+            @endphp
+            @if($totalCost > 0)
+            {{-- Margin block --}}
+            <div class="px-6 py-4" style="border-top:1px solid #eeeee9;background:#faf9f5">
+                <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;margin-bottom:10px">Margin</p>
+                <div class="flex flex-col items-end gap-1" style="font-size:13px">
+                    <div class="flex gap-8"><span style="color:#8c8c8a">Revenue</span><span style="color:#141413;font-weight:500">{{ $invoice->currency }} {{ number_format($revenue, 2) }}</span></div>
+                    <div class="flex gap-8"><span style="color:#8c8c8a">Cost</span><span style="color:#141413;font-weight:500">{{ $invoice->currency }} {{ number_format($totalCost, 2) }}</span></div>
+                    <div class="flex gap-8 mt-1 pt-2" style="border-top:1px solid #eeeee9">
+                        <span style="font-weight:600;color:#141413">Margin</span>
+                        <span style="font-weight:700;color:{{ $margin >= 0 ? '#2e7d55' : '#b94040' }}">
+                            {{ $margin < 0 ? '−' : '' }}{{ $invoice->currency }} {{ number_format(abs($margin), 2) }}
+                            <span style="font-size:11px;font-weight:500;margin-left:4px">({{ number_format($marginPct, 1) }}%)</span>
+                        </span>
+                    </div>
+                </div>
+                @if($autoExpenseCount > 0)
+                <div class="mt-3 text-right">
+                    <a href="/expenses?source_invoice={{ $invoice->id }}"
+                       style="font-size:12px;color:#8c8c8a;text-decoration:none"
+                       onmouseover="this.style.color='#5c5c5a'"
+                       onmouseout="this.style.color='#8c8c8a'"
+                    >View related expenses ({{ $autoExpenseCount }}) →</a>
+                </div>
+                @endif
+            </div>
+            @endif
         </div>
 
         {{-- Payments --}}
