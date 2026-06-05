@@ -13,7 +13,7 @@ class RecordPaymentRequest extends FormRequest
         return [
             'amount'       => 'required|numeric|min:0.01',
             'payment_date' => 'required|date',
-            'method'       => 'required|in:bank_transfer,cash,check,card,other',
+            'company_account_id' => 'required|exists:company_bank_accounts,id',
             'reference'    => 'nullable|string|max:255',
             'notes'        => 'nullable|string',
             'proof'        => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',

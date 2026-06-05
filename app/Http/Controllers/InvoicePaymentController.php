@@ -15,7 +15,14 @@ class InvoicePaymentController extends Controller
     public function store(RecordPaymentRequest $request, Invoice $invoice)
     {
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
-        $data = $request->validated();
+        $validated = $request->validated();
+        $data = [
+            'amount' => $validated['amount'],
+            'payment_date' => $validated['payment_date'],
+            'company_account_id' => $validated['company_account_id'],
+            'reference' => $validated['reference'] ?? null,
+            'notes' => $validated['notes'] ?? null,
+        ];
         if ($request->hasFile('proof')) {
             $data['proof'] = $request->file('proof');
         }

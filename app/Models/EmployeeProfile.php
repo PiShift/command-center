@@ -71,6 +71,11 @@ class EmployeeProfile extends Model implements HasMedia
         return $this->hasMany(EmployeeDocument::class, 'employee_id');
     }
 
+    public function bankAccounts(): HasMany
+    {
+        return $this->hasMany(EmployeeBankAccount::class, 'employee_id');
+    }
+
     // ── Accessors ────────────────────────────────────────────────────────────
     public function getCurrentContractAttribute(): ?EmployeeContract
     {

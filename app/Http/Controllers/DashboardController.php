@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\CompanyBankAccount;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
@@ -329,6 +330,19 @@ class DashboardController extends Controller
                 ->distinct('customer_id')
                 ->count('customer_id');
 
+            // ── Bank Accounts ────────────────────────────────────────────────
+
+            $bankAccounts = CompanyBankAccount::query()
+                ->withSum('invoicePayments as payments_in_total', 'amount')
+                ->withSum(['expenses as expenses_out_total' => fn($q) => $q->where('status', 'confirmed')], 'amount')
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get()
+                ->map(function (CompanyBankAccount $account) {
+                    $account->computed_balance = (float) ($account->payments_in_total ?? 0) - (float) ($account->expenses_out_total ?? 0);
+                    return $account;
+                });
+
             // ── Recent Activity (Fix 3: load subject, format nicely) ─────────
 
             $recentActivity = \Spatie\Activitylog\Models\Activity::with(['causer', 'subject', 'subject.project'])
@@ -387,6 +401,7 @@ class DashboardController extends Controller
                 'customerCounts', 'activeCustomersCount',
                 'collectionRate', 'totalInvoicedThisYear', 'totalCollectedThisYear',
                 'availableCreditsSum', 'customersWithCredit',
+                'bankAccounts',
                 'recentActivity'
             );
         });

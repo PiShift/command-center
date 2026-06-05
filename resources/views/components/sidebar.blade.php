@@ -31,14 +31,25 @@
     if ($user->hasPermission('customers.view')) {
         $nav[] = ['route' => 'customers.index', 'label' => 'Customers', 'icon' => 'briefcase'];
     }
+    if ($user->hasPermission('roles.view')) {
+        $nav[] = ['route' => 'roles.index', 'label' => 'Roles', 'icon' => 'shield'];
+    }
+    if (
+        $user->hasPermission('invoices.view') ||
+        $user->hasPermission('payments.view') ||
+        $user->hasPermission('finance.manage') ||
+        $user->hasPermission('expenses.view')
+    ) {
+        $nav[] = ['_group' => 'FINANCE'];
+    }
     if ($user->hasPermission('invoices.view')) {
         $nav[] = ['route' => 'invoices.index', 'label' => 'Invoices', 'icon' => 'file-text', 'badge' => \App\Models\Invoice::whereIn('status',['published','partially_paid'])->count() ?: null];
     }
     if ($user->hasPermission('payments.view')) {
         $nav[] = ['route' => 'payments.index', 'label' => 'Payments', 'icon' => 'credit-card'];
     }
-    if ($user->hasPermission('roles.view')) {
-        $nav[] = ['route' => 'roles.index', 'label' => 'Roles', 'icon' => 'shield'];
+    if ($user->hasPermission('finance.manage')) {
+        $nav[] = ['route' => 'bank-accounts.index', 'label' => 'Bank Accounts', 'icon' => 'wallet', 'badge' => \App\Models\CompanyBankAccount::count()];
     }
     if ($user->hasPermission('expenses.view')) {
         $nav[] = ['route' => 'expenses.monthly-overview', 'label' => 'Expenses', 'icon' => 'wallet'];

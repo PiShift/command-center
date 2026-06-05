@@ -85,6 +85,7 @@ class EmployeeController extends Controller
                 ->orderByRaw("CASE status WHEN 'active' THEN 1 WHEN 'draft' THEN 2 WHEN 'terminated' THEN 3 ELSE 4 END")
                 ->orderByDesc('effective_from'),
             'documents',
+            'bankAccounts' => fn ($q) => $q->orderByDesc('is_primary')->orderBy('id'),
         ]);
 
         return view('employees.show', compact('employee'));

@@ -12,7 +12,7 @@ class InvoicePayment extends Model implements HasMedia
     use InteractsWithMedia;
 
     protected $fillable = [
-        'invoice_id', 'customer_id', 'amount', 'currency',
+        'invoice_id', 'customer_id', 'company_account_id', 'amount', 'currency',
         'payment_date', 'method', 'reference', 'notes',
     ];
 
@@ -37,5 +37,10 @@ class InvoicePayment extends Model implements HasMedia
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function companyAccount(): BelongsTo
+    {
+        return $this->belongsTo(CompanyBankAccount::class, 'company_account_id');
     }
 }

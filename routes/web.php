@@ -35,7 +35,9 @@ use App\Http\Controllers\SettingsNotificationController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeContractController;
 use App\Http\Controllers\EmployeeDocumentController;
+use App\Http\Controllers\EmployeeBankAccountController;
 use App\Http\Controllers\ContractTemplateController;
+use App\Http\Controllers\CompanyBankAccountController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -182,6 +184,17 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::resource('expenses', ExpenseController::class);
     Route::patch('/expenses/{expense}/confirm', [ExpenseController::class, 'confirm'])->name('expenses.confirm');
 
+    // Company Bank Accounts (Finance)
+    Route::middleware('permission:finance.manage')->group(function () {
+        Route::get('/bank-accounts', [CompanyBankAccountController::class, 'index'])->name('bank-accounts.index');
+        Route::get('/bank-accounts/create', [CompanyBankAccountController::class, 'create'])->name('bank-accounts.create');
+        Route::post('/bank-accounts', [CompanyBankAccountController::class, 'store'])->name('bank-accounts.store');
+        Route::get('/bank-accounts/{account}', [CompanyBankAccountController::class, 'show'])->name('bank-accounts.show');
+        Route::get('/bank-accounts/{account}/edit', [CompanyBankAccountController::class, 'edit'])->name('bank-accounts.edit');
+        Route::put('/bank-accounts/{account}', [CompanyBankAccountController::class, 'update'])->name('bank-accounts.update');
+        Route::delete('/bank-accounts/{account}', [CompanyBankAccountController::class, 'destroy'])->name('bank-accounts.destroy');
+    });
+
     // Monthly Budgets
     Route::get('/monthly-budgets',              [MonthlyBudgetController::class, 'index'])->name('monthly-budgets.index');
     Route::post('/monthly-budgets',             [MonthlyBudgetController::class, 'store'])->name('monthly-budgets.store');
@@ -213,6 +226,13 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::post('employees/{employee}/contracts/{contract}/upload-signed',     [EmployeeContractController::class, 'uploadSigned'])->name('employees.contracts.upload-signed');
     Route::post('employees/{employee}/documents',                              [EmployeeDocumentController::class, 'store'])->name('employees.documents.store');
     Route::delete('employees/{employee}/documents/{document}',                 [EmployeeDocumentController::class, 'destroy'])->name('employees.documents.destroy');
+
+    Route::middleware('permission:hr.manage')->group(function () {
+        Route::post('employees/{employee}/bank-accounts', [EmployeeBankAccountController::class, 'store'])->name('employees.bank-accounts.store');
+        Route::put('employees/{employee}/bank-accounts/{account}', [EmployeeBankAccountController::class, 'update'])->name('employees.bank-accounts.update');
+        Route::delete('employees/{employee}/bank-accounts/{account}', [EmployeeBankAccountController::class, 'destroy'])->name('employees.bank-accounts.destroy');
+        Route::post('employees/{employee}/bank-accounts/{account}/set-primary', [EmployeeBankAccountController::class, 'setPrimary'])->name('employees.bank-accounts.set-primary');
+    });
 
     // Contract Templates
     Route::get('hr/contract-templates',                                            [ContractTemplateController::class, 'index'])->name('contract-templates.index');

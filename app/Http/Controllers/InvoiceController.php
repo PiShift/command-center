@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreInvoiceRequest;
 use App\Http\Requests\UpdateInvoiceRequest;
 use App\Mail\InvoicePublishedMailable;
+use App\Models\CompanyBankAccount;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
@@ -42,8 +43,12 @@ class InvoiceController extends Controller
 
         $invoices  = $query->paginate(25)->withQueryString();
         $customers = Customer::orderBy('name')->get(['id', 'name']);
+        $companyAccounts = CompanyBankAccount::query()
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'bank_name', 'is_default']);
 
-        return view('invoices.index', compact('invoices', 'customers', 'sort', 'direction'));
+        return view('invoices.index', compact('invoices', 'customers', 'companyAccounts', 'sort', 'direction'));
     }
 
     public function create()
@@ -71,13 +76,17 @@ class InvoiceController extends Controller
     public function show(Invoice $invoice)
     {
         abort_unless(auth()->user()->hasPermission('invoices.view'), 403);
-        $invoice->load(['customer', 'project', 'items.task', 'payments', 'creditAllocations.credit', 'reminders']);
+        $invoice->load(['customer', 'project', 'items.task', 'payments.companyAccount', 'creditAllocations.credit', 'reminders']);
+        $companyAccounts = CompanyBankAccount::query()
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'bank_name', 'is_default']);
         $credits = \App\Models\CustomerCredit::where('customer_id', $invoice->customer_id)
             ->where('currency', $invoice->currency)
             ->available()
             ->get();
 
-        return view('invoices.show', compact('invoice', 'credits'));
+        return view('invoices.show', compact('invoice', 'credits', 'companyAccounts'));
     }
 
     public function edit(Invoice $invoice)

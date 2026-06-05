@@ -6,20 +6,6 @@
         'direction' => ($sort === $col && $direction === 'desc') ? 'asc' : 'desc',
         'page'      => 1,
     ]);
-    $methodLabels = [
-        'bank_transfer' => 'Bank Transfer',
-        'cash'          => 'Cash',
-        'check'         => 'Check',
-        'card'          => 'Card',
-        'other'         => 'Other',
-    ];
-    $methodStyles = [
-        'bank_transfer' => 'background:#eef3fb;color:#3a6fba',
-        'cash'          => 'background:#edf7f2;color:#2e7d55',
-        'check'         => 'background:#F5F4EF;color:#5c5c5a',
-        'card'          => 'background:#f3eefb;color:#6a3ab0',
-        'other'         => 'background:#fef9ec;color:#9a7a1a',
-    ];
 @endphp
 
 {{-- ── Header ─────────────────────────────────────────────────────────────── --}}
@@ -50,12 +36,14 @@
            style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none;width:220px">
 
     <div class="relative">
-        <select name="method" onchange="this.form.submit()"
+        <select name="company_account_id" onchange="this.form.submit()"
                 class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer"
                 style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none">
-            <option value="">All Methods</option>
-            @foreach($methodLabels as $val => $lab)
-                <option value="{{ $val }}" {{ request('method') == $val ? 'selected' : '' }}>{{ $lab }}</option>
+            <option value="">All Bank Accounts</option>
+            @foreach($companyAccounts as $account)
+                <option value="{{ $account->id }}" {{ (string) request('company_account_id') === (string) $account->id ? 'selected' : '' }}>
+                    {{ $account->name }}
+                </option>
             @endforeach
         </select>
         <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style="color:#8c8c8a">
@@ -63,7 +51,7 @@
         </span>
     </div>
 
-    @if(request()->hasAny(['search','method']))
+    @if(request()->hasAny(['search','company_account_id']))
         <a href="{{ route('payments.index') }}" style="display:flex;align-items:center;padding:8px 12px;font-size:13px;color:#8c8c8a;text-decoration:none"
            onmouseover="this.style.color='#141413'" onmouseout="this.style.color='#8c8c8a'">✕ Clear</a>
     @endif
@@ -86,7 +74,7 @@
                     ['col' => 'payment_date', 'label' => 'Date',     'cls' => 'px-6 py-3 text-left'],
                     ['col' => null,           'label' => 'Invoice',  'cls' => 'px-4 py-3 text-left'],
                     ['col' => null,           'label' => 'Customer', 'cls' => 'px-4 py-3 text-left hidden sm:table-cell'],
-                    ['col' => 'method',       'label' => 'Method',   'cls' => 'px-4 py-3 text-left'],
+                    ['col' => null,           'label' => 'Bank Account',   'cls' => 'px-4 py-3 text-left'],
                     ['col' => null,           'label' => 'Reference','cls' => 'px-4 py-3 text-left hidden sm:table-cell'],
                     ['col' => 'amount',       'label' => 'Amount',   'cls' => 'px-4 py-3 text-right'],
                     ['col' => null,           'label' => 'Proof',    'cls' => 'px-4 py-3 text-center hidden sm:table-cell'],
@@ -133,11 +121,9 @@
                     {{ $payment->customer?->name ?? $payment->invoice?->customer?->name ?? '—' }}
                 </td>
 
-                {{-- Method --}}
+                {{-- Bank account --}}
                 <td class="px-4 py-3">
-                    <span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;{{ $methodStyles[$payment->method] ?? 'background:#F5F4EF;color:#5c5c5a' }}">
-                        {{ $methodLabels[$payment->method] ?? ucfirst($payment->method) }}
-                    </span>
+                    <span style="color:#5c5c5a">{{ $payment->companyAccount?->name ?? '—' }}</span>
                 </td>
 
                 {{-- Reference --}}
