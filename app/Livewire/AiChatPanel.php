@@ -39,6 +39,8 @@ class AiChatPanel extends Component
     public array $availableBacklogItems = []; // [{id, title, status, description}]
     public string $additionalContext = '';    // content from uploaded file
     public string $contextSummary = '';       // built before AI call
+    public string $statusSnapshot = '';       // auto-injected into every AI call (not shown in UI)
+    public array $activePresets = [];         // active bulk-context preset names
     public bool $isStreaming = false;
     public array $recentConversations = [];
 
@@ -126,6 +128,8 @@ class AiChatPanel extends Component
         $this->selectedBacklogIds = [];
         $this->additionalContext  = '';
         $this->contextSummary    = '';
+        $this->activePresets     = [];
+        $this->statusSnapshot    = '';
 
         // All sprints with task counts (for context section)
         $this->availableSprints = Sprint::where('project_id', $projectId)
@@ -168,6 +172,41 @@ class AiChatPanel extends Component
                 'description' => (string) ($b->description ?? ''),
             ])
             ->toArray();
+
+        // Compute status snapshot — silently injected into every AI call, never shown in UI
+        $activeSprintsForSnapshot = $project->sprints()
+            ->withCount([
+                'tasks as total_tasks',
+                'tasks as done_tasks'    => fn ($q) => $q->where('status', 'done'),
+                'tasks as overdue_tasks' => fn ($q) => $q->where('status', '!=', 'done')
+                    ->whereNotNull('due_date')
+                    ->where('due_date', '<', now()),
+            ])
+            ->where('status', 'active')
+            ->orderBy('sort_order')
+            ->get();
+
+        $totalTasks      = $project->tasks()->count();
+        $doneTasks       = $project->tasks()->where('status', 'done')->count();
+        $overallProgress = $totalTasks > 0 ? round(($doneTasks / $totalTasks) * 100) : 0;
+        $pendingBacklog  = $project->backlogItems()->where('promoted', false)->count();
+
+        $snapshot  = "PROJECT STATUS SNAPSHOT:\n";
+        $snapshot .= "Overall: {$overallProgress}% complete ({$doneTasks}/{$totalTasks} tasks done)\n";
+        $snapshot .= "Health: " . ($project->health ?? 'N/A') . " | Status: {$project->status}\n\n";
+        $snapshot .= "Active sprints:\n";
+
+        foreach ($activeSprintsForSnapshot as $sp) {
+            $pct = $sp->total_tasks > 0 ? round(($sp->done_tasks / $sp->total_tasks) * 100) : 0;
+            $snapshot .= "- {$sp->name}: {$pct}% done ({$sp->done_tasks}/{$sp->total_tasks} tasks)";
+            if ($sp->overdue_tasks > 0) {
+                $snapshot .= " ⚠️ {$sp->overdue_tasks} overdue";
+            }
+            $snapshot .= "\n";
+        }
+
+        $snapshot .= "\nBacklog: {$pendingBacklog} items pending\n";
+        $this->statusSnapshot = $snapshot;
 
         $conversation = AiConversation::where('project_id', $projectId)
             ->where('user_id', auth()->id())
@@ -370,71 +409,80 @@ class AiChatPanel extends Component
         }
 
         if (! empty($this->selectedSprintIds)) {
-            $sprints = Sprint::whereIn('id', $this->selectedSprintIds)
-                ->where('project_id', $this->projectId)
+            // Legacy — kept for backward compat but no longer exposed in UI
+        }
+
+        // Preset-based context — replaces individual sprint/task/backlog checkboxes
+        if (in_array('current_sprint', $this->activePresets)) {
+            $sprint = Sprint::where('project_id', $this->projectId)
+                ->where('status', 'active')
                 ->with(['tasks' => fn ($q) => $q->with('assignee:id,name')])
+                ->orderBy('sort_order')
+                ->first();
+            if ($sprint) {
+                $taskLines = $sprint->tasks->map(fn ($t) =>
+                    "  - {$t->title} [{$t->status}]" . ($t->assignee ? " @{$t->assignee->name}" : '')
+                )->join("\n");
+                $parts[] = "## Current Sprint: {$sprint->name}\n" . ($taskLines ?: '  (no tasks yet)');
+            }
+        }
+
+        if (in_array('active_sprints', $this->activePresets)) {
+            $sprints = Sprint::where('project_id', $this->projectId)
+                ->where('status', 'active')
+                ->with(['tasks' => fn ($q) => $q->with('assignee:id,name')])
+                ->orderBy('sort_order')
                 ->get();
+            $text = $sprints->map(fn ($sprint) => "**{$sprint->name}**\n" . ($sprint->tasks->map(fn ($t) =>
+                "  - {$t->title} [{$t->status}]" . ($t->assignee ? " @{$t->assignee->name}" : '')
+            )->join("\n") ?: '  (no tasks)'))->join("\n\n");
+            if ($text !== '') {
+                $parts[] = "## Active Sprints\n" . $text;
+            }
+        }
 
-            $sprintText = $sprints->map(function ($sprint) {
-                $header    = "**{$sprint->name}** ({$sprint->status})";
-                $taskLines = $sprint->tasks->map(function ($t) {
-                    $line = "  - {$t->title} [{$t->status}]";
-                    if ($t->assignee) {
-                        $line .= " assigned to {$t->assignee->name}";
-                    }
-                    return $line;
-                });
-                $body = $taskLines->isNotEmpty()
-                    ? "\n  Tasks in this sprint:\n" . $taskLines->join("\n")
-                    : '';
-                return $header . $body;
-            })->join("\n\n");
+        if (in_array('backlog', $this->activePresets)) {
+            $backlogItems = BacklogItem::where('project_id', $this->projectId)
+                ->where('status', 'pending')
+                ->orderBy('title')
+                ->get(['title', 'description', 'status']);
+            $backlogLines = $backlogItems->map(fn ($b) =>
+                "- **{$b->title}**" . ($b->description ? ': ' . Str::limit($b->description, 200) : '') . " [{$b->status}]"
+            )->join("\n");
+            if ($backlogLines !== '') {
+                $parts[] = "## Backlog\n" . $backlogLines;
+            }
+        }
 
-            if ($sprintText !== '') {
-                $parts[] = "## Selected Sprints\n" . $sprintText;
+        if (in_array('full_project', $this->activePresets)) {
+            $allSprints = Sprint::where('project_id', $this->projectId)
+                ->with(['tasks' => fn ($q) => $q->with('assignee:id,name')])
+                ->orderBy('sort_order')
+                ->get();
+            $sprintText = $allSprints->map(fn ($sprint) => "**{$sprint->name}** ({$sprint->status})\n" . ($sprint->tasks->map(fn ($t) =>
+                "  - {$t->title} [{$t->status}]" . ($t->assignee ? " @{$t->assignee->name}" : '')
+            )->join("\n") ?: '  (no tasks)'))->join("\n\n");
+            $allBacklog = BacklogItem::where('project_id', $this->projectId)
+                ->where('promoted', false)
+                ->orderBy('title')
+                ->get(['title', 'description', 'status']);
+            $backlogText = $allBacklog->map(fn ($b) =>
+                "- **{$b->title}**" . ($b->description ? ': ' . Str::limit($b->description, 150) : '') . " [{$b->status}]"
+            )->join("\n");
+            $fullText = '';
+            if ($sprintText !== '') $fullText .= "### All Sprints\n" . $sprintText . "\n\n";
+            if ($backlogText !== '') $fullText .= "### Backlog\n" . $backlogText;
+            if ($fullText !== '') {
+                $parts[] = "## Full Project Context\n" . trim($fullText);
             }
         }
 
         if (! empty($this->selectedTaskIds)) {
-            $tasks = Task::whereIn('id', $this->selectedTaskIds)
-                ->where('project_id', $this->projectId)
-                ->with('assignee:id,name')
-                ->get();
-
-            $taskLines = $tasks->map(function ($t) {
-                $line = "- **{$t->title}**";
-                if ($t->description) {
-                    $line .= ': ' . Str::limit($t->description, 200);
-                }
-                $line .= " [{$t->status}, {$t->priority}]";
-                if ($t->assignee) {
-                    $line .= " assigned to {$t->assignee->name}";
-                }
-                return $line;
-            })->join("\n");
-
-            if ($taskLines !== '') {
-                $parts[] = "## Selected Tasks\n" . $taskLines;
-            }
+            // Legacy — kept for backward compat but no longer exposed in UI
         }
 
         if (! empty($this->selectedBacklogIds)) {
-            $backlogItems = BacklogItem::whereIn('id', $this->selectedBacklogIds)
-                ->where('project_id', $this->projectId)
-                ->get();
-
-            $backlogLines = $backlogItems->map(function ($b) {
-                $line = "- **{$b->title}**";
-                if ($b->description) {
-                    $line .= ': ' . Str::limit($b->description, 200);
-                }
-                $line .= " [{$b->status}]";
-                return $line;
-            })->join("\n");
-
-            if ($backlogLines !== '') {
-                $parts[] = "## Selected Backlog Items\n" . $backlogLines;
-            }
+            // Legacy — kept for backward compat but no longer exposed in UI
         }
 
         if ($this->additionalContext !== '') {
@@ -473,6 +521,7 @@ class AiChatPanel extends Component
             conversationId: $this->conversationId,
             message:        $text,
             context:        $this->contextSummary,
+            statusSnapshot: $this->statusSnapshot,
         );
     }
 

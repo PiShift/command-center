@@ -59,6 +59,11 @@ class User extends Authenticatable
         return $this->hasOne(UserTwoFactor::class);
     }
 
+    public function employeeProfile(): HasOne
+    {
+        return $this->hasOne(EmployeeProfile::class);
+    }
+
     public function devices(): HasMany
     {
         return $this->hasMany(UserDevice::class);

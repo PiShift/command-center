@@ -21,6 +21,13 @@
     if ($user->hasPermission('teams.view')) {
         $nav[] = ['route' => 'teams.index', 'label' => 'Teams', 'icon' => 'layers', 'badge' => \App\Models\Team::count() ?: null];
     }
+    if ($user->hasPermission('hr.view')) {
+        $nav[] = ['_group' => 'HR'];
+        $nav[] = ['route' => 'employees.index', 'label' => 'Employees', 'icon' => 'users', 'badge' => \App\Models\EmployeeProfile::active()->count() ?: null];
+    }
+    if ($user->hasPermission('hr.manage')) {
+        $nav[] = ['route' => 'contract-templates.index', 'label' => 'Contract Templates', 'icon' => 'file-text'];
+    }
     if ($user->hasPermission('customers.view')) {
         $nav[] = ['route' => 'customers.index', 'label' => 'Customers', 'icon' => 'briefcase'];
     }

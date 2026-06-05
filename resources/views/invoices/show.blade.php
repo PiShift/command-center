@@ -337,7 +337,7 @@
                 </div>
                 <div>
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Proof (optional)</label>
-                    <input type="file" name="proof" accept=".jpg,.jpeg,.png,.pdf" class="text-[12px]" style="color:#5c5c5a">
+                    <x-file-upload name="proof" accept=".jpg,.jpeg,.png,.pdf" label="Drop payment proof here" />
                 </div>
                 @if($invoice->customer?->email)
                 <label class="flex items-center gap-2" style="font-size:13px;color:#5c5c5a;cursor:pointer">

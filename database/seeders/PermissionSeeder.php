@@ -73,6 +73,10 @@ class PermissionSeeder extends Seeder
 
         // ── Settings ───────────────────────────────────────────────────────
         ['settings.manage',     'Manage settings',      'Settings',  'Configure system-wide settings (Slack, notifications, etc.)',  null],
+
+        // ── HR ─────────────────────────────────────────────────────────────
+        ['hr.view',             'View HR profiles',     'HR',        'View employee list and profiles',                              null],
+        ['hr.manage',           'Manage HR',            'HR',        'Create, edit, terminate employees and contracts',              'hr.view'],
     ];
 
     public function run(): void

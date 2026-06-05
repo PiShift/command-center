@@ -32,6 +32,10 @@ use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\InvoiceReminderController;
 use App\Http\Controllers\SettingsNotificationController;
+use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeContractController;
+use App\Http\Controllers\EmployeeDocumentController;
+use App\Http\Controllers\ContractTemplateController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -196,4 +200,26 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::get('/settings/notifications',              [SettingsNotificationController::class, 'show'])->name('settings.notifications');
     Route::patch('/settings/notifications',            [SettingsNotificationController::class, 'update'])->name('settings.notifications.update');
     Route::post('/settings/notifications/test-slack',  [SettingsNotificationController::class, 'testSlack'])->name('settings.notifications.test-slack');
+
+    // ── HR Module ─────────────────────────────────────────────────────────────
+    Route::resource('employees', EmployeeController::class)->names('employees');
+    Route::post('employees/{employee}/avatar',                                 [EmployeeController::class, 'uploadAvatar'])->name('employees.avatar');
+    Route::get('employees/{employee}/contracts/create',                        [EmployeeContractController::class, 'create'])->name('employees.contracts.create');
+    Route::post('employees/{employee}/contracts',                              [EmployeeContractController::class, 'store'])->name('employees.contracts.store');
+    Route::get('employees/{employee}/contracts/{contract}/edit',               [EmployeeContractController::class, 'edit'])->name('employees.contracts.edit');
+    Route::patch('employees/{employee}/contracts/{contract}',                  [EmployeeContractController::class, 'update'])->name('employees.contracts.update');
+    Route::get('employees/{employee}/contracts/{contract}/download',           [EmployeeContractController::class, 'download'])->name('employees.contracts.download');
+    Route::post('employees/{employee}/contracts/{contract}/activate',          [EmployeeContractController::class, 'activate'])->name('employees.contracts.activate');
+    Route::post('employees/{employee}/contracts/{contract}/upload-signed',     [EmployeeContractController::class, 'uploadSigned'])->name('employees.contracts.upload-signed');
+    Route::post('employees/{employee}/documents',                              [EmployeeDocumentController::class, 'store'])->name('employees.documents.store');
+    Route::delete('employees/{employee}/documents/{document}',                 [EmployeeDocumentController::class, 'destroy'])->name('employees.documents.destroy');
+
+    // Contract Templates
+    Route::get('hr/contract-templates',                                            [ContractTemplateController::class, 'index'])->name('contract-templates.index');
+    Route::get('hr/contract-templates/create',                                     [ContractTemplateController::class, 'create'])->name('contract-templates.create');
+    Route::post('hr/contract-templates',                                           [ContractTemplateController::class, 'store'])->name('contract-templates.store');
+    Route::get('hr/contract-templates/{contractTemplate}/edit',                    [ContractTemplateController::class, 'edit'])->name('contract-templates.edit');
+    Route::put('hr/contract-templates/{contractTemplate}',                         [ContractTemplateController::class, 'update'])->name('contract-templates.update');
+    Route::delete('hr/contract-templates/{contractTemplate}',                      [ContractTemplateController::class, 'destroy'])->name('contract-templates.destroy');
+    Route::post('hr/contract-templates/{contractTemplate}/preview',                [ContractTemplateController::class, 'preview'])->name('contract-templates.preview');
 });

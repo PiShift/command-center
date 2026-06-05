@@ -40,6 +40,7 @@
                         message:         detail.message,
                         conversation_id: detail.conversationId,
                         context:         detail.context,
+                        status_snapshot: detail.statusSnapshot,
                     }),
                 });
                 if (!response.ok) {
@@ -227,22 +228,14 @@
                 {{-- Stat pills — highlight when context enriched --}}
                 @if($projectId)
                 @php
-                    $selDocs    = count($selectedDocumentIds);
-                    $selSprints = count($selectedSprintIds);
-                    $selTasks   = count($selectedTaskIds);
-                    $selBacklog = count($selectedBacklogIds);
+                    $selDocs           = count($selectedDocumentIds);
+                    $activePresetCount = count($activePresets);
                 @endphp
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $selDocs > 0 ? 'bg-indigo-50 text-indigo-700' : 'bg-surface text-muted' }}">
                     @if($selDocs > 0){{ $selDocs }}/{{ $documentsCount }}@else{{ $documentsCount }}@endif doc{{ $documentsCount !== 1 ? 's' : '' }}
                 </span>
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $selSprints > 0 ? 'bg-blue-50 text-blue-700' : 'bg-surface text-muted' }}">
-                    @if($selSprints > 0){{ $selSprints }}/{{ $activeSprintsCount }}@else{{ $activeSprintsCount }}@endif sprint{{ $activeSprintsCount !== 1 ? 's' : '' }}
-                </span>
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $selTasks > 0 ? 'bg-green-50 text-green-700' : 'bg-surface text-muted' }}">
-                    @if($selTasks > 0){{ $selTasks }}/{{ $tasksCount }}@else{{ $tasksCount }}@endif task{{ $tasksCount !== 1 ? 's' : '' }}
-                </span>
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $selBacklog > 0 ? 'bg-amber-50 text-amber-700' : 'bg-surface text-muted' }}">
-                    @if($selBacklog > 0){{ $selBacklog }}/{{ $backlogCount }}@else{{ $backlogCount }}@endif backlog
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $activePresetCount > 0 ? 'bg-blue-50 text-blue-700' : 'bg-surface text-muted' }}">
+                    @if($activePresetCount > 0){{ $activePresetCount }} preset{{ $activePresetCount !== 1 ? 's' : '' }}@else{{ $activeSprintsCount }} sprint{{ $activeSprintsCount !== 1 ? 's' : '' }}@endif
                 </span>
 
                 {{-- New chat button —— calls PHP method to create fresh conversation --}}
@@ -260,53 +253,19 @@
             </div>
         </div>
 
-        {{-- ── Context (collapsible — sprints, tasks, backlog, file) ─────── --}}
+        {{-- ── Context (collapsible — presets + documents + file upload) ── --}}
         @if($projectId)
         <div
             x-data="{
                 open: false,
-                sprintsOpen: true,
-                tasksOpen: false,
-                backlogOpen: false,
-                taskSearch: '',
-                backlogSearch: '',
-                showMoreTasks: false,
-                showMoreBacklog: false,
-                allTasks: @js($availableTasks),
-                allBacklog: @js($availableBacklogItems),
-                selectedTaskIds: @entangle('selectedTaskIds').live,
-                selectedBacklogIds: @entangle('selectedBacklogIds').live,
+                activePresets: @entangle('activePresets').live,
                 selectedDocumentIds: @entangle('selectedDocumentIds').live,
                 allDocuments: @js($projectDocuments),
-                get filteredTasks() {
-                    const q = this.taskSearch.toLowerCase();
-                    return q ? this.allTasks.filter(t => t.title.toLowerCase().includes(q)) : this.allTasks;
+                togglePreset(name) {
+                    const i = this.activePresets.indexOf(name);
+                    i >= 0 ? this.activePresets.splice(i, 1) : this.activePresets.push(name);
                 },
-                get filteredBacklog() {
-                    const q = this.backlogSearch.toLowerCase();
-                    return q ? this.allBacklog.filter(b => b.title.toLowerCase().includes(q)) : this.allBacklog;
-                },
-                get visibleTasks() {
-                    return this.showMoreTasks ? this.filteredTasks : this.filteredTasks.slice(0, 10);
-                },
-                get visibleBacklog() {
-                    return this.showMoreBacklog ? this.filteredBacklog : this.filteredBacklog.slice(0, 10);
-                },
-                toggleTask(id) {
-                    const i = this.selectedTaskIds.indexOf(id);
-                    i >= 0 ? this.selectedTaskIds.splice(i, 1) : this.selectedTaskIds.push(id);
-                },
-                toggleBacklog(id) {
-                    const i = this.selectedBacklogIds.indexOf(id);
-                    i >= 0 ? this.selectedBacklogIds.splice(i, 1) : this.selectedBacklogIds.push(id);
-                },
-                statusColor(s) {
-                    const map = { active: '#15803d', draft: '#6b7280', completed: '#1d4ed8', done: '#15803d', in_progress: '#1d4ed8', todo: '#6b7280', refined: '#1d4ed8', raw: '#6b7280' };
-                    return map[s] ?? '#6b7280';
-                },
-                priorityColor(p) {
-                    return p === 'high' ? '#b94040' : p === 'medium' ? '#9a7a1a' : '#6b7280';
-                }
+                isActive(name) { return this.activePresets.includes(name); }
             }"
             class="shrink-0 bg-white border-b border-hairline"
         >
@@ -341,145 +300,48 @@
                 </div>
                 @endif
 
-                {{-- Sprints subsection --}}
-                @if(count($availableSprints) > 0)
+                {{-- Bulk context presets --}}
                 <div>
-                    <button
-                        x-on:click="sprintsOpen = !sprintsOpen"
-                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted w-full text-left mb-1.5 hover:text-ink transition-colors"
-                    >
-                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"
-                            x-bind:style="sprintsOpen ? 'transform:rotate(90deg)' : ''" style="transition:transform 0.15s">
-                            <polyline points="9 18 15 12 9 6"/>
-                        </svg>
-                        Sprints
-                    </button>
-                    <div x-show="sprintsOpen" x-cloak class="flex flex-col gap-0.5">
-                        @foreach($availableSprints as $sprint)
-                        @php
-                            $sBadge = match($sprint['status']) {
-                                'active'    => 'bg-green-50 text-green-700',
-                                'draft'     => 'bg-gray-100 text-gray-500',
-                                'completed' => 'bg-blue-50 text-blue-700',
-                                default     => 'bg-gray-100 text-gray-500',
-                            };
-                        @endphp
-                        <label class="flex items-center gap-2 cursor-pointer py-0.5 group">
-                            <input
-                                type="checkbox"
-                                wire:model.live="selectedSprintIds"
-                                value="{{ $sprint['id'] }}"
-                                class="rounded cursor-pointer accent-accent shrink-0"
-                            >
-                            <span class="flex-1 text-[12px] text-ink truncate group-hover:text-accent transition-colors">{{ $sprint['name'] }}</span>
-                            <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium {{ $sBadge }}">{{ $sprint['status'] }}</span>
-                            <span class="text-[10px] text-muted shrink-0">{{ $sprint['task_count'] }}t</span>
-                        </label>
-                        @endforeach
+                    <p class="text-[11px] font-bold uppercase tracking-wider text-muted mb-2">Context presets</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button type="button"
+                            x-on:click="togglePreset('current_sprint')"
+                            :class="isActive('current_sprint')
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-white text-dim border-line hover:border-accent hover:text-accent'"
+                            class="px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors cursor-pointer">
+                            Current sprint
+                        </button>
+                        <button type="button"
+                            x-on:click="togglePreset('active_sprints')"
+                            :class="isActive('active_sprints')
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-white text-dim border-line hover:border-accent hover:text-accent'"
+                            class="px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors cursor-pointer">
+                            Active sprints
+                        </button>
+                        <button type="button"
+                            x-on:click="togglePreset('backlog')"
+                            :class="isActive('backlog')
+                                ? 'bg-amber-500 text-white border-amber-500'
+                                : 'bg-white text-dim border-line hover:border-accent hover:text-accent'"
+                            class="px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors cursor-pointer">
+                            Backlog
+                        </button>
+                        <button type="button"
+                            x-on:click="togglePreset('full_project')"
+                            :class="isActive('full_project')
+                                ? 'bg-accent text-white border-accent'
+                                : 'bg-white text-dim border-line hover:border-accent hover:text-accent'"
+                            class="px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors cursor-pointer">
+                            Full project
+                        </button>
                     </div>
+                    <p x-show="isActive('full_project')" x-cloak
+                       class="mt-1.5 text-[11px] text-amber-600 leading-snug">
+                        This adds significant context — use for planning sessions.
+                    </p>
                 </div>
-                @endif
-
-                {{-- Tasks subsection --}}
-                @if(count($availableTasks) > 0)
-                <div>
-                    <button
-                        x-on:click="tasksOpen = !tasksOpen"
-                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted w-full text-left hover:text-ink transition-colors"
-                    >
-                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"
-                            x-bind:style="tasksOpen ? 'transform:rotate(90deg)' : ''" style="transition:transform 0.15s">
-                            <polyline points="9 18 15 12 9 6"/>
-                        </svg>
-                        Tasks
-                    </button>
-                    <div x-show="tasksOpen" x-cloak class="mt-1.5 space-y-1.5">
-                        <input
-                            type="search"
-                            x-model="taskSearch"
-                            placeholder="Search tasks…"
-                            class="w-full text-[12px] text-ink bg-surface border border-line rounded-md px-2.5 py-1 outline-none focus:border-accent transition-colors placeholder:text-muted"
-                        >
-                        <div class="flex flex-col gap-0.5">
-                            <template x-for="task in visibleTasks" :key="task.id">
-                                <label class="flex items-center gap-2 cursor-pointer py-0.5 group">
-                                    <input
-                                        type="checkbox"
-                                        x-bind:checked="selectedTaskIds.includes(task.id)"
-                                        x-on:change="toggleTask(task.id)"
-                                        class="rounded cursor-pointer accent-accent shrink-0"
-                                    >
-                                    <span x-text="task.title" class="flex-1 text-[12px] text-ink truncate group-hover:text-accent transition-colors"></span>
-                                    <span
-                                        x-text="task.status.replace('_', ' ')"
-                                        x-bind:style="'color:' + statusColor(task.status)"
-                                        class="text-[10px] font-medium shrink-0"
-                                    ></span>
-                                    <span
-                                        x-text="task.priority"
-                                        x-bind:style="'color:' + priorityColor(task.priority)"
-                                        class="text-[10px] font-medium shrink-0"
-                                    ></span>
-                                </label>
-                            </template>
-                        </div>
-                        <button
-                            x-show="filteredTasks.length > 10 && !showMoreTasks"
-                            x-on:click="showMoreTasks = true; taskSearch = ''"
-                            class="text-[11px] text-accent hover:underline cursor-pointer"
-                            x-text="'Show ' + (filteredTasks.length - 10) + ' more…'"
-                        ></button>
-                    </div>
-                </div>
-                @endif
-
-                {{-- Backlog subsection --}}
-                @if(count($availableBacklogItems) > 0)
-                <div>
-                    <button
-                        x-on:click="backlogOpen = !backlogOpen"
-                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted w-full text-left hover:text-ink transition-colors"
-                    >
-                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"
-                            x-bind:style="backlogOpen ? 'transform:rotate(90deg)' : ''" style="transition:transform 0.15s">
-                            <polyline points="9 18 15 12 9 6"/>
-                        </svg>
-                        Backlog items
-                    </button>
-                    <div x-show="backlogOpen" x-cloak class="mt-1.5 space-y-1.5">
-                        <input
-                            type="search"
-                            x-model="backlogSearch"
-                            placeholder="Search backlog…"
-                            class="w-full text-[12px] text-ink bg-surface border border-line rounded-md px-2.5 py-1 outline-none focus:border-accent transition-colors placeholder:text-muted"
-                        >
-                        <div class="flex flex-col gap-0.5">
-                            <template x-for="item in visibleBacklog" :key="item.id">
-                                <label class="flex items-center gap-2 cursor-pointer py-0.5 group">
-                                    <input
-                                        type="checkbox"
-                                        x-bind:checked="selectedBacklogIds.includes(item.id)"
-                                        x-on:change="toggleBacklog(item.id)"
-                                        class="rounded cursor-pointer accent-accent shrink-0"
-                                    >
-                                    <span x-text="item.title" class="flex-1 text-[12px] text-ink truncate group-hover:text-accent transition-colors"></span>
-                                    <span
-                                        x-text="item.status"
-                                        x-bind:style="'color:' + statusColor(item.status)"
-                                        class="text-[10px] font-medium shrink-0"
-                                    ></span>
-                                </label>
-                            </template>
-                        </div>
-                        <button
-                            x-show="filteredBacklog.length > 10 && !showMoreBacklog"
-                            x-on:click="showMoreBacklog = true; backlogSearch = ''"
-                            class="text-[11px] text-accent hover:underline cursor-pointer"
-                            x-text="'Show ' + (filteredBacklog.length - 10) + ' more…'"
-                        ></button>
-                    </div>
-                </div>
-                @endif
 
                 {{-- File upload --}}
                 <div>

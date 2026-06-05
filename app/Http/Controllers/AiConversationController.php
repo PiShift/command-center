@@ -25,6 +25,7 @@ class AiConversationController extends Controller
             'message'         => ['required', 'string', 'max:10000'],
             'conversation_id' => ['nullable', 'integer', 'exists:ai_conversations,id'],
             'context'         => ['nullable', 'string', 'max:50000'],
+            'status_snapshot' => ['nullable', 'string', 'max:5000'],
         ]);
 
         $project = Project::findOrFail($data['project_id']);
@@ -69,7 +70,7 @@ class AiConversationController extends Controller
             ])
             ->toArray();
 
-        $agent   = new ConversationAgent($project, $documents, $data['context'] ?? '', $history);
+        $agent   = new ConversationAgent($project, $documents, $data['context'] ?? '', $history, $data['status_snapshot'] ?? '');
         $message = $data['message'];
 
         return new StreamedResponse(function () use ($agent, $message) {
