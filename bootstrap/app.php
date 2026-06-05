@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'auth'        => \App\Http\Middleware\Authenticate::class,
             'war-room'    => \App\Http\Middleware\RequireWarRoomAccess::class,
+            'permission'  => \App\Http\Middleware\RequirePermission::class,
             'require-2fa' => \App\Http\Middleware\RequiresTwoFactor::class,
             'api.secret'  => \App\Http\Middleware\ApiSecretKey::class,
         ]);

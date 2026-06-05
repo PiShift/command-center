@@ -71,6 +71,9 @@ class PermissionSeeder extends Seeder
         ['expenses.confirm',    'Confirm expenses',     'Expenses',  'Confirm draft expenses and bulk confirm',                 'expenses.view'],
         ['expenses.manage',     'Manage expenses',      'Expenses',  'Manage recurring charges, monthly budgets, categories, delete expenses', 'expenses.confirm'],
 
+        // ── Finance ────────────────────────────────────────────────────────
+        ['finance.manage',      'Manage finance',       'Finance',   'Manage company bank accounts and finance account settings', null],
+
         // ── Settings ───────────────────────────────────────────────────────
         ['settings.manage',     'Manage settings',      'Settings',  'Configure system-wide settings (Slack, notifications, etc.)',  null],
 

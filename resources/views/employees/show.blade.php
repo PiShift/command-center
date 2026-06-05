@@ -160,6 +160,182 @@
                             </div>
                             @endif
                         </div>
+
+                        {{-- Payment Details --}}
+                        <div class="rounded-xl overflow-hidden" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)"
+                             x-data="{ addOpen: false }">
+                            <div class="px-5 py-4 flex items-center justify-between" style="border-bottom:1px solid #eeeee9">
+                                <p class="font-semibold text-ink" style="font-size:14px">Payment Details</p>
+                                @if(auth()->user()->hasPermission('hr.manage'))
+                                <button type="button"
+                                        @click="addOpen = !addOpen"
+                                        class="font-medium rounded-lg px-3 py-1.5 text-white transition-colors bg-accent hover:bg-accent-hover cursor-pointer"
+                                        style="font-size:13px">
+                                    + Add Bank Account
+                                </button>
+                                @endif
+                            </div>
+
+                            <div class="px-5 py-4 space-y-3">
+                                @if($employee->bankAccounts->isEmpty())
+                                    <p class="text-muted" style="font-size:13px">No bank account added yet.</p>
+                                @else
+                                    @foreach($employee->bankAccounts as $bankAccount)
+                                    <div class="rounded-lg border border-hairline bg-canvas p-3" x-data="{ editOpen: false }">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div>
+                                                <div class="flex items-center gap-2 flex-wrap">
+                                                    <p class="font-medium text-ink" style="font-size:13.5px">{{ $bankAccount->bank_name }}</p>
+                                                    @if($bankAccount->is_primary)
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold bg-success-light text-success-text">Primary</span>
+                                                    @endif
+                                                </div>
+                                                <p class="text-dim mt-0.5" style="font-size:13px">{{ $bankAccount->account_number }}</p>
+                                                @if($bankAccount->account_holder_name)
+                                                <p class="text-muted mt-0.5" style="font-size:12px">Holder: {{ $bankAccount->account_holder_name }}</p>
+                                                @endif
+                                                @if($bankAccount->notes)
+                                                <p class="text-muted mt-1" style="font-size:12px">{{ $bankAccount->notes }}</p>
+                                                @endif
+                                            </div>
+
+                                            @if(auth()->user()->hasPermission('hr.manage'))
+                                            <div class="flex items-center gap-2 flex-wrap justify-end">
+                                                @unless($bankAccount->is_primary)
+                                                <form method="POST" action="{{ route('employees.bank-accounts.set-primary', [$employee, $bankAccount]) }}">
+                                                    @csrf
+                                                    <button type="submit"
+                                                            class="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-success-light border border-[#c6e8d5] text-success-text hover:opacity-90 transition cursor-pointer">
+                                                        Set as primary
+                                                    </button>
+                                                </form>
+                                                @endunless
+
+                                                <button type="button"
+                                                        @click="editOpen = !editOpen"
+                                                        class="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-surface border border-line text-dim hover:text-ink transition-colors cursor-pointer">
+                                                    Edit
+                                                </button>
+
+                                                <form method="POST" action="{{ route('employees.bank-accounts.destroy', [$employee, $bankAccount]) }}"
+                                                      onsubmit="return confirm('Delete this bank account?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit"
+                                                            @if($employee->bankAccounts->count() <= 1) disabled @endif
+                                                            class="text-xs font-medium px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer {{ $employee->bankAccounts->count() <= 1 ? 'bg-surface border-line text-muted cursor-not-allowed' : 'bg-danger-light border-danger-border text-danger hover:bg-[#ffe0e0]' }}">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            </div>
+                                            @endif
+                                        </div>
+
+                                        @if(auth()->user()->hasPermission('hr.manage'))
+                                        <div x-show="editOpen" x-cloak x-transition class="mt-3 pt-3 border-t border-hairline">
+                                            <form method="POST" action="{{ route('employees.bank-accounts.update', [$employee, $bankAccount]) }}" class="space-y-3">
+                                                @csrf
+                                                @method('PUT')
+                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Bank Name <span class="text-red-500">*</span></label>
+                                                        <input type="text" name="bank_name" required value="{{ old('bank_name', $bankAccount->bank_name) }}"
+                                                               class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                                               style="font-size:13px">
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Account Number <span class="text-red-500">*</span></label>
+                                                        <input type="text" name="account_number" required value="{{ old('account_number', $bankAccount->account_number) }}"
+                                                               class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                                               style="font-size:13px">
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Account Holder Name</label>
+                                                    <input type="text" name="account_holder_name" value="{{ old('account_holder_name', $bankAccount->account_holder_name) }}"
+                                                           class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                                           style="font-size:13px">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Notes</label>
+                                                    <input type="text" name="notes" value="{{ old('notes', $bankAccount->notes) }}"
+                                                           class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                                           style="font-size:13px">
+                                                </div>
+                                                <label class="inline-flex items-center gap-2 text-dim" style="font-size:12px">
+                                                    <input type="checkbox" name="is_primary" value="1" @checked($bankAccount->is_primary) style="accent-color:#D97757">
+                                                    Set as primary
+                                                </label>
+                                                <div class="flex items-center justify-end gap-2">
+                                                    <button type="button" @click="editOpen = false"
+                                                            class="text-xs font-medium px-3 py-1.5 rounded-lg bg-surface border border-line text-dim hover:text-ink transition-colors cursor-pointer">
+                                                        Cancel
+                                                    </button>
+                                                    <button type="submit"
+                                                            class="text-xs font-medium px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white transition-colors cursor-pointer">
+                                                        Save
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                        @endif
+                                    </div>
+                                    @endforeach
+                                @endif
+
+                                @if(auth()->user()->hasPermission('hr.manage') && $employee->bankAccounts->count() <= 1)
+                                <p class="text-muted" style="font-size:12px">At least one bank account must remain on file.</p>
+                                @endif
+                            </div>
+
+                            @if(auth()->user()->hasPermission('hr.manage'))
+                            <div x-show="addOpen" x-cloak x-transition class="px-5 py-4 border-t border-hairline" style="background:#faf9f5">
+                                <form method="POST" action="{{ route('employees.bank-accounts.store', $employee) }}" class="space-y-3">
+                                    @csrf
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Bank Name <span class="text-red-500">*</span></label>
+                                            <input type="text" name="bank_name" required
+                                                   class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                                   style="font-size:13px" placeholder="e.g. BNM">
+                                        </div>
+                                        <div>
+                                            <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Account Number <span class="text-red-500">*</span></label>
+                                            <input type="text" name="account_number" required
+                                                   class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                                   style="font-size:13px" placeholder="Account number">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Account Holder Name</label>
+                                        <input type="text" name="account_holder_name"
+                                               class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                               style="font-size:13px" placeholder="Optional">
+                                    </div>
+                                    <div>
+                                        <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Notes</label>
+                                        <input type="text" name="notes"
+                                               class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                               style="font-size:13px" placeholder="Optional">
+                                    </div>
+                                    <label class="inline-flex items-center gap-2 text-dim" style="font-size:12px">
+                                        <input type="checkbox" name="is_primary" value="1" style="accent-color:#D97757">
+                                        Set as primary
+                                    </label>
+                                    <div class="flex items-center justify-end gap-2">
+                                        <button type="button" @click="addOpen = false"
+                                                class="text-xs font-medium px-3 py-1.5 rounded-lg bg-surface border border-line text-dim hover:text-ink transition-colors cursor-pointer">
+                                            Cancel
+                                        </button>
+                                        <button type="submit"
+                                                class="text-xs font-medium px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white transition-colors cursor-pointer">
+                                            Save
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                            @endif
+                        </div>
                     </div>
 
                     {{-- Right: current contract card --}}

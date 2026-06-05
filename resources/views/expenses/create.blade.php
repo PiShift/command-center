@@ -105,6 +105,25 @@
                 </div>
             </div>
 
+            <div>
+                <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px">Company Account *</label>
+                <div style="position:relative">
+                    <select name="company_account_id" required
+                            style="width:100%;padding:10px 32px 10px 12px;font-size:14px;border:1px solid #e5e4df;border-radius:8px;background:#faf9f5;color:#141413;outline:none;appearance:none;box-sizing:border-box">
+                        @foreach($companyAccounts as $account)
+                            <option value="{{ $account->id }}"
+                                @selected((string) old('company_account_id', $defaultCompanyAccountId) === (string) $account->id)>
+                                {{ $account->name }}
+                                @if($account->bank_name)
+                                    — {{ $account->bank_name }}
+                                @endif
+                            </option>
+                        @endforeach
+                    </select>
+                    <svg style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#8c8c8a" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+            </div>
+
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
                 {{-- Amount --}}
                 <div>

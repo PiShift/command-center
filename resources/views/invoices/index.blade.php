@@ -48,16 +48,16 @@
                     </div>
                 </div>
                 <div>
-                    <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;display:block;margin-bottom:5px">Method *</label>
+                    <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;display:block;margin-bottom:5px">Company Account *</label>
                     <div style="position:relative">
-                        <select name="method" required
+                        <select name="company_account_id" required
                                 style="width:100%;padding:9px 32px 9px 11px;font-size:13px;border:1px solid #e5e4df;border-radius:8px;background:#faf9f5;color:#141413;outline:none;appearance:none;box-sizing:border-box">
-                            <option value="">Select method…</option>
-                            <option value="bank_transfer">Bank Transfer</option>
-                            <option value="cash">Cash</option>
-                            <option value="check">Check</option>
-                            <option value="card">Card</option>
-                            <option value="other">Other</option>
+                            <option value="">Select account…</option>
+                            @foreach($companyAccounts as $account)
+                                <option value="{{ $account->id }}" @selected($account->is_default)>
+                                    {{ $account->name }}
+                                </option>
+                            @endforeach
                         </select>
                         <svg style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#8c8c8a" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
                     </div>
@@ -76,7 +76,7 @@
                 </div>
                 <div>
                     <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;display:block;margin-bottom:5px">Proof (jpg/png/pdf, max 5 MB)</label>
-                    <input type="file" name="proof" accept=".jpg,.jpeg,.png,.pdf" style="width:100%;font-size:13px;color:#5c5c5a">
+                    <x-file-upload name="proof" accept=".jpg,.jpeg,.png,.pdf" :max-size-mb="5" label="Drop payment proof here" />
                 </div>
             </div>
             <div style="display:flex;gap:10px;margin-top:20px">

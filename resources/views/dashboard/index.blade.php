@@ -59,7 +59,7 @@
 @endphp
 
 {{-- Row 1: Financial --}}
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+<div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
 
     {{-- Revenue this month --}}
     <div class="bg-white border border-line rounded-xl p-3 sm:p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)] flex flex-col">
@@ -80,7 +80,7 @@
     </div>
 
     {{-- Outstanding --}}
-    <div class="bg-white border border-line rounded-xl p-3 sm:p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+    <div class="bg-white border border-line rounded-xl p-3 sm:p-5 shadow-card">
         <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted mb-1">Outstanding</p>
         <p class="text-lg sm:text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($outstandingAmount) }}</p>
         <p class="text-[10px] sm:text-[11px] text-muted mb-1">{{ $outstandingInvoicesCount }} invoice{{ $outstandingInvoicesCount != 1 ? 's' : '' }} unpaid</p>
@@ -115,6 +115,26 @@
         <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted mb-1">Net this month</p>
         <p class="text-lg sm:text-3xl font-bold leading-none mb-1 {{ $netThisMonth >= 0 ? 'text-[#2e7d55]' : 'text-[#b94040]' }}">{{ $fmt($netThisMonth) }}</p>
         <p class="text-[10px] sm:text-[11px] text-muted">Revenue − Expenses</p>
+    </div>
+
+    {{-- Bank accounts summary --}}
+    <div class="bg-white border border-line rounded-xl p-3 sm:p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted mb-2">Bank Accounts</p>
+
+        @if($bankAccounts->isEmpty())
+            <p class="text-[11px] text-muted">No company accounts configured.</p>
+        @else
+            <div class="space-y-1.5">
+                @foreach($bankAccounts as $account)
+                    <div class="flex items-center justify-between gap-2 text-[11px] sm:text-[12px]">
+                        <span class="text-dim truncate">{{ $account->name }}</span>
+                        <span class="font-semibold {{ $account->computed_balance >= 0 ? 'text-success-text' : 'text-danger' }}">
+                            {{ $fmt($account->computed_balance) }}
+                        </span>
+                    </div>
+                @endforeach
+            </div>
+        @endif
     </div>
 
 </div>

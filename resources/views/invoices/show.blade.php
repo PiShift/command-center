@@ -258,7 +258,7 @@
                 <thead>
                     <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
                         <th class="px-6 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Date</th>
-                        <th class="px-4 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Method</th>
+                        <th class="px-4 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Bank Account</th>
                         <th class="px-4 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Reference</th>
                         <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Amount</th>
                     </tr>
@@ -267,7 +267,7 @@
                     @foreach($invoice->payments as $payment)
                     <tr style="border-bottom:1px solid #eeeee9">
                         <td class="px-6 py-3" style="color:#5c5c5a;font-size:12px">{{ $payment->payment_date->format('M d, Y') }}</td>
-                        <td class="px-4 py-3" style="color:#5c5c5a">{{ str_replace('_', ' ', ucfirst($payment->method)) }}</td>
+                        <td class="px-4 py-3" style="color:#5c5c5a">{{ $payment->companyAccount?->name ?? '—' }}</td>
                         <td class="px-4 py-3" style="color:#8c8c8a;font-size:12px">{{ $payment->reference ?? '—' }}</td>
                         <td class="px-4 py-3 text-right" style="font-weight:500;color:#2e7d55">{{ $invoice->currency }} {{ number_format($payment->amount, 2) }}</td>
                     </tr>
@@ -315,6 +315,7 @@
                 <div>
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">{{ $field['label'] }}</label>
                     <input type="{{ $field['type'] }}" name="{{ $field['name'] }}" {{ $field['attrs'] }}
+                           value="{{ old($field['name'], $field['name'] === 'amount' ? number_format((float) $invoice->amount_due, 2, '.', '') : ($field['name'] === 'payment_date' ? now()->toDateString() : '')) }}"
                            class="w-full rounded-lg text-[13px] px-3 py-2"
                            style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none"
                            onfocus="this.style.borderColor='#D97757';this.style.background='#fff'"
@@ -322,12 +323,17 @@
                 </div>
                 @endforeach
                 <div>
-                    <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Method</label>
+                    <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Company Account</label>
                     <div class="relative">
-                        <select name="method" class="w-full appearance-none rounded-lg text-[13px] pl-3 pr-8 py-2"
+                        <select name="company_account_id" required class="w-full appearance-none rounded-lg text-[13px] pl-3 pr-8 py-2"
                                 style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none">
-                            @foreach(['bank_transfer'=>'Bank Transfer','cash'=>'Cash','check'=>'Check','card'=>'Card','other'=>'Other'] as $v=>$l)
-                                <option value="{{ $v }}">{{ $l }}</option>
+                            @foreach($companyAccounts as $account)
+                                <option value="{{ $account->id }}" {{ $account->is_default ? 'selected' : '' }}>
+                                    {{ $account->name }}
+                                    @if($account->bank_name)
+                                        — {{ $account->bank_name }}
+                                    @endif
+                                </option>
                             @endforeach
                         </select>
                         <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style="color:#8c8c8a">
