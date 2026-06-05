@@ -20,6 +20,7 @@ class ConversationAgent implements Agent, Conversational
         private array $documents = [],
         private string $additionalContext = '',
         private array $history = [],
+        private string $statusSnapshot = '',
     ) {}
 
     /**
@@ -39,6 +40,7 @@ class ConversationAgent implements Agent, Conversational
                 return $heading . "\n" . ($content !== '' ? $content : 'No content.');
             })->implode("\n\n");
         $context = $this->additionalContext ?: 'None.';
+        $snapshot = $this->statusSnapshot !== '' ? "\n\n" . trim($this->statusSnapshot) : '';
 
         return <<<INSTRUCTIONS
         You are an AI assistant embedded in a project management tool for software teams.
@@ -49,7 +51,7 @@ class ConversationAgent implements Agent, Conversational
         {$documents}
 
         Additional Context:
-        {$context}
+        {$context}{$snapshot}
 
         Your role is to help the team with planning, answering questions about the project, suggesting tasks, helping break down features into sprints, and providing technical guidance. Be concise, actionable, and grounded in the project context.
 

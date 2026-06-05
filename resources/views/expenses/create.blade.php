@@ -152,8 +152,7 @@
             {{-- Receipt --}}
             <div>
                 <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px">Receipt (jpg/jpeg/png/pdf — max 10 MB)</label>
-                <input type="file" name="receipt" accept=".jpg,.jpeg,.png,.pdf"
-                       style="font-size:13px;color:#5c5c5a">
+                <x-file-upload name="receipt" accept=".jpg,.jpeg,.png,.pdf" />
             </div>
 
             {{-- Recurring toggle --}}

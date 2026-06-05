@@ -123,4 +123,11 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    // ── Company / HR ─────────────────────────────────────────────────────────
+    'company_name'          => env('COMPANY_NAME', 'PiShift'),
+    'company_address'       => env('COMPANY_ADDRESS', 'Nouakchott, Mauritanie'),
+    'company_registration'  => env('COMPANY_REGISTRATION', ''),
+    'representative_name'   => env('COMPANY_REPRESENTATIVE_NAME', ''),
+    'representative_title'  => env('COMPANY_REPRESENTATIVE_TITLE', 'Direction Générale'),
+
 ];
