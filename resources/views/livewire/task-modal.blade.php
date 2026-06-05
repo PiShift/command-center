@@ -618,10 +618,9 @@
     </div>
 </div>
 
-{{-- ── Guide Drawer (teleported outside modal overflow) ──────────────── --}}
+{{-- ── Guide Drawer ─────────────────────────────────────────────────── --}}
 @if($task && ! $isNew)
-<template x-teleport="body">
-    {{-- Backdrop (only dims the area behind the drawer, above the modal) --}}
+    {{-- Backdrop --}}
     <div x-show="guideOpen"
          x-cloak
          x-transition:enter="transition-opacity duration-200"
@@ -636,7 +635,7 @@
     {{-- Drawer panel --}}
     <div x-show="guideOpen"
          x-cloak
-         x-transition:enter="transition-transform duration-250 ease-out"
+         x-transition:enter="transition-transform duration-200 ease-out"
          x-transition:enter-start="translate-x-full"
          x-transition:enter-end="translate-x-0"
          x-transition:leave="transition-transform duration-200 ease-in"
@@ -736,7 +735,6 @@
         @endif
 
     </div>
-</template>
 @endif
 
 @endif
