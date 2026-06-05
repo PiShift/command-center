@@ -83,8 +83,8 @@
 
 @if($open)
 {{-- Overlay --}}
-<div class="fixed inset-0 z-modal flex items-center justify-center p-4"
-     style="background: rgba(0,0,0,0.45)"
+<div class="fixed inset-0 flex items-center justify-center p-4"
+     style="z-index:40;background: rgba(0,0,0,0.45)"
      wire:click.self="close"
      x-on:keydown.escape.window="$wire.close()">
 
@@ -618,10 +618,9 @@
     </div>
 </div>
 
-{{-- ── Guide Drawer (teleported outside modal overflow) ──────────────── --}}
+{{-- ── Guide Drawer ─────────────────────────────────────────────────── --}}
 @if($task && ! $isNew)
-<template x-teleport="body">
-    {{-- Backdrop (only dims the area behind the drawer, above the modal) --}}
+    {{-- Backdrop --}}
     <div x-show="guideOpen"
          x-cloak
          x-transition:enter="transition-opacity duration-200"
@@ -631,19 +630,18 @@
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
          @click="guideOpen = false"
-         class="fixed inset-0 z-drawer bg-black/20"></div>
+         class="fixed inset-0 bg-black/20" style="z-index:60"></div>
 
     {{-- Drawer panel --}}
     <div x-show="guideOpen"
          x-cloak
-         x-transition:enter="transition-transform duration-250 ease-out"
+         x-transition:enter="transition-transform duration-200 ease-out"
          x-transition:enter-start="translate-x-full"
          x-transition:enter-end="translate-x-0"
          x-transition:leave="transition-transform duration-200 ease-in"
          x-transition:leave-start="translate-x-0"
          x-transition:leave-end="translate-x-full"
-         class="fixed inset-y-0 right-0 z-drawer-panel flex flex-col bg-white border-l border-line shadow-[0_0_60px_rgba(0,0,0,0.18)]"
-         style="width: 480px">
+         class="fixed inset-y-0 right-0 flex flex-col bg-white border-l border-line shadow-[0_0_60px_rgba(0,0,0,0.18)]" style="z-index:61;width:480px">
 
         {{-- Drawer header --}}
         <div class="flex items-center justify-between px-5 py-4 border-b border-hairline shrink-0">
@@ -737,7 +735,6 @@
         @endif
 
     </div>
-</template>
 @endif
 
 @endif
