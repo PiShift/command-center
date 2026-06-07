@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CompanyBankAccount;
 use App\Models\EmployeeProfile;
+use App\Models\LeaveType;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -91,6 +92,8 @@ class EmployeeController extends Controller
             'loans' => fn ($q) => $q->with(['companyAccount', 'repayments' => fn ($rq) => $rq->orderByDesc('repayment_date')->orderByDesc('id')])
                 ->orderByRaw("CASE status WHEN 'active' THEN 1 WHEN 'completed' THEN 2 WHEN 'cancelled' THEN 3 ELSE 4 END")
                 ->orderByDesc('started_at'),
+            'leaveRequests' => fn ($q) => $q->with(['leaveType', 'approver'])->orderByDesc('created_at'),
+            'leaveBalances' => fn ($q) => $q->with('leaveType')->where('year', now()->year),
         ]);
 
         $companyAccounts = CompanyBankAccount::query()
@@ -98,7 +101,9 @@ class EmployeeController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'bank_name', 'is_default']);
 
-        return view('employees.show', compact('employee', 'companyAccounts'));
+        $leaveTypes = LeaveType::active()->orderBy('name')->get();
+
+        return view('employees.show', compact('employee', 'companyAccounts', 'leaveTypes'));
     }
 
     public function uploadAvatar(Request $request, EmployeeProfile $employee)

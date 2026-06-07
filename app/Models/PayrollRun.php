@@ -62,12 +62,17 @@ class PayrollRun extends Model
     public function recalculateTotals(): void
     {
         $totalGross = (float) $this->entries()->sum('gross_amount');
-        $entries = $this->entries()->get(['advances_deducted', 'loans_deducted', 'other_deductions', 'skip_advances', 'skip_loans']);
+        $entries = $this->entries()->get(['advances_deducted', 'loans_deducted', 'other_deductions', 'unpaid_leave_deduction', 'skip_advances', 'skip_loans', 'skip_unpaid_leave']);
         $totalDeductions = (float) $entries->sum(function (PayrollEntry $entry) {
             $advances = (bool) $entry->skip_advances ? 0 : (float) $entry->advances_deducted;
             $loans = (bool) $entry->skip_loans ? 0 : (float) $entry->loans_deducted;
+            $otherDeductions = (float) $entry->other_deductions;
 
-            return $advances + $loans + (float) $entry->other_deductions;
+            if ($entry->skip_unpaid_leave) {
+                $otherDeductions -= (float) $entry->unpaid_leave_deduction;
+            }
+
+            return $advances + $loans + max(0, $otherDeductions);
         });
         $totalNet = (float) $this->entries()->sum('net_amount');
 

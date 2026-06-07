@@ -18,7 +18,9 @@ class PayrollEntry extends Model
         'skip_advances',
         'loans_deducted',
         'skip_loans',
+        'skip_unpaid_leave',
         'other_deductions',
+        'unpaid_leave_deduction',
         'bonuses',
         'net_amount',
         'status',
@@ -33,7 +35,9 @@ class PayrollEntry extends Model
         'skip_advances'      => 'boolean',
         'loans_deducted'     => 'decimal:2',
         'skip_loans'         => 'boolean',
+        'skip_unpaid_leave'  => 'boolean',
         'other_deductions'   => 'decimal:2',
+        'unpaid_leave_deduction' => 'decimal:2',
         'bonuses'            => 'decimal:2',
         'net_amount'         => 'decimal:2',
         'paid_at'            => 'datetime',
@@ -66,8 +70,13 @@ class PayrollEntry extends Model
 
     public function getTotalDeductionsAttribute(): float
     {
-        return (float) $this->advances_deducted
-            + (float) $this->loans_deducted
-            + (float) $this->other_deductions;
+        $otherDeductions = (float) $this->other_deductions;
+        if ($this->skip_unpaid_leave) {
+            $otherDeductions -= (float) $this->unpaid_leave_deduction;
+        }
+
+        return ($this->skip_advances ? 0.0 : (float) $this->advances_deducted)
+            + ($this->skip_loans ? 0.0 : (float) $this->loans_deducted)
+            + max(0, $otherDeductions);
     }
 }

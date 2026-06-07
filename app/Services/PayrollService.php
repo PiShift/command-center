@@ -6,6 +6,7 @@ use App\Models\EmployeeAdvance;
 use App\Models\EmployeeLoan;
 use App\Models\EmployeeLoanRepayment;
 use App\Models\EmployeeProfile;
+use App\Models\LeaveRequest;
 use App\Models\PayrollEntry;
 use App\Models\PayrollRun;
 use Carbon\Carbon;
@@ -15,6 +16,8 @@ use RuntimeException;
 
 class PayrollService
 {
+    public function __construct(private readonly LeaveService $leaveService) {}
+
     public function generateRun(Carbon $month): PayrollRun
     {
         $monthStart = $month->copy()->startOfMonth();
@@ -53,7 +56,17 @@ class PayrollService
                 ->get();
 
             $loansDeducted = (float) $activeLoans->sum(fn (EmployeeLoan $loan) => $loan->calculateNextInstallment($baseSalary));
-            $otherDeductions = 0.0;
+            $workingDaysInMonth = max(1, $this->leaveService->calculateWorkingDays($month->copy()->startOfMonth(), $month->copy()->endOfMonth()));
+            $unpaidLeaveDays = (float) LeaveRequest::query()
+                ->where('employee_id', $employee->id)
+                ->approved()
+                ->whereHas('leaveType', fn ($query) => $query->where('is_paid', false))
+                ->forMonth($month)
+                ->sum(DB::raw('COALESCE(days_actual, days_requested, 0)'));
+
+            $dailyRate = $baseSalary / $workingDaysInMonth;
+            $unpaidLeaveDeduction = round($unpaidLeaveDays * $dailyRate, 2);
+            $otherDeductions = $unpaidLeaveDeduction;
             $bonuses = 0.0;
             $grossAmount = $baseSalary + $bonuses;
             $netAmount = $grossAmount - $advancesDeducted - $loansDeducted - $otherDeductions;
@@ -67,6 +80,8 @@ class PayrollService
                 'advances_deducted' => $advancesDeducted,
                 'loans_deducted' => $loansDeducted,
                 'other_deductions' => $otherDeductions,
+                'unpaid_leave_deduction' => $unpaidLeaveDeduction,
+                'skip_unpaid_leave' => false,
                 'bonuses' => $bonuses,
                 'net_amount' => $netAmount,
             ]);
@@ -95,10 +110,15 @@ class PayrollService
                     $entry->loans_deducted = 0;
                 }
 
+                $otherDeductions = (float) $entry->other_deductions;
+                if ($entry->skip_unpaid_leave) {
+                    $otherDeductions -= (float) $entry->unpaid_leave_deduction;
+                }
+
                 $entry->net_amount = (float) $entry->gross_amount
                     - (float) $entry->advances_deducted
                     - (float) $entry->loans_deducted
-                    - (float) $entry->other_deductions;
+                    - max(0, $otherDeductions);
                 $entry->save();
 
                 if (!$entry->skip_advances) {

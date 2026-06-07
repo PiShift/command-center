@@ -87,6 +87,16 @@ class EmployeeProfile extends Model implements HasMedia
         return $this->hasMany(EmployeeLoan::class, 'employee_id');
     }
 
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class, 'employee_id')->orderByDesc('start_date');
+    }
+
+    public function leaveBalances(): HasMany
+    {
+        return $this->hasMany(EmployeeLeaveBalance::class, 'employee_id');
+    }
+
     public function getPendingAdvancesTotal(): float
     {
         return (float) $this->advances()->pending()->sum('amount');
@@ -111,6 +121,13 @@ class EmployeeProfile extends Model implements HasMedia
     public function getDisplayNameAttribute(): string
     {
         return $this->user?->name ?? 'Unknown';
+    }
+
+    public function getLeaveBalance(int $leaveTypeId, ?int $year = null): EmployeeLeaveBalance
+    {
+        $year ??= (int) now()->year;
+
+        return EmployeeLeaveBalance::getOrCreate($this->id, $leaveTypeId, $year);
     }
 
     // ── Media ────────────────────────────────────────────────────────────────

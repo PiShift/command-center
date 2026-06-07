@@ -195,6 +195,7 @@ class PayrollController extends Controller
             'other_deductions' => ['required', 'numeric', 'min:0'],
             'skip_advances' => ['nullable', 'boolean'],
             'skip_loans' => ['nullable', 'boolean'],
+            'skip_unpaid_leave' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string'],
         ]);
 
@@ -203,17 +204,21 @@ class PayrollController extends Controller
         $grossAmount = (float) $entry->base_salary + $bonuses;
         $skipAdvances = (bool) ($validated['skip_advances'] ?? false);
         $skipLoans = (bool) ($validated['skip_loans'] ?? false);
+        $skipUnpaidLeave = (bool) ($validated['skip_unpaid_leave'] ?? false);
+        $unpaidLeaveDeduction = (float) $entry->unpaid_leave_deduction;
+        $effectiveOtherDeductions = max(0, $otherDeductions - ($skipUnpaidLeave ? $unpaidLeaveDeduction : 0));
 
         $netAmount = $grossAmount
             - ($skipAdvances ? 0 : (float) $entry->advances_deducted)
             - ($skipLoans ? 0 : (float) $entry->loans_deducted)
-            - $otherDeductions;
+            - $effectiveOtherDeductions;
 
         $entry->update([
             'bonuses' => $bonuses,
             'other_deductions' => $otherDeductions,
             'skip_advances' => $skipAdvances,
             'skip_loans' => $skipLoans,
+            'skip_unpaid_leave' => $skipUnpaidLeave,
             'gross_amount' => $grossAmount,
             'net_amount' => $netAmount,
             'notes' => $validated['notes'] ?? null,
@@ -234,6 +239,8 @@ class PayrollController extends Controller
                     'other_deductions' => (float) $entry->other_deductions,
                     'skip_advances' => (bool) $entry->skip_advances,
                     'skip_loans' => (bool) $entry->skip_loans,
+                    'skip_unpaid_leave' => (bool) $entry->skip_unpaid_leave,
+                    'unpaid_leave_deduction' => (float) $entry->unpaid_leave_deduction,
                     'notes' => $entry->notes,
                 ],
                 'run' => [

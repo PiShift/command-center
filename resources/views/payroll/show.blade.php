@@ -17,7 +17,7 @@
                     'deductions' => (float) (
                         ((bool) $entry->skip_advances ? 0 : (float) $entry->advances_deducted)
                         + ((bool) $entry->skip_loans ? 0 : (float) $entry->loans_deducted)
-                        + (float) $entry->other_deductions
+                        + max(0, (float) $entry->other_deductions - ((bool) $entry->skip_unpaid_leave ? (float) $entry->unpaid_leave_deduction : 0))
                     ),
                     'net' => (float) $entry->net_amount,
                 ],
@@ -151,8 +151,10 @@
                                 loansDeducted: {{ (float) $entry->loans_deducted }},
                                 skipAdvances: @js((bool) $entry->skip_advances),
                                 skipLoans: @js((bool) $entry->skip_loans),
+                                skipUnpaidLeave: @js((bool) $entry->skip_unpaid_leave),
                                 bonuses: {{ (float) $entry->bonuses }},
                                 otherDeductions: {{ (float) $entry->other_deductions }},
+                                unpaidLeaveDeduction: {{ (float) $entry->unpaid_leave_deduction }},
                                 notes: @js($entry->notes),
                                 csrf: '{{ csrf_token() }}'
                             })"
@@ -227,12 +229,22 @@
                                             <input type="checkbox" x-model="skipLoans" class="h-4 w-4 rounded border-line text-accent focus:ring-accent/30">
                                             <span>Skip loans</span>
                                         </label>
+                                        <label class="inline-flex items-center gap-2 text-[12px] text-dim">
+                                            <input type="checkbox" x-model="skipUnpaidLeave" class="h-4 w-4 rounded border-line text-accent focus:ring-accent/30">
+                                            <span>Skip unpaid leave</span>
+                                        </label>
 
                                         <p x-show="skipAdvances" x-cloak class="text-[11px] font-medium text-[#9a7a1a]">
                                             Advances will not be deducted this month — they carry over to next payroll.
                                         </p>
                                         <p x-show="skipLoans" x-cloak class="text-[11px] font-medium text-[#9a7a1a]">
                                             Loan installment skipped this month.
+                                        </p>
+                                        <p x-show="skipUnpaidLeave" x-cloak class="text-[11px] font-medium text-[#9a7a1a]">
+                                            Unpaid leave deduction will be excluded from net pay.
+                                        </p>
+                                        <p class="text-[11px] text-muted">
+                                            Unpaid leave deduction: {{ $fmt($entry->unpaid_leave_deduction) }}
                                         </p>
                                     </div>
                                 </td>
@@ -290,16 +302,22 @@
                     get grossPreview() {
                         return Number(this.baseSalary || 0) + Number(this.bonuses || 0);
                     },
+                    get unpaidLeaveOffset() {
+                        return this.skipUnpaidLeave ? Number(this.unpaidLeaveDeduction || 0) : 0;
+                    },
+                    get effectiveOtherDeductions() {
+                        return Math.max(0, Number(this.otherDeductions || 0) - this.unpaidLeaveOffset);
+                    },
                     get netPreview() {
                         return this.grossPreview
                             - (this.skipAdvances ? 0 : Number(this.advancesDeducted || 0))
                             - (this.skipLoans ? 0 : Number(this.loansDeducted || 0))
-                            - Number(this.otherDeductions || 0);
+                            - this.effectiveOtherDeductions;
                     },
                     get deductionsPreview() {
                         return (this.skipAdvances ? 0 : Number(this.advancesDeducted || 0))
                             + (this.skipLoans ? 0 : Number(this.loansDeducted || 0))
-                            + Number(this.otherDeductions || 0);
+                            + this.effectiveOtherDeductions;
                     },
                     notifyTotals() {
                         window.dispatchEvent(new CustomEvent('payroll-entry-preview', {
@@ -320,6 +338,7 @@
                             formData.append('other_deductions', this.otherDeductions ?? 0);
                             formData.append('skip_advances', this.skipAdvances ? '1' : '0');
                             formData.append('skip_loans', this.skipLoans ? '1' : '0');
+                            formData.append('skip_unpaid_leave', this.skipUnpaidLeave ? '1' : '0');
                             formData.append('notes', this.notes ?? '');
 
                             const response = await fetch(this.updateUrl, {
@@ -340,6 +359,7 @@
                             this.otherDeductions = Number(data.entry.other_deductions || 0);
                             this.skipAdvances = Boolean(data.entry.skip_advances);
                             this.skipLoans = Boolean(data.entry.skip_loans);
+                            this.skipUnpaidLeave = Boolean(data.entry.skip_unpaid_leave);
                             this.notes = data.entry.notes || '';
 
                             window.dispatchEvent(new CustomEvent('payroll-totals-updated', {

@@ -24,6 +24,7 @@
     if ($user->hasPermission('hr.view')) {
         $nav[] = ['_group' => 'HR'];
         $nav[] = ['route' => 'employees.index', 'label' => 'Employees', 'icon' => 'users', 'badge' => \App\Models\EmployeeProfile::active()->count() ?: null];
+            $nav[] = ['route' => 'leaves.index', 'label' => 'Leaves', 'icon' => 'calendar', 'badge' => \App\Models\LeaveRequest::pending()->count() ?: null];
     }
     if ($user->hasPermission('hr.manage')) {
         $nav[] = ['route' => 'payroll.index', 'label' => 'Payroll', 'icon' => 'file-text', 'badge' => \App\Models\PayrollRun::draft()->count() ?: null];

@@ -8,6 +8,10 @@
                 return 'finances';
             }
 
+            if (['leaves', 'leave'].includes(hash)) {
+                return 'leaves';
+            }
+
             return hash || 'profile';
         })()
     }"
@@ -33,7 +37,7 @@
 
     {{-- Tab bar --}}
     <div class="flex items-center gap-1 mb-5" style="border-bottom:1px solid #e5e4df;padding-bottom:0">
-        @foreach(['profile' => 'Profile', 'contracts' => 'Contracts', 'documents' => 'Documents', 'finances' => 'Finances'] as $key => $label)
+        @foreach(['profile' => 'Profile', 'contracts' => 'Contracts', 'documents' => 'Documents', 'leaves' => 'Leaves', 'finances' => 'Finances'] as $key => $label)
         <button @click="tab='{{ $key }}'; window.location.hash='{{ $key }}'"
                 :class="tab === '{{ $key }}' ? 'border-b-2 text-ink' : 'text-muted hover:text-dim'"
                 class="px-4 py-2 font-medium transition-all cursor-pointer"
@@ -43,6 +47,8 @@
             <span class="ml-1 text-xs font-semibold px-1.5 rounded-full" style="background:#F5F4EF;color:#8c8c8a">{{ $employee->contracts->count() }}</span>
             @elseif($key === 'documents')
             <span class="ml-1 text-xs font-semibold px-1.5 rounded-full" style="background:#F5F4EF;color:#8c8c8a">{{ $employee->documents->count() }}</span>
+            @elseif($key === 'leaves')
+            <span class="ml-1 text-xs font-semibold px-1.5 rounded-full" style="background:#F5F4EF;color:#8c8c8a">{{ $employee->leaveRequests->count() }}</span>
             @endif
         </button>
         @endforeach
@@ -1016,5 +1022,6 @@
                 </div>
             </div>
 
-</div>
+            @include('employees.partials.leaves-tab')
+        </div>
 </x-layouts.app>

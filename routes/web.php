@@ -38,10 +38,13 @@ use App\Http\Controllers\EmployeeDocumentController;
 use App\Http\Controllers\EmployeeBankAccountController;
 use App\Http\Controllers\EmployeeAdvanceController;
 use App\Http\Controllers\EmployeeLoanController;
+use App\Http\Controllers\EmployeeLeaveController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ContractTemplateController;
 use App\Http\Controllers\CompanyBankAccountController;
 use App\Http\Controllers\BankAccountTransferController;
+use App\Http\Controllers\LeaveController;
+use App\Http\Controllers\LeaveTypeController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -232,8 +235,25 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::post('employees/{employee}/contracts/{contract}/upload-signed',     [EmployeeContractController::class, 'uploadSigned'])->name('employees.contracts.upload-signed');
     Route::post('employees/{employee}/documents',                              [EmployeeDocumentController::class, 'store'])->name('employees.documents.store');
     Route::delete('employees/{employee}/documents/{document}',                 [EmployeeDocumentController::class, 'destroy'])->name('employees.documents.destroy');
+    Route::post('employees/{employee}/leaves',                                  [EmployeeLeaveController::class, 'store'])->name('employees.leaves.store');
+    Route::delete('employees/{employee}/leaves/{leaveRequest}',                 [EmployeeLeaveController::class, 'cancel'])->name('employees.leaves.cancel');
+
+    Route::middleware('permission:hr.view')->group(function () {
+        Route::get('/hr/leaves', [LeaveController::class, 'index'])->name('leaves.index');
+        Route::get('/hr/leaves/calendar', [LeaveController::class, 'calendar'])->name('leaves.calendar');
+        Route::get('/hr/leave-types', [LeaveTypeController::class, 'index'])->name('leave-types.index');
+    });
 
     Route::middleware('permission:hr.manage')->group(function () {
+        Route::post('/hr/leave-types', [LeaveTypeController::class, 'store'])->name('leave-types.store');
+        Route::put('/hr/leave-types/{type}', [LeaveTypeController::class, 'update'])->name('leave-types.update');
+        Route::delete('/hr/leave-types/{type}', [LeaveTypeController::class, 'destroy'])->name('leave-types.destroy');
+        Route::post('/hr/leaves/{leaveRequest}/approve', [LeaveController::class, 'approve'])->name('leaves.approve');
+        Route::post('/hr/leaves/{leaveRequest}/reject', [LeaveController::class, 'reject'])->name('leaves.reject');
+        Route::patch('/hr/leaves/{leaveRequest}/actual-days', [LeaveController::class, 'updateActualDays'])->name('leaves.actual-days.update');
+        Route::post('/hr/leaves/bulk-approve', [LeaveController::class, 'bulkApprove'])->name('leaves.bulk-approve');
+        Route::post('/hr/leaves/bulk-reject', [LeaveController::class, 'bulkReject'])->name('leaves.bulk-reject');
+
         Route::post('employees/{employee}/bank-accounts', [EmployeeBankAccountController::class, 'store'])->name('employees.bank-accounts.store');
         Route::put('employees/{employee}/bank-accounts/{account}', [EmployeeBankAccountController::class, 'update'])->name('employees.bank-accounts.update');
         Route::delete('employees/{employee}/bank-accounts/{account}', [EmployeeBankAccountController::class, 'destroy'])->name('employees.bank-accounts.destroy');
