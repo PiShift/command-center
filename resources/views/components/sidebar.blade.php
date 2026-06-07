@@ -26,6 +26,7 @@
         $nav[] = ['route' => 'employees.index', 'label' => 'Employees', 'icon' => 'users', 'badge' => \App\Models\EmployeeProfile::active()->count() ?: null];
     }
     if ($user->hasPermission('hr.manage')) {
+        $nav[] = ['route' => 'payroll.index', 'label' => 'Payroll', 'icon' => 'file-text', 'badge' => \App\Models\PayrollRun::draft()->count() ?: null];
         $nav[] = ['route' => 'contract-templates.index', 'label' => 'Contract Templates', 'icon' => 'file-text'];
     }
     if ($user->hasPermission('customers.view')) {

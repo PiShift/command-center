@@ -9,6 +9,7 @@ use App\Models\EmployeeLoan;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
+use App\Models\PayrollRun;
 use App\Models\Project;
 use App\Models\Sprint;
 use App\Models\Task;
@@ -355,6 +356,15 @@ class DashboardController extends Controller
                 return max(0, (float) $loan->amount_total - (float) ($loan->repaid_total ?? 0));
             });
 
+            $lastPayrollRun = PayrollRun::query()
+                ->where('status', 'paid')
+                ->orderByDesc('month')
+                ->first();
+
+            $pendingPayrollRuns = PayrollRun::query()
+                ->whereIn('status', ['draft', 'approved'])
+                ->count();
+
             // ── Recent Activity (Fix 3: load subject, format nicely) ─────────
 
             $recentActivity = \Spatie\Activitylog\Models\Activity::with(['causer', 'subject', 'subject.project'])
@@ -414,6 +424,7 @@ class DashboardController extends Controller
                 'collectionRate', 'totalInvoicedThisYear', 'totalCollectedThisYear',
                 'availableCreditsSum', 'customersWithCredit',
                 'bankAccounts', 'totalPendingAdvances', 'totalActiveLoansBalance',
+                'lastPayrollRun', 'pendingPayrollRuns',
                 'recentActivity'
             );
         });

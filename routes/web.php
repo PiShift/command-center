@@ -38,8 +38,10 @@ use App\Http\Controllers\EmployeeDocumentController;
 use App\Http\Controllers\EmployeeBankAccountController;
 use App\Http\Controllers\EmployeeAdvanceController;
 use App\Http\Controllers\EmployeeLoanController;
+use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ContractTemplateController;
 use App\Http\Controllers\CompanyBankAccountController;
+use App\Http\Controllers\BankAccountTransferController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -191,6 +193,8 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
         Route::get('/bank-accounts', [CompanyBankAccountController::class, 'index'])->name('bank-accounts.index');
         Route::get('/bank-accounts/create', [CompanyBankAccountController::class, 'create'])->name('bank-accounts.create');
         Route::post('/bank-accounts', [CompanyBankAccountController::class, 'store'])->name('bank-accounts.store');
+        Route::post('/bank-accounts/transfer', [BankAccountTransferController::class, 'store'])->name('bank-accounts.transfer.store');
+        Route::delete('/bank-accounts/transfer/{transfer}', [BankAccountTransferController::class, 'destroy'])->name('bank-accounts.transfer.destroy');
         Route::get('/bank-accounts/{account}', [CompanyBankAccountController::class, 'show'])->name('bank-accounts.show');
         Route::get('/bank-accounts/{account}/edit', [CompanyBankAccountController::class, 'edit'])->name('bank-accounts.edit');
         Route::put('/bank-accounts/{account}', [CompanyBankAccountController::class, 'update'])->name('bank-accounts.update');
@@ -244,6 +248,16 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
         Route::patch('employees/{employee}/loans/{loan}', [EmployeeLoanController::class, 'update'])->name('employees.loans.update');
         Route::delete('employees/{employee}/loans/{loan}', [EmployeeLoanController::class, 'destroy'])->name('employees.loans.destroy');
         Route::post('employees/{employee}/loans/{loan}/cancel', [EmployeeLoanController::class, 'cancel'])->name('employees.loans.cancel');
+
+        Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll.index');
+        Route::get('/payroll/create', [PayrollController::class, 'create'])->name('payroll.create');
+        Route::post('/payroll', [PayrollController::class, 'store'])->name('payroll.store');
+        Route::get('/payroll/{run}', [PayrollController::class, 'show'])->name('payroll.show');
+        Route::post('/payroll/{run}/approve', [PayrollController::class, 'approve'])->name('payroll.approve');
+        Route::post('/payroll/{run}/pay', [PayrollController::class, 'pay'])->name('payroll.pay');
+        Route::get('/payroll/{run}/pdf', [PayrollController::class, 'pdf'])->name('payroll.pdf');
+        Route::delete('/payroll/{run}', [PayrollController::class, 'destroy'])->name('payroll.destroy');
+        Route::patch('/payroll/{run}/entries/{entry}', [PayrollController::class, 'updateEntry'])->name('payroll.entries.update');
     });
 
     // Contract Templates
