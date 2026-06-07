@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -74,6 +75,30 @@ class EmployeeProfile extends Model implements HasMedia
     public function bankAccounts(): HasMany
     {
         return $this->hasMany(EmployeeBankAccount::class, 'employee_id');
+    }
+
+    public function advances(): HasMany
+    {
+        return $this->hasMany(EmployeeAdvance::class, 'employee_id');
+    }
+
+    public function loans(): HasMany
+    {
+        return $this->hasMany(EmployeeLoan::class, 'employee_id');
+    }
+
+    public function getPendingAdvancesTotal(): float
+    {
+        return (float) $this->advances()->pending()->sum('amount');
+    }
+
+    public function getActiveLoansList(): Collection
+    {
+        return $this->loans()
+            ->active()
+            ->get()
+            ->filter(fn (EmployeeLoan $loan) => $loan->amount_remaining > 0)
+            ->values();
     }
 
     // ── Accessors ────────────────────────────────────────────────────────────

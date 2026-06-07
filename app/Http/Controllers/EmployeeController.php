@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CompanyBankAccount;
 use App\Models\EmployeeProfile;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -86,9 +87,18 @@ class EmployeeController extends Controller
                 ->orderByDesc('effective_from'),
             'documents',
             'bankAccounts' => fn ($q) => $q->orderByDesc('is_primary')->orderBy('id'),
+            'advances' => fn ($q) => $q->with('companyAccount')->orderByDesc('date')->orderByDesc('id'),
+            'loans' => fn ($q) => $q->with(['companyAccount', 'repayments' => fn ($rq) => $rq->orderByDesc('repayment_date')->orderByDesc('id')])
+                ->orderByRaw("CASE status WHEN 'active' THEN 1 WHEN 'completed' THEN 2 WHEN 'cancelled' THEN 3 ELSE 4 END")
+                ->orderByDesc('started_at'),
         ]);
 
-        return view('employees.show', compact('employee'));
+        $companyAccounts = CompanyBankAccount::query()
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'bank_name', 'is_default']);
+
+        return view('employees.show', compact('employee', 'companyAccounts'));
     }
 
     public function uploadAvatar(Request $request, EmployeeProfile $employee)

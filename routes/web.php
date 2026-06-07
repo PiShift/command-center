@@ -36,6 +36,8 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeContractController;
 use App\Http\Controllers\EmployeeDocumentController;
 use App\Http\Controllers\EmployeeBankAccountController;
+use App\Http\Controllers\EmployeeAdvanceController;
+use App\Http\Controllers\EmployeeLoanController;
 use App\Http\Controllers\ContractTemplateController;
 use App\Http\Controllers\CompanyBankAccountController;
 use Illuminate\Support\Facades\Route;
@@ -232,6 +234,16 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
         Route::put('employees/{employee}/bank-accounts/{account}', [EmployeeBankAccountController::class, 'update'])->name('employees.bank-accounts.update');
         Route::delete('employees/{employee}/bank-accounts/{account}', [EmployeeBankAccountController::class, 'destroy'])->name('employees.bank-accounts.destroy');
         Route::post('employees/{employee}/bank-accounts/{account}/set-primary', [EmployeeBankAccountController::class, 'setPrimary'])->name('employees.bank-accounts.set-primary');
+
+        Route::post('employees/{employee}/advances', [EmployeeAdvanceController::class, 'store'])->name('employees.advances.store');
+        Route::patch('employees/{employee}/advances/{advance}', [EmployeeAdvanceController::class, 'update'])->name('employees.advances.update');
+        Route::delete('employees/{employee}/advances/{advance}', [EmployeeAdvanceController::class, 'destroy'])->name('employees.advances.destroy');
+
+        Route::post('employees/{employee}/loans', [EmployeeLoanController::class, 'store'])->name('employees.loans.store');
+        Route::get('employees/{employee}/loans/{loan}', [EmployeeLoanController::class, 'show'])->name('employees.loans.show');
+        Route::patch('employees/{employee}/loans/{loan}', [EmployeeLoanController::class, 'update'])->name('employees.loans.update');
+        Route::delete('employees/{employee}/loans/{loan}', [EmployeeLoanController::class, 'destroy'])->name('employees.loans.destroy');
+        Route::post('employees/{employee}/loans/{loan}/cancel', [EmployeeLoanController::class, 'cancel'])->name('employees.loans.cancel');
     });
 
     // Contract Templates

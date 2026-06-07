@@ -135,6 +135,17 @@
                 @endforeach
             </div>
         @endif
+
+        <div class="mt-3 pt-3 border-t border-hairline space-y-1.5">
+            <div class="flex items-center justify-between gap-2 text-[11px] sm:text-[12px]">
+                <span class="text-dim">Pending Advances</span>
+                <span class="font-semibold text-[#b55a2f]">{{ $fmt($totalPendingAdvances) }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 text-[11px] sm:text-[12px]">
+                <span class="text-dim">Active Loans Balance</span>
+                <span class="font-semibold text-ink">{{ $fmt($totalActiveLoansBalance) }}</span>
+            </div>
+        </div>
     </div>
 
 </div>

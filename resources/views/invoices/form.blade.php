@@ -273,9 +273,61 @@
         </div>
 
         {{-- Notes --}}
-        <div class="rounded-xl p-6" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)">
-            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:6px">Payment Info / Notes</label>
-            <textarea name="notes" rows="4" placeholder="Bank account details, payment instructions..."
+        <div class="rounded-xl p-6" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)"
+             x-data="{
+                 accountMenuOpen: false,
+                 companyAccounts: {{ Js::from(($companyAccounts ?? collect())->map(fn($account) => [
+                     'name' => $account->name,
+                     'bank_name' => $account->bank_name,
+                     'account_number' => $account->account_number,
+                 ])->values()) }},
+                 insertAccount(account) {
+                     const lines = [
+                         `Payment: ${account.name}`,
+                         ...(account.bank_name ? [`Bank: ${account.bank_name}`] : []),
+                         ...(account.account_number ? [`Account: ${account.account_number}`] : []),
+                     ];
+                     const block = lines.join('\n');
+                     const current = this.$refs.notesField.value.trimEnd();
+
+                     this.$refs.notesField.value = current ? `${current}\n${block}` : block;
+                     this.$refs.notesField.dispatchEvent(new Event('input', { bubbles: true }));
+                     this.accountMenuOpen = false;
+                 },
+             }">
+            <div class="mb-1.5 flex items-center justify-between gap-3">
+                <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block">Payment Info / Notes</label>
+                @if(($companyAccounts ?? collect())->isNotEmpty())
+                <div class="relative" @click.outside="accountMenuOpen = false">
+                    <button type="button"
+                            @click="accountMenuOpen = !accountMenuOpen"
+                            class="rounded-lg border border-line bg-surface px-3 py-1.5 text-dim hover:border-muted hover:bg-hairline hover:text-ink transition-colors cursor-pointer"
+                            style="font-size:12px;font-weight:500">
+                        ＋ Insert account
+                    </button>
+
+                    <div x-show="accountMenuOpen"
+                         x-cloak
+                         x-transition
+                         class="absolute right-0 top-full z-20 mt-2 w-72 rounded-xl border border-line bg-white p-1.5 shadow-[0_4px_20px_rgba(20,20,19,0.10)]">
+                        <template x-for="(account, index) in companyAccounts" :key="index">
+                            <button type="button"
+                                    @click="insertAccount(account)"
+                                    class="block w-full rounded-lg px-3 py-2 text-left hover:bg-canvas transition-colors cursor-pointer">
+                                <span class="block text-[13px] font-medium text-ink" x-text="account.name"></span>
+                                <template x-if="account.bank_name">
+                                    <span class="mt-0.5 block text-[12px] text-dim" x-text="account.bank_name"></span>
+                                </template>
+                                <template x-if="account.account_number">
+                                    <span class="mt-0.5 block text-[12px] text-muted" x-text="account.account_number"></span>
+                                </template>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+                @endif
+            </div>
+            <textarea x-ref="notesField" name="notes" rows="4" placeholder="Bank account details, payment instructions..."
                       class="w-full rounded-lg text-[13px] px-3 py-2"
                       style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none;resize:vertical;line-height:1.5"
                       onfocus="this.style.borderColor='#D97757';this.style.background='#fff'"

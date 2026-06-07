@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\CompanyBankAccount;
+use App\Models\EmployeeAdvance;
+use App\Models\EmployeeLoan;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
@@ -343,6 +345,16 @@ class DashboardController extends Controller
                     return $account;
                 });
 
+            $totalPendingAdvances = (float) EmployeeAdvance::pending()->sum('amount');
+
+            $activeLoans = EmployeeLoan::active()
+                ->withSum('repayments as repaid_total', 'amount')
+                ->get(['id', 'amount_total']);
+
+            $totalActiveLoansBalance = (float) $activeLoans->sum(function (EmployeeLoan $loan) {
+                return max(0, (float) $loan->amount_total - (float) ($loan->repaid_total ?? 0));
+            });
+
             // ── Recent Activity (Fix 3: load subject, format nicely) ─────────
 
             $recentActivity = \Spatie\Activitylog\Models\Activity::with(['causer', 'subject', 'subject.project'])
@@ -401,7 +413,7 @@ class DashboardController extends Controller
                 'customerCounts', 'activeCustomersCount',
                 'collectionRate', 'totalInvoicedThisYear', 'totalCollectedThisYear',
                 'availableCreditsSum', 'customersWithCredit',
-                'bankAccounts',
+                'bankAccounts', 'totalPendingAdvances', 'totalActiveLoansBalance',
                 'recentActivity'
             );
         });

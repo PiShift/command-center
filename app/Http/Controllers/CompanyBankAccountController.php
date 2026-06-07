@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\CompanyBankAccount;
+use App\Models\EmployeeAdvance;
+use App\Models\EmployeeLoan;
 use App\Models\Expense;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -106,6 +108,42 @@ class CompanyBankAccountController extends Controller
                 ]);
             });
 
+        // Advances given (OUT)
+        EmployeeAdvance::where('company_account_id', $account->id)
+            ->with('employee.user')
+            ->get()
+            ->each(function ($advance) use (&$transactions) {
+                $employeeName = $advance->employee?->user?->name ?? 'Unknown employee';
+
+                $transactions->push([
+                    'date' => $advance->date,
+                    'type' => 'out',
+                    'description' => 'Advance — ' . $employeeName . ' (' . $advance->reason . ')',
+                    'amount' => (float) $advance->amount,
+                    'reference' => null,
+                    'source' => 'advance',
+                    'source_id' => $advance->id,
+                ]);
+            });
+
+        // Loans disbursed (OUT)
+        EmployeeLoan::where('company_account_id', $account->id)
+            ->with('employee.user')
+            ->get()
+            ->each(function ($loan) use (&$transactions) {
+                $employeeName = $loan->employee?->user?->name ?? 'Unknown employee';
+
+                $transactions->push([
+                    'date' => $loan->started_at,
+                    'type' => 'out',
+                    'description' => 'Loan — ' . $employeeName . ' (' . $loan->title . ')',
+                    'amount' => (float) $loan->amount_total,
+                    'reference' => null,
+                    'source' => 'loan',
+                    'source_id' => $loan->id,
+                ]);
+            });
+
         $transactions = $transactions
             ->sortByDesc('date')
             ->values();
@@ -126,7 +164,9 @@ class CompanyBankAccountController extends Controller
         );
 
         $totalIn = (float) $account->invoicePayments()->sum('amount');
-        $totalOut = (float) $account->expenses()->where('status', 'confirmed')->sum('amount');
+        $totalOut = (float) $account->expenses()->where('status', 'confirmed')->sum('amount')
+            + (float) EmployeeAdvance::where('company_account_id', $account->id)->sum('amount')
+            + (float) EmployeeLoan::where('company_account_id', $account->id)->sum('amount_total');
         $currentBalance = $totalIn - $totalOut;
 
         // Opening balance before oldest row on this page, so view can compute running balance.
