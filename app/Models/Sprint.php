@@ -61,7 +61,7 @@ class Sprint extends Model
 
     public function isPublishable(): bool
     {
-        return $this->status === 'draft' && $this->tasks()->count() > 0;
+        return $this->status === 'draft' && $this->tasks()->exists();
     }
 
     public function publish(): void

@@ -670,6 +670,168 @@
                                 </div>
                             </div>
 
+                            {{-- ── Grouped sprint + tasks action card ───────── --}}
+                            @elseif(! empty($message['actions']) && (($message['actions']['type'] ?? null) === 'sprint_with_tasks'))
+                            @php
+                                $swtAction = $message['actions'];
+                                $swtTasks  = is_array($swtAction['tasks'] ?? null) ? $swtAction['tasks'] : [];
+                                $msgDbId   = $message['id'];
+                            @endphp
+                            <div class="mt-2 w-full"
+                                 x-data="{
+                                    confirmed: {{ ! empty($swtAction['confirmed']) ? 'true' : 'false' }},
+                                    skipped: {{ ! empty($swtAction['skipped']) ? 'true' : 'false' }},
+                                    targetMode: 'new',
+                                    sprintName: @js($swtAction['sprint_name'] ?? ''),
+                                    sprintDescription: @js($swtAction['sprint_description'] ?? ''),
+                                    existingSprintId: '',
+                                    tasks: @js($swtTasks),
+                                    normalizeTasks() {
+                                        this.tasks = (Array.isArray(this.tasks) ? this.tasks : []).map(t => ({
+                                            title: t?.title ?? '',
+                                            description: t?.description ?? '',
+                                            type: ['feature','bug','change'].includes(t?.type) ? t.type : 'feature',
+                                            priority: ['low','medium','high'].includes(t?.priority) ? t.priority : 'medium',
+                                            weight: Math.min(5, Math.max(1, parseInt(t?.weight ?? 2))),
+                                            checklist: Array.isArray(t?.checklist) && t.checklist.length ? t.checklist : [''],
+                                        }));
+                                        if (!this.tasks.length) this.addTask();
+                                    },
+                                    addTask() {
+                                        this.tasks.push({ title: '', description: '', type: 'feature', priority: 'medium', weight: 2, checklist: [''] });
+                                    },
+                                    removeTask(index) {
+                                        this.tasks.splice(index, 1);
+                                        if (!this.tasks.length) this.addTask();
+                                    },
+                                    addChecklist(taskIndex) {
+                                        if (!Array.isArray(this.tasks[taskIndex].checklist)) this.tasks[taskIndex].checklist = [];
+                                        this.tasks[taskIndex].checklist.push('');
+                                    },
+                                    removeChecklist(taskIndex, itemIndex) {
+                                        const list = this.tasks[taskIndex].checklist;
+                                        list.splice(itemIndex, 1);
+                                        if (!list.length) list.push('');
+                                    },
+                                    payload() {
+                                        return {
+                                            target_mode: this.targetMode,
+                                            sprint_name: this.sprintName,
+                                            sprint_description: this.sprintDescription,
+                                            existing_sprint_id: this.targetMode === 'existing' ? this.existingSprintId : '',
+                                            tasks: this.tasks.map(task => ({
+                                                title: task.title,
+                                                description: task.description,
+                                                type: task.type,
+                                                priority: task.priority,
+                                                weight: task.weight,
+                                                checklist: (Array.isArray(task.checklist) ? task.checklist : []).filter(i => String(i).trim() !== ''),
+                                            })),
+                                        };
+                                    },
+                                    init() {
+                                        this.normalizeTasks();
+                                    }
+                                 }">
+                                <div x-show="!skipped" x-cloak class="bg-white border border-line rounded-lg shadow-sm overflow-hidden">
+                                    <div x-show="confirmed" class="flex items-center gap-2 px-3 py-2 bg-[#f0faf5] border-l-[3px] border-[#2e7d55]">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-[#2e7d55] shrink-0">
+                                            <polyline points="20 6 9 17 4 12"/>
+                                        </svg>
+                                        <span class="text-[12px] font-medium text-[#2e7d55]">Sprint batch created</span>
+                                    </div>
+
+                                    <div x-show="!confirmed" class="p-3 space-y-3">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <p class="text-[12px] font-semibold text-ink">Sprint + Tasks Proposal</p>
+                                            <button x-on:click="skipped = true; $wire.skipSprintWithTasks({{ $msgDbId }})"
+                                                    class="text-[10px] text-muted hover:text-ink cursor-pointer">Skip</button>
+                                        </div>
+
+                                        <div class="space-y-2">
+                                            <label class="block text-[10px] font-bold uppercase tracking-wider text-muted">Target sprint</label>
+                                            <div class="flex items-center gap-2 flex-wrap">
+                                                <button type="button"
+                                                        x-on:click="targetMode = 'new'"
+                                                        x-bind:class="targetMode === 'new' ? 'bg-accent text-white border-accent' : 'bg-surface text-dim border-line'"
+                                                        class="px-2 py-1 text-[11px] font-medium rounded-md border transition-colors cursor-pointer">Create as new sprint</button>
+                                                <button type="button"
+                                                        x-on:click="targetMode = 'existing'"
+                                                        x-bind:class="targetMode === 'existing' ? 'bg-accent text-white border-accent' : 'bg-surface text-dim border-line'"
+                                                        class="px-2 py-1 text-[11px] font-medium rounded-md border transition-colors cursor-pointer">Add to existing sprint</button>
+                                            </div>
+                                            <div x-show="targetMode === 'existing'" x-cloak>
+                                                <select x-model="existingSprintId" class="w-full text-[12px] text-ink bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent cursor-pointer">
+                                                    <option value="">Select sprint...</option>
+                                                    @foreach($availableSprints as $sp)
+                                                    <option value="{{ $sp['id'] }}">{{ $sp['name'] }} ({{ ucfirst($sp['status']) }})</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div x-show="targetMode === 'new'" x-cloak class="space-y-2">
+                                            <input x-model="sprintName" type="text" placeholder="Sprint name"
+                                                   class="w-full text-[12px] text-ink bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent">
+                                            <textarea x-model="sprintDescription" rows="2" placeholder="Sprint description"
+                                                      class="w-full text-[12px] text-dim bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent resize-none"></textarea>
+                                        </div>
+
+                                        <div class="space-y-2">
+                                            <template x-for="(task, tIndex) in tasks" :key="`task-${tIndex}`">
+                                                <div class="border border-hairline rounded-md p-2.5 bg-white space-y-2">
+                                                    <div class="flex items-center gap-2">
+                                                        <input x-model="task.title" type="text" placeholder="Task title"
+                                                               class="flex-1 text-[12px] font-medium text-ink bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent">
+                                                        <button x-on:click="removeTask(tIndex)" class="text-[10px] text-muted hover:text-danger cursor-pointer">Remove task</button>
+                                                    </div>
+
+                                                    <textarea x-model="task.description" rows="2" placeholder="Task description"
+                                                              class="w-full text-[11px] text-dim bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent resize-none"></textarea>
+
+                                                    <div class="grid grid-cols-3 gap-1.5">
+                                                        <select x-model="task.type" class="text-[11px] text-dim bg-surface border border-line rounded px-1.5 py-1 outline-none cursor-pointer">
+                                                            <option value="feature">feature</option>
+                                                            <option value="bug">bug</option>
+                                                            <option value="change">change</option>
+                                                        </select>
+                                                        <select x-model="task.priority" class="text-[11px] text-dim bg-surface border border-line rounded px-1.5 py-1 outline-none cursor-pointer">
+                                                            <option value="low">low</option>
+                                                            <option value="medium">medium</option>
+                                                            <option value="high">high</option>
+                                                        </select>
+                                                        <input x-model.number="task.weight" type="number" min="1" max="5" step="1"
+                                                               class="text-[11px] text-dim bg-surface border border-line rounded px-1.5 py-1 outline-none" placeholder="Weight">
+                                                    </div>
+
+                                                    <div class="space-y-1.5">
+                                                        <div class="flex items-center justify-between">
+                                                            <span class="text-[10px] font-bold uppercase tracking-wider text-muted">Checklist</span>
+                                                            <button x-on:click="addChecklist(tIndex)" class="text-[10px] text-accent hover:underline cursor-pointer">+ Add item</button>
+                                                        </div>
+                                                        <template x-for="(item, cIndex) in task.checklist" :key="`task-${tIndex}-check-${cIndex}`">
+                                                            <div class="flex items-center gap-1.5">
+                                                                <span class="w-1.5 h-1.5 rounded-full bg-muted shrink-0"></span>
+                                                                <input x-model="task.checklist[cIndex]" type="text" placeholder="Checklist item"
+                                                                       class="flex-1 text-[11px] text-dim bg-surface border border-line rounded px-2 py-1 outline-none focus:border-accent">
+                                                                <button x-on:click="removeChecklist(tIndex, cIndex)" class="text-[10px] text-muted hover:text-danger cursor-pointer">Remove</button>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <button x-on:click="addTask()" class="px-2 py-1 rounded-md text-[11px] font-medium border border-line text-dim hover:text-ink hover:bg-surface transition-colors cursor-pointer">+ Add task</button>
+                                        </div>
+
+                                        <div class="flex justify-end">
+                                            <button x-on:click="confirmed = true; $wire.confirmSprintWithTasks({{ $msgDbId }}, payload())"
+                                                    class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover cursor-pointer transition-colors">Create sprint + tasks</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             {{-- ── Action cards ─────────────────────────────── --}}
                             @elseif(! empty($message['actions']['items']))
                             @php
@@ -687,13 +849,22 @@
                                         itemType: @js($action['type'] ?? 'feature'),
                                         weight: {{ (int) ($action['weight'] ?? 2) }},
                                         priority: @js($action['priority'] ?? 'medium'),
+                                        checklist: @js(is_array($action['checklist'] ?? null) ? array_values($action['checklist']) : []),
                                         sprintId: '',
                                         confirmed: {{ ($action['confirmed'] ?? false) ? 'true' : 'false' }},
                                         skipped: {{ ($action['skipped'] ?? false) ? 'true' : 'false' }},
                                         editTitle: false,
                                         editDesc: false,
+                                        addChecklistItem() {
+                                            if (!Array.isArray(this.checklist)) this.checklist = [];
+                                            this.checklist.push('');
+                                        },
+                                        removeChecklistItem(index) {
+                                            this.checklist.splice(index, 1);
+                                        },
                                         init() {
                                             this.$watch('editTitle', v => { if (v) this.$nextTick(() => this.$refs.titleInput && this.$refs.titleInput.focus()); });
+                                            if (!Array.isArray(this.checklist)) this.checklist = [];
                                         }
                                     }"
                                     x-show="!skipped"
@@ -781,6 +952,26 @@
                                         </div>
                                         @endif
 
+                                        @if($actType === 'tasks')
+                                        <div class="mb-2 space-y-1.5">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-[10px] font-bold uppercase tracking-wider text-muted">Checklist</span>
+                                                <button x-on:click="addChecklistItem()" class="text-[10px] text-accent hover:underline cursor-pointer">+ Add item</button>
+                                            </div>
+                                            <template x-if="checklist.length === 0">
+                                                <p class="text-[11px] text-muted italic">No checklist items.</p>
+                                            </template>
+                                            <template x-for="(item, cIdx) in checklist" :key="`check-${cIdx}`">
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-muted shrink-0"></span>
+                                                    <input x-model="checklist[cIdx]" type="text" placeholder="Checklist item"
+                                                           class="flex-1 text-[11px] text-dim bg-surface border border-line rounded px-2 py-1 outline-none focus:border-accent">
+                                                    <button x-on:click="removeChecklistItem(cIdx)" class="text-[10px] text-muted hover:text-danger cursor-pointer">Remove</button>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        @endif
+
                                         {{-- Description (editable) --}}
                                         @if(! empty($action['description']))
                                         <div class="mb-2">
@@ -821,11 +1012,11 @@
                                             >Create sprint</button>
                                             @else
                                             <button
-                                                x-on:click="confirmed = true; $wire.confirmAction({{ $msgDbId }}, {{ $aIdx }}, { title, description, type: itemType, weight, priority, sprintId, targetAction: (sprintId !== '') ? 'sprint' : 'backlog' })"
+                                                x-on:click="confirmed = true; $wire.confirmAction({{ $msgDbId }}, {{ $aIdx }}, { title, description, type: itemType, weight, priority, checklist, sprintId, actionType: '{{ $actType }}', targetAction: (sprintId !== '') ? 'sprint' : 'backlog' })"
                                                 class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover cursor-pointer transition-colors"
                                             >
                                                 @if($actType === 'tasks')
-                                                <span x-text="sprintId !== '' ? 'Add to sprint' : 'Add to backlog'"></span>
+                                                <span x-text="sprintId !== '' ? 'Create in sprint' : 'Create task'"></span>
                                                 @else
                                                 Add to backlog
                                                 @endif
@@ -833,9 +1024,9 @@
                                             @if($actType === 'tasks')
                                             <button
                                                 x-show="sprintId !== ''"
-                                                x-on:click="confirmed = true; $wire.confirmAction({{ $msgDbId }}, {{ $aIdx }}, { title, description, type: itemType, weight, priority, sprintId: '', targetAction: 'backlog' })"
+                                                x-on:click="confirmed = true; $wire.confirmAction({{ $msgDbId }}, {{ $aIdx }}, { title, description, type: itemType, weight, priority, checklist, sprintId: '', actionType: '{{ $actType }}', targetAction: 'backlog' })"
                                                 class="px-2.5 py-1 rounded-md text-[11px] font-medium border border-line text-dim hover:text-ink hover:bg-surface cursor-pointer transition-colors"
-                                            >Add to backlog</button>
+                                            >Create without sprint</button>
                                             @endif
                                             @endif
                                         </div>

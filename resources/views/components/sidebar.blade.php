@@ -232,6 +232,7 @@
                 <p class="sidebar-group-label text-[10px] font-semibold uppercase tracking-wider text-muted px-2 pb-1 pt-3">{{ $item['_group'] }}</p>
             @else
             <a href="{{ route($item['route']) }}"
+                    @click="if (window.innerWidth < 1024) { Alpine.store('sidebar').close(); }"
                @mouseenter="$store.sidebarTip.open($el, '{{ $item['label'] }}')"
                @mouseleave="$store.sidebarTip.close()"
                class="nav-item {{ request()->routeIs($item['route']) || request()->routeIs($item['route'].'.*') ? 'active' : '' }}">
@@ -250,6 +251,7 @@
                 <p class="sidebar-group-label text-[10px] font-semibold uppercase tracking-wider text-muted px-2 pb-1">Projects</p>
                 @foreach ($projects as $project)
                     <a href="{{ route('projects.show', $project) }}"
+                              @click="if (window.innerWidth < 1024) { Alpine.store('sidebar').close(); }"
                        @mouseenter="$store.sidebarTip.open($el, '{{ $project->name }}')"
                        @mouseleave="$store.sidebarTip.close()"
                        class="nav-item {{ request()->routeIs('projects.show') && request()->route('project')?->id == $project->id ? 'active' : '' }}">
