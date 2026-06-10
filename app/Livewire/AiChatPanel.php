@@ -45,6 +45,7 @@ class AiChatPanel extends Component
     public array $activePresets = [];         // active bulk-context preset names
     public bool $isStreaming = false;
     public array $recentConversations = [];
+    public ?array $pendingParsedActions = null;
 
     protected $listeners = [
         'open-ai-chat'     => 'handleOpenEvent',
@@ -261,6 +262,8 @@ class AiChatPanel extends Component
                 if (is_array($m->actions)) {
                     if (($m->actions['type'] ?? null) === 'sprint_with_tasks') {
                         $actions = $this->normalizeSprintWithTasksAction($m->actions);
+                    } elseif (($m->actions['type'] ?? null) === 'clarification') {
+                        $actions = $this->normalizeClarificationAction($m->actions);
                     } elseif (($m->actions['type'] ?? null) === 'question') {
                         $actions = $this->normalizeQuestionAction($m->actions);
                     } else {
@@ -601,6 +604,92 @@ class AiChatPanel extends Component
     }
 
     /**
+     * Capture parsed actions emitted by the stream endpoint final parse pass.
+     */
+    public function captureParsedActions(?array $actions = null): void
+    {
+        $this->pendingParsedActions = is_array($actions) ? $actions : null;
+    }
+
+    /**
+     * Submit a full clarification answer set and continue the conversation.
+     *
+     * @param  array<string, mixed>  $answers
+     */
+    public function submitClarificationAnswers(int $messageId, array $answers): void
+    {
+        if (! $this->conversationId || $this->isStreaming) {
+            return;
+        }
+
+        $targetIndex = null;
+        $questions = [];
+
+        foreach ($this->messages as $idx => $msg) {
+            if (($msg['id'] ?? null) !== $messageId) {
+                continue;
+            }
+
+            if (($msg['actions']['type'] ?? null) !== 'clarification') {
+                return;
+            }
+
+            $targetIndex = $idx;
+            $questions = is_array($msg['actions']['questions'] ?? null)
+                ? $msg['actions']['questions']
+                : [];
+            break;
+        }
+
+        if ($targetIndex === null || empty($questions)) {
+            return;
+        }
+
+        $segments = [];
+        $normalizedAnswers = [];
+
+        foreach ($questions as $i => $question) {
+            $qid = (string) ($question['id'] ?? ('q' . ($i + 1)));
+            $raw = $answers[$qid] ?? null;
+
+            if (is_array($raw)) {
+                $raw = collect($raw)
+                    ->map(fn ($v) => trim((string) $v))
+                    ->filter(fn ($v) => $v !== '')
+                    ->values()
+                    ->implode(', ');
+            }
+
+            $answerText = trim((string) $raw);
+            if ($answerText === '') {
+                $answerText = 'Skipped';
+            }
+
+            $segments[] = '[Q' . ($i + 1) . ']: ' . $answerText;
+            $normalizedAnswers[$qid] = $answerText;
+        }
+
+        $compiled = 'Here are my answers: ' . implode(' / ', $segments);
+
+        $this->messages[$targetIndex]['actions']['answered'] = true;
+        $this->messages[$targetIndex]['actions']['answers'] = $normalizedAnswers;
+
+        $dbMessage = AiConversationMessage::where('id', $messageId)
+            ->where('conversation_id', $this->conversationId)
+            ->first();
+
+        if ($dbMessage && is_array($dbMessage->actions)) {
+            $actions = $dbMessage->actions;
+            $actions['answered'] = true;
+            $actions['answers'] = $normalizedAnswers;
+            $dbMessage->update(['actions' => $actions]);
+        }
+
+        $this->input = $compiled;
+        $this->sendMessage();
+    }
+
+    /**
      * Called by Alpine.js when the SSE stream completes.
      * Extracts any <actions> block, persists clean content + structured actions.
      */
@@ -615,7 +704,12 @@ class AiChatPanel extends Component
         $actions      = null;
         $cleanContent = $content;
 
-        if (preg_match('/<actions>(.*?)<\/actions>/s', $content, $matches)) {
+        if (is_array($this->pendingParsedActions)) {
+            $actions = $this->normalizeAnyAction($this->pendingParsedActions);
+            $this->pendingParsedActions = null;
+        }
+
+        if ($actions === null && preg_match('/<actions>(.*?)<\/actions>/s', $content, $matches)) {
             $jsonStr = trim($matches[1]);
             // Strip markdown code fences the model may have added.
             $jsonStr = preg_replace('/^```(?:json)?\s*/m', '', $jsonStr);
@@ -624,16 +718,14 @@ class AiChatPanel extends Component
 
             $decoded = json_decode($jsonStr, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                if (($decoded['type'] ?? null) === 'question') {
-                    $actions = $this->normalizeQuestionAction($decoded);
-                } elseif (($decoded['type'] ?? null) === 'sprint_with_tasks') {
-                    $actions = $this->normalizeSprintWithTasksAction($decoded);
-                } elseif (isset($decoded['items']) && is_array($decoded['items'])) {
-                    $actions = $this->normalizeActions($decoded);
-                }
+                $actions = $this->normalizeAnyAction($decoded);
             }
 
             $cleanContent = trim(preg_replace('/<actions>.*?<\/actions>/s', '', $content));
+        }
+
+        if (($actions['type'] ?? null) === 'clarification') {
+            $cleanContent = $this->clarificationIntroLine($cleanContent);
         }
 
         $message = AiConversationMessage::create([
@@ -1091,6 +1183,41 @@ class AiChatPanel extends Component
     }
 
     /**
+     * Normalize clarification payload from AI responses.
+     */
+    private function normalizeClarificationAction(array $decoded): array
+    {
+        $questions = collect(is_array($decoded['questions'] ?? null) ? $decoded['questions'] : [])
+            ->map(function ($q, $idx): array {
+                $id = trim((string) ($q['id'] ?? 'q' . ($idx + 1)));
+                $type = (string) ($q['type'] ?? 'text');
+                $type = in_array($type, ['pills', 'text', 'multiselect'], true) ? $type : 'text';
+
+                return [
+                    'id' => $id !== '' ? $id : ('q' . ($idx + 1)),
+                    'text' => (string) ($q['text'] ?? ''),
+                    'type' => $type,
+                    'options' => collect(is_array($q['options'] ?? null) ? $q['options'] : [])
+                        ->map(fn ($v) => (string) $v)
+                        ->values()
+                        ->all(),
+                    'allow_other' => (bool) ($q['allow_other'] ?? false),
+                    'required' => (bool) ($q['required'] ?? true),
+                ];
+            })
+            ->filter(fn ($q) => trim((string) $q['text']) !== '')
+            ->values()
+            ->all();
+
+        return [
+            'type' => 'clarification',
+            'questions' => $questions,
+            'answered' => (bool) ($decoded['answered'] ?? false),
+            'answers' => is_array($decoded['answers'] ?? null) ? $decoded['answers'] : [],
+        ];
+    }
+
+    /**
      * Normalize sprint_with_tasks payload from AI responses.
      */
     private function normalizeSprintWithTasksAction(array $decoded): array
@@ -1143,6 +1270,40 @@ class AiChatPanel extends Component
             'answered'     => (bool) ($decoded['answered'] ?? false),
             'answer'       => (string) ($decoded['answer'] ?? ''),
         ];
+    }
+
+    /**
+     * Normalize any supported action payload.
+     */
+    private function normalizeAnyAction(array $decoded): ?array
+    {
+        return match ($decoded['type'] ?? null) {
+            'question' => $this->normalizeQuestionAction($decoded),
+            'clarification' => $this->normalizeClarificationAction($decoded),
+            'sprint_with_tasks' => $this->normalizeSprintWithTasksAction($decoded),
+            default => (isset($decoded['items']) && is_array($decoded['items']))
+                ? $this->normalizeActions($decoded)
+                : null,
+        };
+    }
+
+    /**
+     * Keep only the introductory line for clarification prompts in chat flow.
+     */
+    private function clarificationIntroLine(string $content): string
+    {
+        $trimmed = trim($content);
+        if ($trimmed === '') {
+            return 'I need a few clarifications before I can structure this.';
+        }
+
+        $firstLine = trim((string) preg_split('/\R/', $trimmed)[0]);
+
+        if ($firstLine !== '') {
+            return $firstLine;
+        }
+
+        return 'I need a few clarifications before I can structure this.';
     }
 
     public function render()

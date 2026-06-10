@@ -75,10 +75,36 @@ class AiConversationController extends Controller
 
         return new StreamedResponse(function () use ($agent, $message) {
             $stream = $agent->stream($message);
+            $fullResponse = '';
 
             foreach ($stream as $event) {
                 if ($event instanceof TextDelta) {
+                    $fullResponse .= $event->delta;
                     echo 'data: ' . json_encode(['chunk' => $event->delta]) . "\n\n";
+                    ob_flush();
+                    flush();
+                }
+            }
+
+            // Final parse pass to ensure actions are extracted even when stream chunking
+            // causes partial tags during incremental rendering.
+            if (preg_match('/<actions>(.*?)<\/actions>/s', $fullResponse, $matches)) {
+                $jsonStr = trim($matches[1]);
+                $jsonStr = preg_replace('/^```(?:json)?\s*/m', '', $jsonStr);
+                $jsonStr = preg_replace('/```\s*$/m', '', $jsonStr);
+                $jsonStr = trim($jsonStr);
+
+                $decoded = json_decode($jsonStr, true);
+
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $intro = trim((string) preg_replace('/<actions>.*?<\/actions>/s', '', $fullResponse));
+
+                    echo 'data: ' . json_encode([
+                        'actions_parsed' => [
+                            'actions' => $decoded,
+                            'intro'   => $intro,
+                        ],
+                    ]) . "\n\n";
                     ob_flush();
                     flush();
                 }
