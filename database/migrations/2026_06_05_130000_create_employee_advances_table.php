@@ -16,7 +16,7 @@ return new class extends Migration
             $table->date('date');
             $table->string('reason');
             $table->enum('status', ['pending', 'deducted'])->default('pending');
-            $table->foreignId('payroll_entry_id')->nullable()->constrained('payroll_entries')->nullOnDelete();
+            $table->foreignId('payroll_entry_id')->nullable();
             $table->foreignId('recorded_by')->nullable()->constrained('users')->nullOnDelete();
             $table->text('notes')->nullable();
             $table->timestamps();
