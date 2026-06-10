@@ -49,18 +49,18 @@ return new class extends Migration
 
         if ($driver === 'pgsql') {
             $row = DB::selectOne(
-                'select exists(select 1 from pg_constraint where conname = ?) as exists',
+                'select exists(select 1 from pg_constraint where conname = ?) as constraint_exists',
                 [$constraintName]
             );
 
-            return (bool) ($row->exists ?? false);
+            return (bool) ($row->constraint_exists ?? false);
         }
 
         $row = DB::selectOne(
-            'select exists(select 1 from information_schema.table_constraints where constraint_schema = database() and table_name = ? and constraint_name = ?) as exists',
+            'select exists(select 1 from information_schema.table_constraints where constraint_schema = database() and table_name = ? and constraint_name = ?) as constraint_exists',
             [$table, $constraintName]
         );
 
-        return (bool) ($row->exists ?? false);
+        return (bool) ($row->constraint_exists ?? false);
     }
 };
