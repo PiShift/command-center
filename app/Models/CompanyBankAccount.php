@@ -2,10 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\BankAccountTransfer;
+use App\Models\Expense;
+use App\Models\EmployeeAdvance;
+use App\Models\EmployeeLoan;
+use App\Models\InvoicePayment;
+use App\Models\PayrollRun;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 
 class CompanyBankAccount extends Model
 {
@@ -42,12 +49,40 @@ class CompanyBankAccount extends Model
 
     public function getBalanceAttribute(): float
     {
-        $paymentsIn = (float) $this->invoicePayments()->sum('amount');
+        // Money IN
+        $paymentsIn = InvoicePayment::where('company_account_id', $this->id)
+            ->sum('amount');
 
-        $expensesOut = (float) Expense::where('company_account_id', $this->id)
+        // Money IN from transfers
+        $transfersIn = Schema::hasTable('bank_account_transfers')
+            ? (float) BankAccountTransfer::where('to_account_id', $this->id)->sum('amount')
+            : 0.0;
+
+        // Money OUT — expenses
+        $expensesOut = Expense::where('company_account_id', $this->id)
             ->where('status', 'confirmed')
             ->sum('amount');
 
-        return $paymentsIn - $expensesOut;
+        // Money OUT — advances
+        $advancesOut = EmployeeAdvance::where('company_account_id', $this->id)
+            ->sum('amount');
+
+        // Money OUT — loans disbursed
+        $loansOut = EmployeeLoan::where('company_account_id', $this->id)
+            ->sum('amount_total');
+
+        // Money OUT — payroll paid
+        $payrollOut = PayrollRun::where('company_account_id', $this->id)
+            ->where('status', 'paid')
+            ->sum('total_net');
+
+        // Money OUT from transfers
+        $transfersOut = Schema::hasTable('bank_account_transfers')
+            ? (float) BankAccountTransfer::where('from_account_id', $this->id)->sum('amount')
+            : 0.0;
+
+        return $paymentsIn + $transfersIn
+            - $expensesOut - $advancesOut
+            - $loansOut - $payrollOut - $transfersOut;
     }
 }

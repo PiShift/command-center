@@ -49,6 +49,7 @@
                     <th class="px-4 py-2.5 text-left text-xxs font-bold uppercase tracking-[0.06em] text-muted">Type</th>
                     <th class="px-4 py-2.5 text-right text-xxs font-bold uppercase tracking-[0.06em] text-muted">Amount</th>
                     <th class="px-4 py-2.5 text-right text-xxs font-bold uppercase tracking-[0.06em] text-muted">Running Balance</th>
+                    <th class="px-4 py-2.5 text-right text-xxs font-bold uppercase tracking-[0.06em] text-muted">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -85,10 +86,23 @@
                         <td class="px-4 py-3 text-right text-sm font-medium {{ ($lineBalance ?? 0) >= 0 ? 'text-success-text' : 'text-danger' }}">
                             {{ number_format((float) ($lineBalance ?? 0), 2) }}
                         </td>
+                        <td class="px-4 py-3 text-right">
+                            @if(in_array($tx['source'], ['transfer_in', 'transfer_out'], true) && ($tx['can_delete'] ?? false))
+                                <form method="POST" action="{{ route('bank-accounts.transfer.destroy', $tx['source_id']) }}" onsubmit="return confirm('Delete this transfer?');" class="inline-block">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="px-2.5 py-1.5 rounded-md border border-danger-border bg-danger-light hover:bg-[#ffe0e0] text-xxs font-medium text-danger transition-colors cursor-pointer">
+                                        Delete
+                                    </button>
+                                </form>
+                            @else
+                                <span class="text-xxs text-muted">—</span>
+                            @endif
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="px-4 py-10 text-center text-sm text-muted">
+                        <td colspan="6" class="px-4 py-10 text-center text-sm text-muted">
                             No transactions found for this account.
                         </td>
                     </tr>

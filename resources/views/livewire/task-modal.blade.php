@@ -83,53 +83,63 @@
 
 @if($open)
 {{-- Overlay --}}
-<div class="fixed inset-0 flex items-center justify-center p-4"
+<div class="fixed inset-0 flex items-stretch justify-center p-0 overflow-hidden sm:items-center sm:p-4"
      style="z-index:40;background: rgba(0,0,0,0.45)"
      wire:click.self="close"
      x-on:keydown.escape.window="$wire.close()">
 
     {{-- Modal shell: Surface outer + white left panel --}}
-    <div class="relative flex w-full max-w-[820px] max-h-[90vh] rounded-2xl overflow-hidden"
+    <div class="fixed inset-0 grid grid-cols-1 md:grid-cols-3 w-full h-full sm:relative sm:inset-auto sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:my-8 sm:mx-auto overflow-hidden sm:rounded-xl"
          style="background:#F5F4EF; box-shadow: 0 20px 60px rgba(0,0,0,0.18)"
          wire:click.stop>
 
         {{-- ── LEFT: Content panel ───────────────────────────────────────── --}}
-        <div class="flex flex-col flex-1 min-w-0 bg-white overflow-y-auto">
+        <div class="md:col-span-2 flex flex-col min-w-0 bg-white overflow-y-auto pb-28 sm:pb-0">
 
             {{-- Title area --}}
-            <div class="px-7 pt-6 pb-4 border-b border-hairline">
-                @if(($editingTitle || $isNew) && $canEdit['meta'])
-                    <input wire:model="title"
-                           wire:blur="saveField('title')"
-                           wire:keydown.enter="saveField('title')"
-                           autofocus
-                           placeholder="Task title…"
-                           class="w-full text-[19px] font-semibold text-ink bg-transparent outline-none placeholder:text-muted placeholder:font-normal border-b-2 border-accent pb-1 leading-snug">
-                @else
-                    <h2 class="text-[19px] font-semibold text-ink leading-snug {{ $canEdit['meta'] ? 'cursor-text hover:text-accent transition-colors' : '' }}"
-                        @if($canEdit['meta']) wire:click="$set('editingTitle', true)" @endif>{{ $title }}</h2>
-                @endif
+            <div class="sticky top-0 z-20 bg-white px-4 sm:px-7 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-hairline">
+                <div class="flex items-start gap-3">
+                    <div class="flex-1 min-w-0">
+                        @if(($editingTitle || $isNew) && $canEdit['meta'])
+                            <input wire:model="title"
+                                   wire:blur="saveField('title')"
+                                   wire:keydown.enter="saveField('title')"
+                                   autofocus
+                                   placeholder="Task title…"
+                                   class="w-full text-[19px] font-semibold text-ink bg-transparent outline-none placeholder:text-muted placeholder:font-normal border-b-2 border-accent pb-1 leading-snug min-h-11">
+                        @else
+                            <h2 class="text-[19px] font-semibold text-ink leading-snug {{ $canEdit['meta'] ? 'cursor-text hover:text-accent transition-colors' : '' }}"
+                                @if($canEdit['meta']) wire:click="$set('editingTitle', true)" @endif>{{ $title }}</h2>
+                        @endif
 
-                {{-- Breadcrumb: project → task --}}
-                @if($task?->project)
-                <p class="text-[12px] text-muted mt-1.5 flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full inline-block shrink-0" style="background:{{ $task->project->color ?? '#D97757' }}"></span>
-                    {{ $task->project->name }}
-                    <span class="text-hairline">›</span>
-                    <span class="text-dim">#{{ $task->id }}</span>
-                </p>
-                @endif
+                        {{-- Breadcrumb: project → task --}}
+                        @if($task?->project)
+                        <p class="text-[12px] text-muted mt-1.5 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full inline-block shrink-0" style="background:{{ $task->project->color ?? '#D97757' }}"></span>
+                            {{ $task->project->name }}
+                            <span class="text-hairline">›</span>
+                            <span class="text-dim">#{{ $task->id }}</span>
+                        </p>
+                        @endif
+                    </div>
+                    <button wire:click="close"
+                            class="w-8 h-8 rounded-full flex items-center justify-center text-muted hover:text-ink transition-colors cursor-pointer"
+                            style="background: rgba(0,0,0,0.07)"
+                            title="Close">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
             </div>
 
             {{-- Description --}}
-            <div class="px-7 py-5 border-b border-hairline">
+            <div class="px-4 sm:px-7 py-5 border-b border-hairline">
                 <p class="text-[11px] font-bold uppercase tracking-wider text-muted mb-2">Description</p>
                 @if($editingDescription && $canEdit['meta'])
                     <textarea wire:model="description"
                               wire:blur="saveField('description')"
                               rows="4"
                               placeholder="Add a description…"
-                              class="w-full text-[13px] text-dim leading-relaxed bg-surface border border-line rounded-lg px-3 py-2.5 outline-none focus:border-accent focus:bg-white transition-colors resize-none placeholder:text-muted placeholder:italic"></textarea>
+                              class="w-full min-h-11 text-base sm:text-[13px] text-dim leading-relaxed bg-surface border border-line rounded-lg px-3 py-2.5 outline-none focus:border-accent focus:bg-white transition-colors resize-none placeholder:text-muted placeholder:italic"></textarea>
                 @else
                     <div class="min-h-[44px] {{ $canEdit['meta'] ? 'cursor-text group' : '' }}"
                          @if($canEdit['meta']) wire:click="$set('editingDescription', true)" @endif>
@@ -144,7 +154,7 @@
 
             {{-- Implementation Guide trigger --}}
             @if(! $isNew)
-            <div class="px-7 py-3 border-b border-hairline flex items-center gap-2">
+            <div class="px-4 sm:px-7 py-3 border-b border-hairline flex items-center gap-2">
                 @if($task?->guide)
                 <button @click="guideOpen = true; guideMode = 'preview'"
                         class="inline-flex items-center gap-1.5 text-[12px] font-medium text-info-text hover:text-accent transition-colors cursor-pointer">
@@ -167,7 +177,7 @@
 
             {{-- ── Checklist ────────────────────────────────────────────────────── --}}
             @if($task && (! $isNew))
-            <div class="px-7 py-5 border-b border-hairline">
+            <div class="px-4 sm:px-7 py-5 border-b border-hairline">
                 @php
                     $total   = $task->checklists->count();
                     $checked = $task->checklists->where('is_checked', true)->count();
@@ -192,7 +202,7 @@
 
                 {{-- Items --}}
                 @if($total > 0)
-                <ul class="space-y-0.5 mb-3">
+                <ul class="space-y-0.5 mb-3 max-h-[32vh] overflow-y-auto pr-1 sm:max-h-none sm:overflow-visible">
                     @foreach($task->checklists as $checkItem)
                     <li class="group flex items-center gap-2.5 py-1 rounded-lg hover:bg-canvas px-1.5 -mx-1.5 transition-colors duration-100"
                         wire:key="cl-{{ $checkItem->id }}">
@@ -243,7 +253,7 @@
                            @keydown.enter="if(label.trim()) { $wire.addChecklistItem(label.trim()); label = '' }"
                            type="text"
                            placeholder="Add an item…"
-                           class="flex-1 text-[13px] text-ink bg-surface border border-line rounded-lg px-3 py-1.5 outline-none focus:border-accent focus:bg-white transition-colors placeholder:text-muted placeholder:italic">
+                              class="w-full min-h-11 flex-1 text-base sm:text-[13px] text-ink bg-surface border border-line rounded-lg px-3 py-1.5 outline-none focus:border-accent focus:bg-white transition-colors placeholder:text-muted placeholder:italic">
                     <button @click="if(label.trim()) { $wire.addChecklistItem(label.trim()); label = '' }"
                             class="px-3 py-1.5 text-[12px] font-medium text-dim bg-surface border border-line rounded-lg hover:bg-hairline hover:text-ink transition-colors cursor-pointer">
                         Add
@@ -259,7 +269,7 @@
                 $allMedia   = $task->getMedia('attachments')->merge($task->getMedia('images'));
                 $mediaCount = $allMedia->count();
             @endphp
-            <div class="px-7 py-5 border-b border-hairline">
+            <div class="px-4 sm:px-7 py-5 border-b border-hairline">
                 {{-- Header --}}
                 <div class="flex items-center justify-between mb-3">
                     <div class="flex items-center gap-2">
@@ -351,11 +361,11 @@
             @endif
 
             {{-- Comments --}}
-            <div class="px-7 py-5 flex-1">
+            <div class="px-4 sm:px-7 py-5 flex-1 min-h-0">
                 <p class="text-[11px] font-bold uppercase tracking-wider text-muted mb-4">Comments</p>
 
                 @if($task)
-                <div class="space-y-4 mb-5">
+                <div class="space-y-4 mb-5 max-h-[34vh] overflow-y-auto pr-1 sm:max-h-none sm:overflow-visible">
                     @forelse($task->comments as $comment)
                     <div class="flex gap-3" wire:key="comment-{{ $comment->id }}">
                         {{-- Avatar --}}
@@ -418,7 +428,7 @@
                                       wire:keydown.meta.enter="addComment"
                                       rows="1"
                                       placeholder="Write a comment… (⌘↵ to send)"
-                                      class="flex-1 text-[13px] text-ink bg-surface border border-line rounded-lg px-3 py-2 outline-none focus:border-accent focus:bg-white transition-colors resize-none placeholder:text-muted placeholder:italic"></textarea>
+                                      class="w-full min-h-11 flex-1 text-base sm:text-[13px] text-ink bg-surface border border-line rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-accent focus:bg-white transition-colors resize-none placeholder:text-muted placeholder:italic"></textarea>
                             {{-- Paperclip --}}
                             <label class="w-8 h-8 flex items-center justify-center rounded-full text-muted hover:text-ink transition-colors cursor-pointer shrink-0 mt-0.5"
                                    style="background: rgba(0,0,0,0.07)" title="Attach file">
@@ -453,19 +463,9 @@
         </div>
 
         {{-- ── RIGHT: Meta sidebar ───────────────────────────────────────── --}}
-        <div class="w-[240px] shrink-0 flex flex-col border-l border-hairline overflow-y-auto">
+        <div class="md:col-span-1 shrink-0 flex flex-col border-t md:border-t-0 md:border-l border-hairline bg-surface overflow-y-auto pb-28 sm:pb-0">
 
-            {{-- Close button --}}
-            <div class="flex justify-end px-4 pt-4 pb-2">
-                <button wire:click="close"
-                        class="w-7 h-7 rounded-full flex items-center justify-center text-muted hover:text-ink transition-colors cursor-pointer"
-                        style="background: rgba(0,0,0,0.07)"
-                        title="Close">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-            </div>
-
-            <div class="px-5 pb-6 space-y-0 divide-y divide-hairline">
+            <div class="px-4 sm:px-5 pt-4 sm:pt-0 pb-6 space-y-0 divide-y divide-hairline">
 
                 {{-- Status --}}
                 <div class="py-3.5">
@@ -473,7 +473,7 @@
                     @if($canEdit['status'])
                     <select wire:model.live="status"
                             wire:change="saveField('status')"
-                            class="w-full text-[12px] font-semibold rounded-md px-2 py-1.5 border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors"
+                            class="w-full min-h-11 text-base sm:text-[12px] font-semibold rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors"
                             style="background: {{ $statusMap[$status]['bg'] ?? '#F5F4EF' }}; color: {{ $statusMap[$status]['text'] ?? '#8c8c8a' }}">
                         @foreach($columns as $col)
                         <option value="{{ $col->slug }}" @selected($status === $col->slug)>{{ $col->name }}</option>
@@ -493,7 +493,7 @@
                     @if($canEdit['priority'])
                     <select wire:model.live="priority"
                             wire:change="saveField('priority')"
-                            class="w-full text-[12px] font-semibold rounded-md px-2 py-1.5 border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors"
+                            class="w-full min-h-11 text-base sm:text-[12px] font-semibold rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors"
                             style="background: {{ $priorityMap[$priority]['bg'] ?? '#F5F4EF' }}; color: {{ $priorityMap[$priority]['text'] ?? '#8c8c8a' }}">
                         <option value="critical" @selected($priority==='critical')>↑↑ Critical</option>
                         <option value="high"     @selected($priority==='high')>↑ High</option>
@@ -514,7 +514,7 @@
                     @if($canEdit['project'])
                     <select wire:model.live="projectId"
                             wire:change="saveField('projectId')"
-                            class="w-full text-[12px] font-medium text-ink rounded-md px-2 py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
+                            class="w-full min-h-11 text-base sm:text-[12px] font-medium text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
                         <option value="">No project</option>
                         @foreach($projects as $p)
                         <option value="{{ $p->id }}" @selected($projectId == $p->id)>{{ $p->name }}</option>
@@ -533,7 +533,7 @@
                     @if($canEdit['assignee'])
                     <select wire:model.live="assignedTo"
                             wire:change="saveField('assignedTo')"
-                            class="w-full text-[12px] font-medium text-ink rounded-md px-2 py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
+                            class="w-full min-h-11 text-base sm:text-[12px] font-medium text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
                         <option value="">Unassigned</option>
                         @foreach($users as $u)
                         <option value="{{ $u->id }}" @selected($assignedTo == $u->id)>{{ $u->name }}</option>
@@ -560,7 +560,7 @@
                     <input type="date"
                            wire:model.lazy="dueDate"
                            wire:change="saveField('dueDate')"
-                           class="w-full text-[12px] text-ink rounded-md px-2 py-1.5 bg-surface border border-line outline-none focus:border-accent transition-colors cursor-pointer">
+                              class="w-full min-h-11 text-base sm:text-[12px] text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line outline-none focus:border-accent transition-colors cursor-pointer">
                     @else
                     <p class="text-[12px] text-ink">{{ $dueDate ? \Carbon\Carbon::parse($dueDate)->format('M j, Y') : '—' }}</p>
                     @endif
@@ -578,7 +578,7 @@
                            wire:change="saveField('estimatedHours')"
                            min="0" max="999" step="0.5"
                            placeholder="—"
-                           class="w-full text-[12px] text-ink rounded-md px-2 py-1.5 bg-surface border border-line outline-none focus:border-accent transition-colors placeholder:text-muted">
+                              class="w-full min-h-11 text-base sm:text-[12px] text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line outline-none focus:border-accent transition-colors placeholder:text-muted">
                     @else
                     <p class="text-[12px] text-ink">{{ $estimatedHours ? $estimatedHours . 'h' : '—' }}</p>
                     @endif
@@ -596,16 +596,16 @@
 
             {{-- Save button for new tasks --}}
             @if($isNew)
-            <div class="px-5 pb-5">
+            <div class="fixed inset-x-0 bottom-0 z-30 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] bg-white border-t border-hairline sm:static sm:px-5 sm:pt-0 sm:pb-5 sm:bg-transparent sm:border-0">
                 <button wire:click="saveNew"
-                        class="w-full py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition-colors cursor-pointer">
+                        class="w-full min-h-11 py-2 bg-accent hover:bg-accent-hover text-white text-base sm:text-[13px] font-medium rounded-lg transition-colors cursor-pointer">
                     Create Task
                 </button>
             </div>
             @elseif($canClaim)
-            <div class="px-5 pb-5 pt-4 border-t border-hairline">
+            <div class="fixed inset-x-0 bottom-0 z-30 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] bg-white border-t border-hairline sm:static sm:px-5 sm:pt-4 sm:pb-5 sm:bg-transparent">
                 <button wire:click="claimTask"
-                        class="w-full py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5">
+                        class="w-full min-h-11 py-2 bg-accent hover:bg-accent-hover text-white text-base sm:text-[13px] font-medium rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59"/>
                     </svg>

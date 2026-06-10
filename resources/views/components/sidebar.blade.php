@@ -24,8 +24,10 @@
     if ($user->hasPermission('hr.view')) {
         $nav[] = ['_group' => 'HR'];
         $nav[] = ['route' => 'employees.index', 'label' => 'Employees', 'icon' => 'users', 'badge' => \App\Models\EmployeeProfile::active()->count() ?: null];
+            $nav[] = ['route' => 'leaves.index', 'label' => 'Leaves', 'icon' => 'calendar', 'badge' => \App\Models\LeaveRequest::pending()->count() ?: null];
     }
     if ($user->hasPermission('hr.manage')) {
+        $nav[] = ['route' => 'payroll.index', 'label' => 'Payroll', 'icon' => 'file-text', 'badge' => \App\Models\PayrollRun::draft()->count() ?: null];
         $nav[] = ['route' => 'contract-templates.index', 'label' => 'Contract Templates', 'icon' => 'file-text'];
     }
     if ($user->hasPermission('customers.view')) {
@@ -230,6 +232,7 @@
                 <p class="sidebar-group-label text-[10px] font-semibold uppercase tracking-wider text-muted px-2 pb-1 pt-3">{{ $item['_group'] }}</p>
             @else
             <a href="{{ route($item['route']) }}"
+                    @click="if (window.innerWidth < 1024) { Alpine.store('sidebar').close(); }"
                @mouseenter="$store.sidebarTip.open($el, '{{ $item['label'] }}')"
                @mouseleave="$store.sidebarTip.close()"
                class="nav-item {{ request()->routeIs($item['route']) || request()->routeIs($item['route'].'.*') ? 'active' : '' }}">
@@ -248,6 +251,7 @@
                 <p class="sidebar-group-label text-[10px] font-semibold uppercase tracking-wider text-muted px-2 pb-1">Projects</p>
                 @foreach ($projects as $project)
                     <a href="{{ route('projects.show', $project) }}"
+                              @click="if (window.innerWidth < 1024) { Alpine.store('sidebar').close(); }"
                        @mouseenter="$store.sidebarTip.open($el, '{{ $project->name }}')"
                        @mouseleave="$store.sidebarTip.close()"
                        class="nav-item {{ request()->routeIs('projects.show') && request()->route('project')?->id == $project->id ? 'active' : '' }}">

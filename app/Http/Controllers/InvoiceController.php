@@ -56,7 +56,12 @@ class InvoiceController extends Controller
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
         $customers = Customer::orderBy('name')->get(['id', 'name']);
         $projects  = Project::orderBy('name')->get(['id', 'name', 'customer_id']);
-        return view('invoices.create', compact('customers', 'projects'));
+        $companyAccounts = CompanyBankAccount::query()
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'bank_name', 'account_number', 'is_default']);
+
+        return view('invoices.create', compact('customers', 'projects', 'companyAccounts'));
     }
 
     public function store(StoreInvoiceRequest $request)
@@ -95,7 +100,12 @@ class InvoiceController extends Controller
         $invoice->load('items.task');
         $customers = Customer::orderBy('name')->get(['id', 'name']);
         $projects  = Project::orderBy('name')->get(['id', 'name', 'customer_id']);
-        return view('invoices.edit', compact('invoice', 'customers', 'projects'));
+        $companyAccounts = CompanyBankAccount::query()
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'bank_name', 'account_number', 'is_default']);
+
+        return view('invoices.edit', compact('invoice', 'customers', 'projects', 'companyAccounts'));
     }
 
     public function update(UpdateInvoiceRequest $request, Invoice $invoice)

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -76,6 +77,40 @@ class EmployeeProfile extends Model implements HasMedia
         return $this->hasMany(EmployeeBankAccount::class, 'employee_id');
     }
 
+    public function advances(): HasMany
+    {
+        return $this->hasMany(EmployeeAdvance::class, 'employee_id');
+    }
+
+    public function loans(): HasMany
+    {
+        return $this->hasMany(EmployeeLoan::class, 'employee_id');
+    }
+
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class, 'employee_id')->orderByDesc('start_date');
+    }
+
+    public function leaveBalances(): HasMany
+    {
+        return $this->hasMany(EmployeeLeaveBalance::class, 'employee_id');
+    }
+
+    public function getPendingAdvancesTotal(): float
+    {
+        return (float) $this->advances()->pending()->sum('amount');
+    }
+
+    public function getActiveLoansList(): Collection
+    {
+        return $this->loans()
+            ->active()
+            ->get()
+            ->filter(fn (EmployeeLoan $loan) => $loan->amount_remaining > 0)
+            ->values();
+    }
+
     // ── Accessors ────────────────────────────────────────────────────────────
     public function getCurrentContractAttribute(): ?EmployeeContract
     {
@@ -86,6 +121,13 @@ class EmployeeProfile extends Model implements HasMedia
     public function getDisplayNameAttribute(): string
     {
         return $this->user?->name ?? 'Unknown';
+    }
+
+    public function getLeaveBalance(int $leaveTypeId, ?int $year = null): EmployeeLeaveBalance
+    {
+        $year ??= (int) now()->year;
+
+        return EmployeeLeaveBalance::getOrCreate($this->id, $leaveTypeId, $year);
     }
 
     // ── Media ────────────────────────────────────────────────────────────────

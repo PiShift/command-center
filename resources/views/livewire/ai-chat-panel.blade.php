@@ -7,6 +7,13 @@
         projectIdState: @entangle('projectId').live,
         streamingText: '',
         streamingError: '',
+        parsedActionsPayload: null,
+        streamReader: null,
+        streamStopRequested: false,
+        rawStreamBuffer: '',
+        visibleStreamBuffer: '',
+        hiddenActionsBuffer: '',
+        inActionsTag: false,
         userScrolled: false,
         onMessagesScroll() {
             const el = this.$refs.messages;
@@ -23,9 +30,109 @@
                 }
             });
         },
-        async streamMessage(detail) {
+        escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '\x26amp;')
+                .replace(/</g, '\x26lt;')
+                .replace(/>/g, '\x26gt;')
+                .replace(/\x22/g, '\x26quot;')
+                .replace(/\x27/g, '\x26#39;');
+        },
+        inlineStreamingMarkdown(value) {
+            const escaped = this.escapeHtml(value);
+            return escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        },
+        renderStreamingMarkdown(value) {
+            const lines = String(value || '').split(/\r?\n/);
+            const html = lines.map((line) => {
+                if (/^###\s+/.test(line)) {
+                    return '<p style=\'font-size:15px;font-weight:600;color:var(--color-ink,#141413);line-height:1.2;margin:2px 0\'>' + this.inlineStreamingMarkdown(line.replace(/^###\s+/, '')) + '</p>';
+                }
+                if (/^[-*]\s+/.test(line)) {
+                    return '<p style=\'font-size:13px;color:var(--color-ink,#141413);line-height:1.5;margin:0\'>\u2022 ' + this.inlineStreamingMarkdown(line.replace(/^[-*]\s+/, '')) + '</p>';
+                }
+                if (line.trim() === '') {
+                    return '<p style=\'font-size:13px;line-height:1.5;margin:0\'>\x26nbsp;</p>';
+                }
+                return '<p style=\'font-size:13px;color:var(--color-ink,#141413);line-height:1.5;margin:0\'>' + this.inlineStreamingMarkdown(line) + '</p>';
+            }).join('');
+            return html;
+        },
+        processChunkVisibility(chunk) {
+            this.rawStreamBuffer += String(chunk || '');
+
+            let i = 0;
+            let visible = '';
+            let hidden = '';
+            let inActions = false;
+
+            while (i < this.rawStreamBuffer.length) {
+                if (!inActions && this.rawStreamBuffer.startsWith('<actions>', i)) {
+                    inActions = true;
+                    hidden += '<actions>';
+                    i += 9;
+                    continue;
+                }
+
+                if (inActions && this.rawStreamBuffer.startsWith('</actions>', i)) {
+                    inActions = false;
+                    hidden += '</actions>';
+                    i += 10;
+                    continue;
+                }
+
+                const ch = this.rawStreamBuffer[i];
+                if (inActions) {
+                    hidden += ch;
+                } else {
+                    visible += ch;
+                }
+                i += 1;
+            }
+
+            this.inActionsTag = inActions;
+            this.visibleStreamBuffer = visible;
+            this.hiddenActionsBuffer = hidden;
+            this.streamingText = visible;
+        },
+        resetStreamState() {
             this.streamingText = '';
             this.streamingError = '';
+            this.parsedActionsPayload = null;
+            this.streamStopRequested = false;
+            this.rawStreamBuffer = '';
+            this.visibleStreamBuffer = '';
+            this.hiddenActionsBuffer = '';
+            this.inActionsTag = false;
+        },
+        async stopStreaming() {
+            if (!this.isStreaming) return;
+
+            this.streamStopRequested = true;
+
+            if (this.streamReader) {
+                try {
+                    await this.streamReader.cancel();
+                } catch (_) {}
+            }
+
+            let partial = this.rawStreamBuffer.trim();
+            partial = partial !== '' ? `${partial}\n\n_(response stopped)_` : '_(response stopped)_';
+
+            this.streamingText = '';
+            this.isStreaming = false;
+            $wire.set('isStreaming', false);
+
+            await $wire.saveAssistantMessage(partial);
+
+            this.parsedActionsPayload = null;
+            this.$nextTick(() => {
+                this.scrollToBottom();
+                this.$refs.chatInput && this.$refs.chatInput.focus();
+            });
+        },
+        async streamMessage(detail) {
+            this.resetStreamState();
             try {
                 const csrfToken = document.querySelector('meta[name=csrf-token]');
                 const response = await fetch('/ai/conversation/stream', {
@@ -47,6 +154,7 @@
                     throw new Error('HTTP ' + response.status);
                 }
                 const reader  = response.body.getReader();
+                this.streamReader = reader;
                 const decoder = new TextDecoder();
                 let buffer = '';
                 while (true) {
@@ -59,9 +167,19 @@
                         if (!line.startsWith('data: ')) continue;
                         const payload = line.slice(6).trim();
                         if (payload === '[DONE]') {
-                            const textToSave = this.streamingText;
+                            if (this.streamStopRequested) {
+                                this.streamReader = null;
+                                return;
+                            }
+
+                            const textToSave = this.rawStreamBuffer;
                             this.streamingText = '';
+                            if (this.parsedActionsPayload?.actions) {
+                                window.dispatchEvent(new CustomEvent('actions-parsed', { detail: this.parsedActionsPayload }));
+                            }
                             await $wire.saveAssistantMessage(textToSave);
+                            this.parsedActionsPayload = null;
+                            this.streamReader = null;
                             this.$nextTick(() => {
                                 this.scrollToBottom();
                                 this.$refs.chatInput && this.$refs.chatInput.focus();
@@ -71,26 +189,41 @@
                         try {
                             const parsed = JSON.parse(payload);
                             if (parsed.chunk) {
-                                this.streamingText += parsed.chunk;
+                                this.processChunkVisibility(parsed.chunk);
                                 this.$nextTick(() => this.scrollToBottom());
+                            } else if (parsed.actions_parsed?.actions) {
+                                this.parsedActionsPayload = parsed.actions_parsed;
                             }
                         } catch (_) {}
                     }
                 }
-                if (this.streamingText) {
-                    const textToSave = this.streamingText;
+                this.streamReader = null;
+                if (!this.streamStopRequested && this.rawStreamBuffer) {
+                    const textToSave = this.rawStreamBuffer;
                     this.streamingText = '';
+                    if (this.parsedActionsPayload?.actions) {
+                        window.dispatchEvent(new CustomEvent('actions-parsed', { detail: this.parsedActionsPayload }));
+                    }
                     await $wire.saveAssistantMessage(textToSave);
+                    this.parsedActionsPayload = null;
                     this.$nextTick(() => {
                         this.scrollToBottom();
                         this.$refs.chatInput && this.$refs.chatInput.focus();
                     });
                 }
             } catch (err) {
+                this.streamReader = null;
+                if (this.streamStopRequested) {
+                    return;
+                }
                 console.error('AI stream error:', err);
                 this.streamingError = 'Connection error. Please try again.';
                 $wire.set('isStreaming', false);
             }
+        },
+        captureParsedActions(detail) {
+            if (!detail?.actions) return;
+            $wire.captureParsedActions(detail.actions);
         }
     }"
     x-init="
@@ -99,6 +232,7 @@
     "
     x-on:open-ai-chat.window="$wire.handleOpenEvent($event.detail?.projectId ?? null)"
     x-on:begin-stream.window="streamMessage($event.detail)"
+    x-on:actions-parsed.window="captureParsedActions($event.detail)"
 >
 
     {{-- ── Floating trigger button ─────────────────────────────────────────── --}}
@@ -425,6 +559,10 @@
                         @else
                             @php
                                 $assistantContent = trim(preg_replace('/<actions>.*?<\/actions>/s', '', (string) $message['content']));
+                                $isClarification = (($message['actions']['type'] ?? null) === 'clarification');
+                                if ($isClarification) {
+                                    $assistantContent = trim((string) (preg_split('/\R/', $assistantContent)[0] ?? ''));
+                                }
                                 $hasCodeBlock = str_contains($assistantContent, '```');
                                 $hasLongBlock = collect(preg_split('/\R+/', $assistantContent) ?: [])
                                     ->contains(fn ($line) => mb_strlen(trim((string) $line)) > 800);
@@ -670,6 +808,168 @@
                                 </div>
                             </div>
 
+                            {{-- ── Grouped sprint + tasks action card ───────── --}}
+                            @elseif(! empty($message['actions']) && (($message['actions']['type'] ?? null) === 'sprint_with_tasks'))
+                            @php
+                                $swtAction = $message['actions'];
+                                $swtTasks  = is_array($swtAction['tasks'] ?? null) ? $swtAction['tasks'] : [];
+                                $msgDbId   = $message['id'];
+                            @endphp
+                            <div class="mt-2 w-full"
+                                 x-data="{
+                                    confirmed: {{ ! empty($swtAction['confirmed']) ? 'true' : 'false' }},
+                                    skipped: {{ ! empty($swtAction['skipped']) ? 'true' : 'false' }},
+                                    targetMode: 'new',
+                                    sprintName: @js($swtAction['sprint_name'] ?? ''),
+                                    sprintDescription: @js($swtAction['sprint_description'] ?? ''),
+                                    existingSprintId: '',
+                                    tasks: @js($swtTasks),
+                                    normalizeTasks() {
+                                        this.tasks = (Array.isArray(this.tasks) ? this.tasks : []).map(t => ({
+                                            title: t?.title ?? '',
+                                            description: t?.description ?? '',
+                                            type: ['feature','bug','change'].includes(t?.type) ? t.type : 'feature',
+                                            priority: ['low','medium','high'].includes(t?.priority) ? t.priority : 'medium',
+                                            weight: Math.min(5, Math.max(1, parseInt(t?.weight ?? 2))),
+                                            checklist: Array.isArray(t?.checklist) && t.checklist.length ? t.checklist : [''],
+                                        }));
+                                        if (!this.tasks.length) this.addTask();
+                                    },
+                                    addTask() {
+                                        this.tasks.push({ title: '', description: '', type: 'feature', priority: 'medium', weight: 2, checklist: [''] });
+                                    },
+                                    removeTask(index) {
+                                        this.tasks.splice(index, 1);
+                                        if (!this.tasks.length) this.addTask();
+                                    },
+                                    addChecklist(taskIndex) {
+                                        if (!Array.isArray(this.tasks[taskIndex].checklist)) this.tasks[taskIndex].checklist = [];
+                                        this.tasks[taskIndex].checklist.push('');
+                                    },
+                                    removeChecklist(taskIndex, itemIndex) {
+                                        const list = this.tasks[taskIndex].checklist;
+                                        list.splice(itemIndex, 1);
+                                        if (!list.length) list.push('');
+                                    },
+                                    payload() {
+                                        return {
+                                            target_mode: this.targetMode,
+                                            sprint_name: this.sprintName,
+                                            sprint_description: this.sprintDescription,
+                                            existing_sprint_id: this.targetMode === 'existing' ? this.existingSprintId : '',
+                                            tasks: this.tasks.map(task => ({
+                                                title: task.title,
+                                                description: task.description,
+                                                type: task.type,
+                                                priority: task.priority,
+                                                weight: task.weight,
+                                                checklist: (Array.isArray(task.checklist) ? task.checklist : []).filter(i => String(i).trim() !== ''),
+                                            })),
+                                        };
+                                    },
+                                    init() {
+                                        this.normalizeTasks();
+                                    }
+                                 }">
+                                <div x-show="!skipped" x-cloak class="bg-white border border-line rounded-lg shadow-sm overflow-hidden">
+                                    <div x-show="confirmed" class="flex items-center gap-2 px-3 py-2 bg-[#f0faf5] border-l-[3px] border-[#2e7d55]">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-[#2e7d55] shrink-0">
+                                            <polyline points="20 6 9 17 4 12"/>
+                                        </svg>
+                                        <span class="text-[12px] font-medium text-[#2e7d55]">Sprint batch created</span>
+                                    </div>
+
+                                    <div x-show="!confirmed" class="p-3 space-y-3">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <p class="text-[12px] font-semibold text-ink">Sprint + Tasks Proposal</p>
+                                            <button x-on:click="skipped = true; $wire.skipSprintWithTasks({{ $msgDbId }})"
+                                                    class="text-[10px] text-muted hover:text-ink cursor-pointer">Skip</button>
+                                        </div>
+
+                                        <div class="space-y-2">
+                                            <label class="block text-[10px] font-bold uppercase tracking-wider text-muted">Target sprint</label>
+                                            <div class="flex items-center gap-2 flex-wrap">
+                                                <button type="button"
+                                                        x-on:click="targetMode = 'new'"
+                                                        x-bind:class="targetMode === 'new' ? 'bg-accent text-white border-accent' : 'bg-surface text-dim border-line'"
+                                                        class="px-2 py-1 text-[11px] font-medium rounded-md border transition-colors cursor-pointer">Create as new sprint</button>
+                                                <button type="button"
+                                                        x-on:click="targetMode = 'existing'"
+                                                        x-bind:class="targetMode === 'existing' ? 'bg-accent text-white border-accent' : 'bg-surface text-dim border-line'"
+                                                        class="px-2 py-1 text-[11px] font-medium rounded-md border transition-colors cursor-pointer">Add to existing sprint</button>
+                                            </div>
+                                            <div x-show="targetMode === 'existing'" x-cloak>
+                                                <select x-model="existingSprintId" class="w-full text-[12px] text-ink bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent cursor-pointer">
+                                                    <option value="">Select sprint...</option>
+                                                    @foreach($availableSprints as $sp)
+                                                    <option value="{{ $sp['id'] }}">{{ $sp['name'] }} ({{ ucfirst($sp['status']) }})</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div x-show="targetMode === 'new'" x-cloak class="space-y-2">
+                                            <input x-model="sprintName" type="text" placeholder="Sprint name"
+                                                   class="w-full text-[12px] text-ink bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent">
+                                            <textarea x-model="sprintDescription" rows="2" placeholder="Sprint description"
+                                                      class="w-full text-[12px] text-dim bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent resize-none"></textarea>
+                                        </div>
+
+                                        <div class="space-y-2">
+                                            <template x-for="(task, tIndex) in tasks" :key="`task-${tIndex}`">
+                                                <div class="border border-hairline rounded-md p-2.5 bg-white space-y-2">
+                                                    <div class="flex items-center gap-2">
+                                                        <input x-model="task.title" type="text" placeholder="Task title"
+                                                               class="flex-1 text-[12px] font-medium text-ink bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent">
+                                                        <button x-on:click="removeTask(tIndex)" class="text-[10px] text-muted hover:text-danger cursor-pointer">Remove task</button>
+                                                    </div>
+
+                                                    <textarea x-model="task.description" rows="2" placeholder="Task description"
+                                                              class="w-full text-[11px] text-dim bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent resize-none"></textarea>
+
+                                                    <div class="grid grid-cols-3 gap-1.5">
+                                                        <select x-model="task.type" class="text-[11px] text-dim bg-surface border border-line rounded px-1.5 py-1 outline-none cursor-pointer">
+                                                            <option value="feature">feature</option>
+                                                            <option value="bug">bug</option>
+                                                            <option value="change">change</option>
+                                                        </select>
+                                                        <select x-model="task.priority" class="text-[11px] text-dim bg-surface border border-line rounded px-1.5 py-1 outline-none cursor-pointer">
+                                                            <option value="low">low</option>
+                                                            <option value="medium">medium</option>
+                                                            <option value="high">high</option>
+                                                        </select>
+                                                        <input x-model.number="task.weight" type="number" min="1" max="5" step="1"
+                                                               class="text-[11px] text-dim bg-surface border border-line rounded px-1.5 py-1 outline-none" placeholder="Weight">
+                                                    </div>
+
+                                                    <div class="space-y-1.5">
+                                                        <div class="flex items-center justify-between">
+                                                            <span class="text-[10px] font-bold uppercase tracking-wider text-muted">Checklist</span>
+                                                            <button x-on:click="addChecklist(tIndex)" class="text-[10px] text-accent hover:underline cursor-pointer">+ Add item</button>
+                                                        </div>
+                                                        <template x-for="(item, cIndex) in task.checklist" :key="`task-${tIndex}-check-${cIndex}`">
+                                                            <div class="flex items-center gap-1.5">
+                                                                <span class="w-1.5 h-1.5 rounded-full bg-muted shrink-0"></span>
+                                                                <input x-model="task.checklist[cIndex]" type="text" placeholder="Checklist item"
+                                                                       class="flex-1 text-[11px] text-dim bg-surface border border-line rounded px-2 py-1 outline-none focus:border-accent">
+                                                                <button x-on:click="removeChecklist(tIndex, cIndex)" class="text-[10px] text-muted hover:text-danger cursor-pointer">Remove</button>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <button x-on:click="addTask()" class="px-2 py-1 rounded-md text-[11px] font-medium border border-line text-dim hover:text-ink hover:bg-surface transition-colors cursor-pointer">+ Add task</button>
+                                        </div>
+
+                                        <div class="flex justify-end">
+                                            <button x-on:click="confirmed = true; $wire.confirmSprintWithTasks({{ $msgDbId }}, payload())"
+                                                    class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover cursor-pointer transition-colors">Create sprint + tasks</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             {{-- ── Action cards ─────────────────────────────── --}}
                             @elseif(! empty($message['actions']['items']))
                             @php
@@ -687,13 +987,22 @@
                                         itemType: @js($action['type'] ?? 'feature'),
                                         weight: {{ (int) ($action['weight'] ?? 2) }},
                                         priority: @js($action['priority'] ?? 'medium'),
+                                        checklist: @js(is_array($action['checklist'] ?? null) ? array_values($action['checklist']) : []),
                                         sprintId: '',
                                         confirmed: {{ ($action['confirmed'] ?? false) ? 'true' : 'false' }},
                                         skipped: {{ ($action['skipped'] ?? false) ? 'true' : 'false' }},
                                         editTitle: false,
                                         editDesc: false,
+                                        addChecklistItem() {
+                                            if (!Array.isArray(this.checklist)) this.checklist = [];
+                                            this.checklist.push('');
+                                        },
+                                        removeChecklistItem(index) {
+                                            this.checklist.splice(index, 1);
+                                        },
                                         init() {
                                             this.$watch('editTitle', v => { if (v) this.$nextTick(() => this.$refs.titleInput && this.$refs.titleInput.focus()); });
+                                            if (!Array.isArray(this.checklist)) this.checklist = [];
                                         }
                                     }"
                                     x-show="!skipped"
@@ -781,6 +1090,26 @@
                                         </div>
                                         @endif
 
+                                        @if($actType === 'tasks')
+                                        <div class="mb-2 space-y-1.5">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-[10px] font-bold uppercase tracking-wider text-muted">Checklist</span>
+                                                <button x-on:click="addChecklistItem()" class="text-[10px] text-accent hover:underline cursor-pointer">+ Add item</button>
+                                            </div>
+                                            <template x-if="checklist.length === 0">
+                                                <p class="text-[11px] text-muted italic">No checklist items.</p>
+                                            </template>
+                                            <template x-for="(item, cIdx) in checklist" :key="`check-${cIdx}`">
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-muted shrink-0"></span>
+                                                    <input x-model="checklist[cIdx]" type="text" placeholder="Checklist item"
+                                                           class="flex-1 text-[11px] text-dim bg-surface border border-line rounded px-2 py-1 outline-none focus:border-accent">
+                                                    <button x-on:click="removeChecklistItem(cIdx)" class="text-[10px] text-muted hover:text-danger cursor-pointer">Remove</button>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        @endif
+
                                         {{-- Description (editable) --}}
                                         @if(! empty($action['description']))
                                         <div class="mb-2">
@@ -821,11 +1150,11 @@
                                             >Create sprint</button>
                                             @else
                                             <button
-                                                x-on:click="confirmed = true; $wire.confirmAction({{ $msgDbId }}, {{ $aIdx }}, { title, description, type: itemType, weight, priority, sprintId, targetAction: (sprintId !== '') ? 'sprint' : 'backlog' })"
+                                                x-on:click="confirmed = true; $wire.confirmAction({{ $msgDbId }}, {{ $aIdx }}, { title, description, type: itemType, weight, priority, checklist, sprintId, actionType: '{{ $actType }}', targetAction: (sprintId !== '') ? 'sprint' : 'backlog' })"
                                                 class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover cursor-pointer transition-colors"
                                             >
                                                 @if($actType === 'tasks')
-                                                <span x-text="sprintId !== '' ? 'Add to sprint' : 'Add to backlog'"></span>
+                                                <span x-text="sprintId !== '' ? 'Create in sprint' : 'Create task'"></span>
                                                 @else
                                                 Add to backlog
                                                 @endif
@@ -833,9 +1162,9 @@
                                             @if($actType === 'tasks')
                                             <button
                                                 x-show="sprintId !== ''"
-                                                x-on:click="confirmed = true; $wire.confirmAction({{ $msgDbId }}, {{ $aIdx }}, { title, description, type: itemType, weight, priority, sprintId: '', targetAction: 'backlog' })"
+                                                x-on:click="confirmed = true; $wire.confirmAction({{ $msgDbId }}, {{ $aIdx }}, { title, description, type: itemType, weight, priority, checklist, sprintId: '', actionType: '{{ $actType }}', targetAction: 'backlog' })"
                                                 class="px-2.5 py-1 rounded-md text-[11px] font-medium border border-line text-dim hover:text-ink hover:bg-surface cursor-pointer transition-colors"
-                                            >Add to backlog</button>
+                                            >Create without sprint</button>
                                             @endif
                                             @endif
                                         </div>
@@ -861,6 +1190,275 @@
                     </div>
                     @endforeach
                 </div>
+
+                @php
+                    $latestClarification = collect($messages)
+                        ->reverse()
+                        ->first(fn ($msg) => (($msg['actions']['type'] ?? null) === 'clarification') && empty($msg['actions']['answered']));
+                @endphp
+
+                @if($latestClarification && ! $isStreaming)
+                @php
+                    $clarAction = $latestClarification['actions'];
+                    $clarQuestions = is_array($clarAction['questions'] ?? null) ? $clarAction['questions'] : [];
+                    $clarMessageId = $latestClarification['id'] ?? 0;
+                @endphp
+                <div
+                    class="absolute inset-x-0 bottom-0 z-30"
+                    data-clar-questions="{!! htmlspecialchars(json_encode($clarQuestions, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') !!}"
+                    data-clar-msg-id="{{ (int) $clarMessageId }}"
+                    x-data="{
+                        open: true,
+                        current: 0,
+                        questions: [],
+                        msgId: 0,
+                        answers: {},
+                        textValue: '',
+                        selectedPill: '',
+                        multiSelected: [],
+                        otherValue: '',
+                        multiOtherValue: '',
+                        get total() { return this.questions.length || 0; },
+                        get currentQuestion() { return this.questions[this.current] || null; },
+                        isOtherOption(opt) {
+                            return /^(other|something else|something-else|else|another)$/i.test(String(opt || '').trim());
+                        },
+                        firstOtherOption(options) {
+                            const opts = Array.isArray(options) ? options : [];
+                            return opts.find((opt) => this.isOtherOption(opt)) || null;
+                        },
+                        focusWithin(el) {
+                            this.$nextTick(() => {
+                                const input = el?.querySelector('input[type=text]');
+                                if (input) input.focus();
+                            });
+                        },
+                        syncCurrentFromAnswers() {
+                            const q = this.currentQuestion;
+                            if (!q) return;
+                            const existing = this.answers[q.id];
+                            this.textValue = '';
+                            this.selectedPill = '';
+                            this.multiSelected = [];
+                            this.otherValue = '';
+                            this.multiOtherValue = '';
+                            if (q.type === 'multiselect' && Array.isArray(existing)) {
+                                const opts = Array.isArray(q.options) ? q.options : [];
+                                const otherOpt = this.firstOtherOption(opts);
+                                const known = existing.filter((val) => opts.includes(val));
+                                const custom = existing.find((val) => !opts.includes(val));
+                                this.multiSelected = [...known];
+                                if (otherOpt && typeof custom === 'string' && custom.trim() !== '') {
+                                    this.multiSelected.push(otherOpt);
+                                    this.multiOtherValue = custom;
+                                }
+                            } else if (q.type === 'pills' && typeof existing === 'string') {
+                                const opts = Array.isArray(q.options) ? q.options : [];
+                                const otherOpt = this.firstOtherOption(opts);
+                                if (opts.includes(existing)) {
+                                    this.selectedPill = existing;
+                                } else if (otherOpt) {
+                                    this.selectedPill = otherOpt;
+                                    this.otherValue = existing;
+                                } else {
+                                    this.otherValue = existing;
+                                }
+                            } else if (q.type === 'text' && typeof existing === 'string') {
+                                this.textValue = existing;
+                            }
+                        },
+                        saveCurrentAnswerAndContinue() {
+                            const q = this.currentQuestion;
+                            if (!q) return;
+                            if (q.type === 'text') {
+                                const val = this.textValue.trim();
+                                if (q.required && val === '') return;
+                                this.answers[q.id] = val;
+                            } else if (q.type === 'multiselect') {
+                                const options = Array.isArray(q.options) ? q.options : [];
+                                const normalized = [];
+                                for (const opt of this.multiSelected) {
+                                    if (this.isOtherOption(opt)) {
+                                        const custom = this.multiOtherValue.trim();
+                                        if (custom !== '') normalized.push(custom);
+                                    } else if (options.includes(opt)) {
+                                        normalized.push(opt);
+                                    }
+                                }
+                                if (q.required && normalized.length === 0) return;
+                                this.answers[q.id] = normalized;
+                            } else {
+                                let val = this.selectedPill;
+                                if (this.isOtherOption(this.selectedPill)) {
+                                    val = this.otherValue.trim();
+                                }
+                                if (q.required && val === '') return;
+                                this.answers[q.id] = val;
+                            }
+
+                            if (this.current < this.total - 1) {
+                                this.current += 1;
+                                this.syncCurrentFromAnswers();
+                            } else {
+                                this.open = false;
+                                $wire.submitClarificationAnswers(this.msgId, this.answers);
+                            }
+                        },
+                        skipCurrent() {
+                            const q = this.currentQuestion;
+                            if (!q || q.required) return;
+                            this.answers[q.id] = '';
+                            if (this.current < this.total - 1) {
+                                this.current += 1;
+                                this.syncCurrentFromAnswers();
+                            } else {
+                                this.open = false;
+                                $wire.submitClarificationAnswers(this.msgId, this.answers);
+                            }
+                        },
+                        back() {
+                            if (this.current === 0) return;
+                            this.current -= 1;
+                            this.syncCurrentFromAnswers();
+                        },
+                        choosePill(opt, event) {
+                            this.selectedPill = opt;
+                            if (this.isOtherOption(opt)) {
+                                this.focusWithin(event?.currentTarget?.closest('[data-option-row]'));
+                                return;
+                            }
+                            this.otherValue = '';
+                            this.answers[this.currentQuestion.id] = opt;
+                            this.saveCurrentAnswerAndContinue();
+                        },
+                        toggleMultiOption(opt, checked, event) {
+                            if (checked) {
+                                if (!this.multiSelected.includes(opt)) this.multiSelected.push(opt);
+                                if (this.isOtherOption(opt)) {
+                                    this.focusWithin(event?.currentTarget?.closest('[data-option-row]'));
+                                }
+                                return;
+                            }
+
+                            this.multiSelected = this.multiSelected.filter((v) => v !== opt);
+                            if (this.isOtherOption(opt)) {
+                                this.multiOtherValue = '';
+                            }
+                        },
+                        init() {
+                            try {
+                                this.questions = JSON.parse(this.$el.getAttribute('data-clar-questions') || '[]');
+                            } catch (_) { this.questions = []; }
+                            this.msgId = parseInt(this.$el.getAttribute('data-clar-msg-id') || '0', 10);
+                            this.syncCurrentFromAnswers();
+                        }
+                    }"
+                    x-show="open"
+                    x-cloak
+                    x-transition:enter="transition ease-out duration-200"
+                    x-transition:enter-start="opacity-0 translate-y-4"
+                    x-transition:enter-end="opacity-100 translate-y-0"
+                    x-transition:leave="transition ease-in duration-150"
+                    x-transition:leave-start="opacity-100 translate-y-0"
+                    x-transition:leave-end="opacity-0 translate-y-4"
+                >
+                    <div class="h-[60%] bg-white border-t border-line rounded-t-2xl shadow-modal flex flex-col">
+                        <div class="flex justify-center pt-2 pb-1"><span class="w-10 h-1 rounded-full bg-hairline"></span></div>
+                        <div class="px-4 pb-2 border-b border-hairline">
+                            <p class="text-[16px] font-semibold text-ink">A few quick questions</p>
+                            <p class="text-[11px] text-muted mt-0.5" x-text="`Question ${current + 1} of ${total}`"></p>
+                        </div>
+
+                        <div class="flex-1 overflow-y-auto px-4 py-4">
+                            <template x-if="currentQuestion">
+                                <div class="space-y-3">
+                                    <p class="text-[15px] font-medium text-ink leading-relaxed" x-text="currentQuestion.text"></p>
+
+                                    <template x-if="currentQuestion.type === 'pills'">
+                                        <div class="space-y-2">
+                                            <div class="space-y-1.5">
+                                                <template x-for="opt in (currentQuestion.options || [])" :key="opt">
+                                                    <div data-option-row class="space-y-1">
+                                                        <button
+                                                            type="button"
+                                                            x-on:click="choosePill(opt, $event)"
+                                                            x-bind:class="selectedPill === opt ? 'border-accent text-accent bg-accent-light' : 'border-line text-dim bg-surface hover:border-accent hover:text-accent'"
+                                                            class="w-full text-left px-2.5 py-1.5 rounded-md text-[12px] font-medium border transition-colors cursor-pointer"
+                                                            x-text="opt"
+                                                        ></button>
+                                                        <input
+                                                            x-show="isOtherOption(opt) && selectedPill === opt"
+                                                            x-cloak
+                                                            x-model="otherValue"
+                                                            type="text"
+                                                            placeholder="Type your answer..."
+                                                            class="w-full text-[13px] text-ink bg-surface border border-line rounded-md px-2.5 py-1.5 outline-none focus:border-accent"
+                                                        >
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="currentQuestion.type === 'text'">
+                                        <div class="space-y-2">
+                                            <textarea x-model="textValue" rows="4" placeholder="Type your answer..."
+                                                      class="w-full text-[13px] text-ink bg-surface border border-line rounded-md px-2.5 py-2 outline-none focus:border-accent resize-none"></textarea>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="currentQuestion.type === 'multiselect'">
+                                        <div class="space-y-2">
+                                            <div class="space-y-1.5">
+                                                <template x-for="opt in (currentQuestion.options || [])" :key="opt">
+                                                    <div data-option-row class="space-y-1">
+                                                        <label class="flex items-center gap-2 text-[13px] text-dim cursor-pointer">
+                                                            <input
+                                                                type="checkbox"
+                                                                :checked="multiSelected.includes(opt)"
+                                                                x-on:change="toggleMultiOption(opt, $event.target.checked, $event)"
+                                                                class="rounded accent-accent"
+                                                            >
+                                                            <span x-text="opt"></span>
+                                                        </label>
+                                                        <input
+                                                            x-show="isOtherOption(opt) && multiSelected.includes(opt)"
+                                                            x-cloak
+                                                            x-model="multiOtherValue"
+                                                            type="text"
+                                                            placeholder="Type your answer..."
+                                                            class="w-full text-[13px] text-ink bg-surface border border-line rounded-md px-2.5 py-1.5 outline-none focus:border-accent"
+                                                        >
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div class="px-4 py-3 border-t border-hairline bg-white flex items-center justify-between">
+                            <div class="text-[11px] text-muted" x-text="`Question ${current + 1} of ${total}`"></div>
+                            <div class="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    x-show="current > 0"
+                                    x-cloak
+                                    x-on:click="back()"
+                                    class="px-2.5 py-1 rounded-md text-[11px] font-medium border border-line text-dim hover:text-ink hover:bg-surface transition-colors cursor-pointer"
+                                >Back</button>
+                                <button
+                                    type="button"
+                                    x-on:click="saveCurrentAnswerAndContinue()"
+                                    class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
+                                    x-text="current === total - 1 ? 'Submit' : 'Next'"
+                                ></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                @endif
             @endif
 
             {{-- ── Streaming bubble ────────────────────────────────────────── --}}
@@ -871,7 +1469,7 @@
                         <span class="inline-block w-1.5 h-1.5 rounded-full bg-muted" style="animation: bounce 1s infinite 150ms"></span>
                         <span class="inline-block w-1.5 h-1.5 rounded-full bg-muted" style="animation: bounce 1s infinite 300ms"></span>
                     </div>
-                    <p x-show="streamingText !== ''" x-text="streamingText" class="text-[13px] leading-relaxed m-0 whitespace-pre-wrap"></p>
+                    <div x-show="streamingText !== ''" x-html="renderStreamingMarkdown(streamingText)" class="text-[13px] leading-relaxed"></div>
                 </div>
             </div>
 
@@ -962,6 +1560,18 @@
                     ></textarea>
 
                     <button
+                        x-show="isStreaming"
+                        x-on:click="stopStreaming()"
+                        class="inline-flex items-center justify-center w-8 h-8 rounded-lg shrink-0 transition-colors duration-150 bg-[#fff0f0] hover:bg-[#ffe0e0] text-danger border border-[#ffd0d0] cursor-pointer"
+                        title="Stop"
+                    >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="6" y="6" width="12" height="12" rx="1.5"></rect>
+                        </svg>
+                    </button>
+
+                    <button
+                        x-show="!isStreaming"
                         x-on:click="if (!isStreaming && projectIdState && inputText.trim().length > 0) { $wire.sendMessage().then(() => $nextTick(() => $refs.chatInput && $refs.chatInput.focus())); }"
                         x-bind:disabled="isStreaming || !projectIdState || inputText.trim().length === 0"
                         x-bind:class="(!isStreaming && projectIdState && inputText.trim().length > 0)

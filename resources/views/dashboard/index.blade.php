@@ -135,6 +135,32 @@
                 @endforeach
             </div>
         @endif
+
+        <div class="mt-3 pt-3 border-t border-hairline space-y-1.5">
+            <div class="flex items-center justify-between gap-2 text-[11px] sm:text-[12px]">
+                <span class="text-dim">Pending Advances</span>
+                <span class="font-semibold text-[#b55a2f]">{{ $fmt($totalPendingAdvances) }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 text-[11px] sm:text-[12px]">
+                <span class="text-dim">Active Loans Balance</span>
+                <span class="font-semibold text-ink">{{ $fmt($totalActiveLoansBalance) }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 text-[11px] sm:text-[12px]">
+                <span class="text-dim">Last Payroll</span>
+                @if($lastPayrollRun)
+                    <span class="font-semibold text-ink">{{ $lastPayrollRun->month->format('F Y') }} · {{ $fmt($lastPayrollRun->total_net) }}</span>
+                @else
+                    <span class="font-semibold text-muted">—</span>
+                @endif
+            </div>
+            @if($pendingPayrollRuns > 0)
+            <div class="pt-1">
+                <span class="inline-flex items-center rounded-[5px] bg-[#fef9ec] px-2 py-0.5 text-[11px] font-semibold text-[#9a7a1a]">
+                    {{ $pendingPayrollRuns }} pending payroll {{ $pendingPayrollRuns === 1 ? 'run' : 'runs' }}
+                </span>
+            </div>
+            @endif
+        </div>
     </div>
 
 </div>

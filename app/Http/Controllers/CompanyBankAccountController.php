@@ -2,11 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BankAccountTransfer;
 use App\Models\CompanyBankAccount;
+use App\Models\EmployeeAdvance;
+use App\Models\EmployeeLoan;
 use App\Models\Expense;
+use App\Models\PayrollRun;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class CompanyBankAccountController extends Controller
@@ -26,7 +32,7 @@ class CompanyBankAccountController extends Controller
             ->each(function (CompanyBankAccount $account) {
                 $account->setAttribute(
                     'computed_balance',
-                    (float) ($account->payments_in_sum ?? 0) - (float) ($account->expenses_out_sum ?? 0)
+                    (float) $account->balance
                 );
             });
 
@@ -106,6 +112,96 @@ class CompanyBankAccountController extends Controller
                 ]);
             });
 
+        // Advances given (OUT)
+        EmployeeAdvance::where('company_account_id', $account->id)
+            ->with('employee.user')
+            ->get()
+            ->each(function ($advance) use (&$transactions) {
+                $employeeName = $advance->employee?->user?->name ?? 'Unknown employee';
+
+                $transactions->push([
+                    'date' => $advance->date,
+                    'type' => 'out',
+                    'description' => 'Advance — ' . $employeeName . ' (' . $advance->reason . ')',
+                    'amount' => (float) $advance->amount,
+                    'reference' => null,
+                    'source' => 'advance',
+                    'source_id' => $advance->id,
+                ]);
+            });
+
+        // Loans disbursed (OUT)
+        EmployeeLoan::where('company_account_id', $account->id)
+            ->with('employee.user')
+            ->get()
+            ->each(function ($loan) use (&$transactions) {
+                $employeeName = $loan->employee?->user?->name ?? 'Unknown employee';
+
+                $transactions->push([
+                    'date' => $loan->started_at,
+                    'type' => 'out',
+                    'description' => 'Loan — ' . $employeeName . ' (' . $loan->title . ')',
+                    'amount' => (float) $loan->amount_total,
+                    'reference' => null,
+                    'source' => 'loan',
+                    'source_id' => $loan->id,
+                ]);
+            });
+
+        PayrollRun::where('company_account_id', $account->id)
+            ->where('status', 'paid')
+            ->with('entries')
+            ->get()
+            ->each(function ($run) use (&$transactions) {
+                $transactions->push([
+                    'date' => $run->paid_at,
+                    'type' => 'out',
+                    'description' => 'Payroll — '
+                        . Carbon::parse($run->month)->format('F Y')
+                        . ' (' . $run->entries->count() . ' employees)',
+                    'amount' => (float) $run->total_net,
+                    'reference' => null,
+                    'source' => 'payroll_run',
+                    'source_id' => $run->id,
+                ]);
+            });
+
+        if (Schema::hasTable('bank_account_transfers')) {
+            // Transfers IN
+            BankAccountTransfer::where('to_account_id', $account->id)
+                ->with('fromAccount')
+                ->get()
+                ->each(function ($transfer) use (&$transactions) {
+                    $transactions->push([
+                        'date' => $transfer->date,
+                        'type' => 'in',
+                        'description' => 'Transfer from ' . ($transfer->fromAccount?->name ?? 'Unknown account'),
+                        'amount' => (float) $transfer->amount,
+                        'reference' => $transfer->reference,
+                        'source' => 'transfer_in',
+                        'source_id' => $transfer->id,
+                        'can_delete' => $transfer->date?->isToday() ?? false,
+                    ]);
+                });
+
+            // Transfers OUT
+            BankAccountTransfer::where('from_account_id', $account->id)
+                ->with('toAccount')
+                ->get()
+                ->each(function ($transfer) use (&$transactions) {
+                    $transactions->push([
+                        'date' => $transfer->date,
+                        'type' => 'out',
+                        'description' => 'Transfer to ' . ($transfer->toAccount?->name ?? 'Unknown account'),
+                        'amount' => (float) $transfer->amount,
+                        'reference' => $transfer->reference,
+                        'source' => 'transfer_out',
+                        'source_id' => $transfer->id,
+                        'can_delete' => $transfer->date?->isToday() ?? false,
+                    ]);
+                });
+        }
+
         $transactions = $transactions
             ->sortByDesc('date')
             ->values();
@@ -126,7 +222,18 @@ class CompanyBankAccountController extends Controller
         );
 
         $totalIn = (float) $account->invoicePayments()->sum('amount');
-        $totalOut = (float) $account->expenses()->where('status', 'confirmed')->sum('amount');
+        if (Schema::hasTable('bank_account_transfers')) {
+            $totalIn += (float) BankAccountTransfer::where('to_account_id', $account->id)->sum('amount');
+        }
+
+        $totalOut = (float) $account->expenses()->where('status', 'confirmed')->sum('amount')
+            + (float) EmployeeAdvance::where('company_account_id', $account->id)->sum('amount')
+            + (float) EmployeeLoan::where('company_account_id', $account->id)->sum('amount_total')
+            + (float) PayrollRun::where('company_account_id', $account->id)->where('status', 'paid')->sum('total_net');
+
+        if (Schema::hasTable('bank_account_transfers')) {
+            $totalOut += (float) BankAccountTransfer::where('from_account_id', $account->id)->sum('amount');
+        }
         $currentBalance = $totalIn - $totalOut;
 
         // Opening balance before oldest row on this page, so view can compute running balance.

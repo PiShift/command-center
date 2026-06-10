@@ -1,6 +1,21 @@
 <x-layouts.app :title="$employee->display_name">
 
-<div x-data="{ tab: window.location.hash.replace('#','') || 'profile' }">
+<div
+    x-data="{
+        tab: (() => {
+            const hash = window.location.hash.replace('#', '');
+            if (['advances', 'advance', 'loans', 'loan', 'finances'].includes(hash)) {
+                return 'finances';
+            }
+
+            if (['leaves', 'leave'].includes(hash)) {
+                return 'leaves';
+            }
+
+            return hash || 'profile';
+        })()
+    }"
+>
 
     {{-- Page header --}}
     <div class="flex items-center justify-between mb-4">
@@ -22,7 +37,7 @@
 
     {{-- Tab bar --}}
     <div class="flex items-center gap-1 mb-5" style="border-bottom:1px solid #e5e4df;padding-bottom:0">
-        @foreach(['profile' => 'Profile', 'contracts' => 'Contracts', 'documents' => 'Documents'] as $key => $label)
+        @foreach(['profile' => 'Profile', 'contracts' => 'Contracts', 'documents' => 'Documents', 'leaves' => 'Leaves', 'finances' => 'Finances'] as $key => $label)
         <button @click="tab='{{ $key }}'; window.location.hash='{{ $key }}'"
                 :class="tab === '{{ $key }}' ? 'border-b-2 text-ink' : 'text-muted hover:text-dim'"
                 class="px-4 py-2 font-medium transition-all cursor-pointer"
@@ -32,6 +47,8 @@
             <span class="ml-1 text-xs font-semibold px-1.5 rounded-full" style="background:#F5F4EF;color:#8c8c8a">{{ $employee->contracts->count() }}</span>
             @elseif($key === 'documents')
             <span class="ml-1 text-xs font-semibold px-1.5 rounded-full" style="background:#F5F4EF;color:#8c8c8a">{{ $employee->documents->count() }}</span>
+            @elseif($key === 'leaves')
+            <span class="ml-1 text-xs font-semibold px-1.5 rounded-full" style="background:#F5F4EF;color:#8c8c8a">{{ $employee->leaveRequests->count() }}</span>
             @endif
         </button>
         @endforeach
@@ -659,5 +676,352 @@
                 @endif
             </div>
 
-</div>
+            {{-- ─── Finances Tab ───────────────────────────────────────────── --}}
+            <div x-show="tab === 'finances'" x-cloak class="space-y-5">
+                @php
+                    $pendingAdvancesTotal = $employee->getPendingAdvancesTotal();
+                    $activeLoans = $employee->loans->where('status', 'active')->values();
+                    $pastLoans = $employee->loans->whereIn('status', ['completed', 'cancelled'])->values();
+                @endphp
+
+                {{-- Section A: Advances --}}
+                <div id="advances" class="rounded-xl overflow-hidden" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)" x-data="{ openAdvanceForm: false }">
+                    <div class="px-5 py-4 flex items-center justify-between" style="border-bottom:1px solid #eeeee9">
+                        <p class="font-semibold text-ink" style="font-size:14px">Advances</p>
+                        @if(auth()->user()->hasPermission('hr.manage'))
+                        <button type="button" @click="openAdvanceForm = !openAdvanceForm"
+                                class="font-medium rounded-lg px-3 py-1.5 text-white transition-colors bg-accent hover:bg-accent-hover cursor-pointer"
+                                style="font-size:13px">+ Record Advance</button>
+                        @endif
+                    </div>
+
+                    @if(auth()->user()->hasPermission('hr.manage'))
+                    <div x-show="openAdvanceForm" x-cloak x-transition class="px-5 py-4 border-b border-hairline" style="background:#faf9f5">
+                        <form method="POST" action="{{ route('employees.advances.store', $employee) }}" class="space-y-3">
+                            @csrf
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Amount <span class="text-red-500">*</span></label>
+                                    <input type="number" name="amount" step="0.01" min="0.01" required value="{{ old('amount') }}"
+                                           class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                           style="font-size:13px" placeholder="0.00">
+                                </div>
+                                <div>
+                                    <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Date <span class="text-red-500">*</span></label>
+                                    <input type="date" name="date" required value="{{ old('date', now()->toDateString()) }}"
+                                           class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                           style="font-size:13px">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Reason <span class="text-red-500">*</span></label>
+                                    <input type="text" name="reason" required value="{{ old('reason') }}"
+                                           class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                           style="font-size:13px" placeholder="Reason for advance">
+                                </div>
+                                <div>
+                                    <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Company Account <span class="text-red-500">*</span></label>
+                                    <select name="company_account_id" required
+                                            class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                            style="font-size:13px">
+                                        <option value="">Select account...</option>
+                                        @foreach($companyAccounts as $account)
+                                            <option value="{{ $account->id }}" @selected((string) old('company_account_id') === (string) $account->id || (!$errors->any() && $account->is_default))>{{ $account->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Notes</label>
+                                <textarea name="notes" rows="2"
+                                          class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                          style="font-size:13px" placeholder="Optional">{{ old('notes') }}</textarea>
+                            </div>
+                            <div class="flex items-center justify-end gap-2">
+                                <button type="button" @click="openAdvanceForm = false"
+                                        class="text-xs font-medium px-3 py-1.5 rounded-lg bg-surface border border-line text-dim hover:text-ink transition-colors cursor-pointer">Cancel</button>
+                                <button type="submit"
+                                        class="text-xs font-medium px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white transition-colors cursor-pointer">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                    @endif
+
+                    @if($employee->advances->isEmpty())
+                    <div class="px-5 py-10 text-center">
+                        <p class="text-muted" style="font-size:13px">No advances recorded.</p>
+                    </div>
+                    @else
+                    <div class="overflow-x-auto">
+                        <table class="w-full" style="font-size:13px;min-width:760px">
+                            <thead>
+                                <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
+                                    <th class="px-5 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Date</th>
+                                    <th class="px-4 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Reason</th>
+                                    <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Amount</th>
+                                    <th class="px-4 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Status</th>
+                                    <th class="px-4 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Company Account</th>
+                                    <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($employee->advances as $advance)
+                                <tr style="border-bottom:1px solid #eeeee9">
+                                    <td class="px-5 py-3" style="color:#5c5c5a">{{ $advance->date?->format('d M Y') }}</td>
+                                    <td class="px-4 py-3" style="color:#141413">{{ $advance->reason }}</td>
+                                    <td class="px-4 py-3 text-right" style="font-weight:500;color:#141413">MRU {{ number_format((float) $advance->amount, 2) }}</td>
+                                    <td class="px-4 py-3">
+                                        @if($advance->status === 'pending')
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold" style="background:#fef9ec;color:#9a7a1a">Pending</span>
+                                        @else
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold" style="background:#edf7f2;color:#2e7d55">Deducted</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3" style="color:#5c5c5a">{{ $advance->companyAccount?->name ?? '—' }}</td>
+                                    <td class="px-4 py-3 text-right">
+                                        @if($advance->status === 'pending' && auth()->user()->hasPermission('hr.manage'))
+                                        <form method="POST" action="{{ route('employees.advances.destroy', [$employee, $advance]) }}" class="inline" onsubmit="return confirm('Delete this advance?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-danger-border bg-danger-light text-danger hover:bg-[#ffe0e0] transition-colors cursor-pointer">Delete</button>
+                                        </form>
+                                        @else
+                                        <span class="text-muted" style="font-size:12px">—</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @endif
+
+                    @if($pendingAdvancesTotal > 0)
+                    <div class="px-5 py-3" style="border-top:1px solid #eeeee9;background:#fef9ec">
+                        <p style="font-size:12px;font-weight:600;color:#9a7a1a">Total pending: MRU {{ number_format($pendingAdvancesTotal, 2) }}</p>
+                    </div>
+                    @endif
+                </div>
+
+                {{-- Section B: Loans --}}
+                 <div id="loans" class="rounded-xl overflow-hidden" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)"
+                     x-data="{ openLoanForm: false, repaymentType: '{{ old('repayment_type', 'fixed_amount') }}', pastOpen: false, loanOpen: {} }">
+                    <div class="px-5 py-4 flex items-center justify-between" style="border-bottom:1px solid #eeeee9">
+                        <p class="font-semibold text-ink" style="font-size:14px">Loans</p>
+                        @if(auth()->user()->hasPermission('hr.manage'))
+                        <button type="button" @click="openLoanForm = !openLoanForm"
+                                class="font-medium rounded-lg px-3 py-1.5 text-white transition-colors bg-accent hover:bg-accent-hover cursor-pointer"
+                                style="font-size:13px">+ New Loan</button>
+                        @endif
+                    </div>
+
+                    @if(auth()->user()->hasPermission('hr.manage'))
+                    <div x-show="openLoanForm" x-cloak x-transition class="px-5 py-4 border-b border-hairline" style="background:#faf9f5">
+                        <form method="POST" action="{{ route('employees.loans.store', $employee) }}" class="space-y-3">
+                            @csrf
+                            <div>
+                                <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Title <span class="text-red-500">*</span></label>
+                                <input type="text" name="title" required value="{{ old('title') }}"
+                                       class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                       style="font-size:13px" placeholder="e.g. MacBook Pro 2026">
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Total Amount <span class="text-red-500">*</span></label>
+                                    <input type="number" name="amount_total" step="0.01" min="0.01" required value="{{ old('amount_total') }}"
+                                           class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                           style="font-size:13px" placeholder="0.00">
+                                </div>
+                                <div>
+                                    <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Company Account <span class="text-red-500">*</span></label>
+                                    <select name="company_account_id" required
+                                            class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                            style="font-size:13px">
+                                        <option value="">Select account...</option>
+                                        @foreach($companyAccounts as $account)
+                                            <option value="{{ $account->id }}" @selected((string) old('company_account_id') === (string) $account->id || (!$errors->any() && $account->is_default))>{{ $account->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Repayment Type <span class="text-red-500">*</span></label>
+                                    <select name="repayment_type" x-model="repaymentType" required
+                                            class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                            style="font-size:13px">
+                                        <option value="fixed_amount" @selected(old('repayment_type') === 'fixed_amount')>Fixed Amount</option>
+                                        <option value="percentage" @selected(old('repayment_type') === 'percentage')>Percentage of Salary</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em" x-text="repaymentType === 'percentage' ? 'Percentage of Salary (%)' : 'Monthly Amount (MRU)'"></label>
+                                    <input type="number" name="repayment_value" step="0.01" min="0.01" required value="{{ old('repayment_value') }}"
+                                           class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                           style="font-size:13px" placeholder="0.00">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Start Date <span class="text-red-500">*</span></label>
+                                <input type="date" name="started_at" required value="{{ old('started_at', now()->toDateString()) }}"
+                                       class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                       style="font-size:13px">
+                            </div>
+                            <div>
+                                <label class="block text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Notes</label>
+                                <textarea name="notes" rows="2"
+                                          class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
+                                          style="font-size:13px" placeholder="Optional">{{ old('notes') }}</textarea>
+                            </div>
+                            <div class="flex items-center justify-end gap-2">
+                                <button type="button" @click="openLoanForm = false"
+                                        class="text-xs font-medium px-3 py-1.5 rounded-lg bg-surface border border-line text-dim hover:text-ink transition-colors cursor-pointer">Cancel</button>
+                                <button type="submit"
+                                        class="text-xs font-medium px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white transition-colors cursor-pointer">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                    @endif
+
+                    <div class="px-5 py-4 space-y-3">
+                        @if($activeLoans->isEmpty())
+                        <p class="text-muted" style="font-size:13px">No active loans.</p>
+                        @else
+                        @foreach($activeLoans as $loan)
+                        @php
+                            $percent = max(0, min(100, (int) $loan->progress_percentage));
+                            $hasPayrollEntries = $loan->repayments->contains(fn ($r) => !empty($r->payroll_entry_id));
+                        @endphp
+                        <div class="rounded-lg border border-hairline overflow-hidden" style="background:#fff" x-data="{ open: false }">
+                            <button type="button" @click="open = !open"
+                                    class="w-full text-left px-4 py-3 flex items-start justify-between gap-3 hover:bg-canvas transition-colors cursor-pointer">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <p class="font-medium text-ink" style="font-size:13.5px">{{ $loan->title }}</p>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold" style="background:#eef3fb;color:#3a6fba">Active</span>
+                                    </div>
+                                    <div class="mt-2 w-full rounded-full" style="height:6px;background:#eeeee9">
+                                        <div style="height:6px;border-radius:999px;background:#3a6fba;width:{{ $percent }}%"></div>
+                                    </div>
+                                    <p class="text-muted mt-1" style="font-size:12px">MRU {{ number_format($loan->amount_remaining, 2) }} remaining of MRU {{ number_format((float) $loan->amount_total, 2) }} total</p>
+                                </div>
+                                <svg class="w-4 h-4 text-muted mt-1 transition-transform duration-200" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+
+                            <div x-show="open" x-cloak x-transition class="px-4 pb-4" style="border-top:1px solid #eeeee9;background:#faf9f5">
+                                <div class="grid grid-cols-2 gap-3 py-3">
+                                    <div>
+                                        <p class="text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Repayment Type</p>
+                                        <p class="text-ink" style="font-size:13px">{{ $loan->repayment_type === 'fixed_amount' ? 'Fixed Amount' : 'Percentage of Salary' }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Repayment Value</p>
+                                        <p class="text-ink" style="font-size:13px">{{ $loan->repayment_type === 'fixed_amount' ? 'MRU ' . number_format((float) $loan->repayment_value, 2) : number_format((float) $loan->repayment_value, 2) . '%' }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Started Date</p>
+                                        <p class="text-ink" style="font-size:13px">{{ $loan->started_at?->format('d M Y') }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-muted font-bold uppercase tracking-wider mb-1" style="font-size:10px;letter-spacing:0.06em">Company Account</p>
+                                        <p class="text-ink" style="font-size:13px">{{ $loan->companyAccount?->name ?? '—' }}</p>
+                                    </div>
+                                </div>
+
+                                <div class="rounded-lg overflow-hidden" style="border:1px solid #e5e4df;background:#fff">
+                                    <div class="px-3 py-2" style="border-bottom:1px solid #eeeee9;background:#faf9f5">
+                                        <p class="text-muted font-bold uppercase tracking-wider" style="font-size:10px;letter-spacing:0.06em">Repayment History</p>
+                                    </div>
+                                    @if($loan->repayments->isEmpty())
+                                    <div class="px-3 py-6 text-center">
+                                        <p class="text-muted" style="font-size:12px">No repayments yet.</p>
+                                    </div>
+                                    @else
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full" style="font-size:12px;min-width:680px">
+                                            <thead>
+                                                <tr style="background:#faf9f5;border-bottom:1px solid #eeeee9">
+                                                    <th class="px-3 py-2 text-left" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Date</th>
+                                                    <th class="px-3 py-2 text-right" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Amount Deducted</th>
+                                                    <th class="px-3 py-2 text-right" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Salary at Time</th>
+                                                    <th class="px-3 py-2 text-right" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Percentage Used</th>
+                                                    <th class="px-3 py-2 text-left" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Payroll Run</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($loan->repayments as $repayment)
+                                                <tr style="border-bottom:1px solid #eeeee9">
+                                                    <td class="px-3 py-2" style="color:#5c5c5a">{{ $repayment->repayment_date?->format('d M Y') }}</td>
+                                                    <td class="px-3 py-2 text-right" style="color:#2e7d55;font-weight:500">MRU {{ number_format((float) $repayment->amount, 2) }}</td>
+                                                    <td class="px-3 py-2 text-right" style="color:#5c5c5a">MRU {{ number_format((float) $repayment->salary_snapshot, 2) }}</td>
+                                                    <td class="px-3 py-2 text-right" style="color:#5c5c5a">{{ $repayment->percentage_snapshot !== null ? number_format((float) $repayment->percentage_snapshot, 2) . '%' : '—' }}</td>
+                                                    <td class="px-3 py-2">
+                                                        @if($repayment->payroll_entry_id)
+                                                        <a href="{{ url('/payroll/entries/' . $repayment->payroll_entry_id) }}" class="text-accent hover:text-accent-hover transition-colors" style="font-size:12px">Payroll #{{ $repayment->payroll_entry_id }}</a>
+                                                        @else
+                                                        <span class="text-muted">—</span>
+                                                        @endif
+                                                    </td>
+                                                </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    @endif
+                                </div>
+
+                                @if(auth()->user()->hasPermission('hr.manage'))
+                                <div class="flex items-center justify-end mt-3">
+                                    <form method="POST" action="{{ route('employees.loans.cancel', [$employee, $loan]) }}"
+                                          onsubmit="return confirm('{{ $hasPayrollEntries ? 'This loan has payroll-linked repayments. Cancel anyway?' : 'Cancel this loan?' }}')">
+                                        @csrf
+                                        <button type="submit" class="text-xs font-medium px-3 py-1.5 rounded-lg border border-danger-border bg-danger-light text-danger hover:bg-[#ffe0e0] transition-colors cursor-pointer">Cancel Loan</button>
+                                    </form>
+                                </div>
+                                @endif
+                            </div>
+                        </div>
+                        @endforeach
+                        @endif
+                    </div>
+
+                    <div class="px-5 py-3" style="border-top:1px solid #eeeee9;background:#faf9f5">
+                        <button type="button" @click="pastOpen = !pastOpen"
+                                class="w-full text-left flex items-center justify-between hover:text-ink transition-colors cursor-pointer">
+                            <span class="text-muted font-bold uppercase tracking-wider" style="font-size:10px;letter-spacing:0.06em">Past Loans ({{ $pastLoans->count() }})</span>
+                            <svg class="w-3.5 h-3.5 text-muted transition-transform duration-200" :class="pastOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div x-show="pastOpen" x-cloak x-transition class="px-5 py-4 space-y-2" style="border-top:1px solid #eeeee9">
+                        @if($pastLoans->isEmpty())
+                        <p class="text-muted" style="font-size:13px">No past loans.</p>
+                        @else
+                        @foreach($pastLoans as $loan)
+                        <div class="rounded-lg border border-hairline px-3 py-2 flex items-center justify-between gap-3" style="background:#fff">
+                            <div>
+                                <p class="text-ink font-medium" style="font-size:13px">{{ $loan->title }}</p>
+                                <p class="text-muted" style="font-size:12px">MRU {{ number_format($loan->amount_remaining, 2) }} remaining of MRU {{ number_format((float) $loan->amount_total, 2) }}</p>
+                            </div>
+                            <div class="text-right">
+                                @if($loan->status === 'completed')
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold" style="background:#edf7f2;color:#2e7d55">Completed</span>
+                                @else
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-semibold" style="background:#F5F4EF;color:#8c8c8a">Cancelled</span>
+                                @endif
+                            </div>
+                        </div>
+                        @endforeach
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            @include('employees.partials.leaves-tab')
+        </div>
 </x-layouts.app>

@@ -117,6 +117,7 @@
 </div>
 
 @livewire('ai-chat-panel')
+@livewire('quick-capture')
 @livewire('global-search')
 @livewireScripts
 @stack('scripts')
@@ -124,6 +125,28 @@
 (function () {
     var _pendingN = false;
     var _nTimer   = null;
+
+    function dispatchProjectHints() {
+        var path = window.location.pathname || '';
+        var match = path.match(/^\/projects\/(\d+)(?:\/.*)?$/);
+        var projectId = match ? parseInt(match[1], 10) : NaN;
+
+        if (!Number.isFinite(projectId)) {
+            var stored = parseInt(localStorage.getItem('recent_project_id') || '', 10);
+            if (Number.isFinite(stored)) {
+                projectId = stored;
+            }
+        }
+
+        if (Number.isFinite(projectId)) {
+            localStorage.setItem('recent_project_id', String(projectId));
+            window.dispatchEvent(new CustomEvent('ai-project-hint', { detail: { projectId: projectId } }));
+            window.dispatchEvent(new CustomEvent('quick-capture-project-hint', { detail: { projectId: projectId } }));
+        }
+    }
+
+    dispatchProjectHints();
+    window.addEventListener('popstate', dispatchProjectHints);
 
     document.addEventListener('keydown', function (e) {
         // ── Always-on shortcuts (work even inside inputs) ────────────
@@ -135,6 +158,11 @@
         if ((e.metaKey || e.ctrlKey) && e.key === '/') {
             e.preventDefault();
             window.dispatchEvent(new CustomEvent('open-global-search'));
+            return;
+        }
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toUpperCase() === 'N') {
+            e.preventDefault();
+            window.dispatchEvent(new CustomEvent('open-quick-capture'));
             return;
         }
 

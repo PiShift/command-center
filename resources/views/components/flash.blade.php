@@ -6,6 +6,14 @@
         <button type="button" @click="show = false" class="text-[#3d9970] hover:opacity-60 flex-shrink-0 cursor-pointer">&times;</button>
     </div>
 @endif
+@if (session('warning'))
+    <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)"
+         x-transition:leave="transition-opacity duration-500" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-[13px] text-amber-800 flex items-center justify-between gap-3">
+        <span>{{ session('warning') }}</span>
+        <button type="button" @click="show = false" class="text-amber-500 hover:opacity-60 flex-shrink-0 cursor-pointer">&times;</button>
+    </div>
+@endif
 @if (session('error'))
     <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)"
          x-transition:leave="transition-opacity duration-500" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"

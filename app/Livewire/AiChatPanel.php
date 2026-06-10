@@ -9,6 +9,8 @@ use App\Models\Project;
 use App\Models\ProjectDocument;
 use App\Models\Sprint;
 use App\Models\Task;
+use App\Models\TaskChecklist;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Throwable;
@@ -43,10 +45,12 @@ class AiChatPanel extends Component
     public array $activePresets = [];         // active bulk-context preset names
     public bool $isStreaming = false;
     public array $recentConversations = [];
+    public ?array $pendingParsedActions = null;
 
     protected $listeners = [
         'open-ai-chat'     => 'handleOpenEvent',
         'ai-project-hint'  => 'handleProjectHint',
+        'quick-capture-ai-seed' => 'handleQuickCaptureSeed',
     ];
 
     public function mount(): void
@@ -91,6 +95,22 @@ class AiChatPanel extends Component
         if (! $this->projectId) {
             $this->selectProject($projectId);
         }
+    }
+
+    /**
+     * Open AI chat from quick capture with selected project and prefilled text.
+     */
+    public function handleQuickCaptureSeed(?int $projectId = null, string $text = ''): void
+    {
+        if (! $this->isOpen) {
+            $this->isOpen = true;
+        }
+
+        if ($projectId) {
+            $this->selectProject((int) $projectId);
+        }
+
+        $this->input = trim($text);
     }
 
     public function selectProject(int $projectId): void
@@ -236,13 +256,29 @@ class AiChatPanel extends Component
 
         $this->messages = $conversation->messages()
             ->get(['id', 'role', 'content', 'actions', 'created_at'])
-            ->map(fn ($m) => [
-                'id'         => $m->id,
-                'role'       => $m->role,
-                'content'    => $m->content,
-                'actions'    => $m->actions ? $this->normalizeActions($m->actions) : null,
-                'created_at' => $m->created_at->toISOString(),
-            ])
+            ->map(function ($m) {
+                $actions = null;
+
+                if (is_array($m->actions)) {
+                    if (($m->actions['type'] ?? null) === 'sprint_with_tasks') {
+                        $actions = $this->normalizeSprintWithTasksAction($m->actions);
+                    } elseif (($m->actions['type'] ?? null) === 'clarification') {
+                        $actions = $this->normalizeClarificationAction($m->actions);
+                    } elseif (($m->actions['type'] ?? null) === 'question') {
+                        $actions = $this->normalizeQuestionAction($m->actions);
+                    } else {
+                        $actions = $this->normalizeActions($m->actions);
+                    }
+                }
+
+                return [
+                    'id'         => $m->id,
+                    'role'       => $m->role,
+                    'content'    => $m->content,
+                    'actions'    => $actions,
+                    'created_at' => $m->created_at->toISOString(),
+                ];
+            })
             ->toArray();
 
         $this->loadRecentConversations();
@@ -568,6 +604,92 @@ class AiChatPanel extends Component
     }
 
     /**
+     * Capture parsed actions emitted by the stream endpoint final parse pass.
+     */
+    public function captureParsedActions(?array $actions = null): void
+    {
+        $this->pendingParsedActions = is_array($actions) ? $actions : null;
+    }
+
+    /**
+     * Submit a full clarification answer set and continue the conversation.
+     *
+     * @param  array<string, mixed>  $answers
+     */
+    public function submitClarificationAnswers(int $messageId, array $answers): void
+    {
+        if (! $this->conversationId || $this->isStreaming) {
+            return;
+        }
+
+        $targetIndex = null;
+        $questions = [];
+
+        foreach ($this->messages as $idx => $msg) {
+            if (($msg['id'] ?? null) !== $messageId) {
+                continue;
+            }
+
+            if (($msg['actions']['type'] ?? null) !== 'clarification') {
+                return;
+            }
+
+            $targetIndex = $idx;
+            $questions = is_array($msg['actions']['questions'] ?? null)
+                ? $msg['actions']['questions']
+                : [];
+            break;
+        }
+
+        if ($targetIndex === null || empty($questions)) {
+            return;
+        }
+
+        $segments = [];
+        $normalizedAnswers = [];
+
+        foreach ($questions as $i => $question) {
+            $qid = (string) ($question['id'] ?? ('q' . ($i + 1)));
+            $raw = $answers[$qid] ?? null;
+
+            if (is_array($raw)) {
+                $raw = collect($raw)
+                    ->map(fn ($v) => trim((string) $v))
+                    ->filter(fn ($v) => $v !== '')
+                    ->values()
+                    ->implode(', ');
+            }
+
+            $answerText = trim((string) $raw);
+            if ($answerText === '') {
+                $answerText = 'Skipped';
+            }
+
+            $segments[] = '[Q' . ($i + 1) . ']: ' . $answerText;
+            $normalizedAnswers[$qid] = $answerText;
+        }
+
+        $compiled = 'Here are my answers: ' . implode(' / ', $segments);
+
+        $this->messages[$targetIndex]['actions']['answered'] = true;
+        $this->messages[$targetIndex]['actions']['answers'] = $normalizedAnswers;
+
+        $dbMessage = AiConversationMessage::where('id', $messageId)
+            ->where('conversation_id', $this->conversationId)
+            ->first();
+
+        if ($dbMessage && is_array($dbMessage->actions)) {
+            $actions = $dbMessage->actions;
+            $actions['answered'] = true;
+            $actions['answers'] = $normalizedAnswers;
+            $dbMessage->update(['actions' => $actions]);
+        }
+
+        $this->input = $compiled;
+        $this->sendMessage();
+    }
+
+    /**
      * Called by Alpine.js when the SSE stream completes.
      * Extracts any <actions> block, persists clean content + structured actions.
      */
@@ -582,7 +704,12 @@ class AiChatPanel extends Component
         $actions      = null;
         $cleanContent = $content;
 
-        if (preg_match('/<actions>(.*?)<\/actions>/s', $content, $matches)) {
+        if (is_array($this->pendingParsedActions)) {
+            $actions = $this->normalizeAnyAction($this->pendingParsedActions);
+            $this->pendingParsedActions = null;
+        }
+
+        if ($actions === null && preg_match('/<actions>(.*?)<\/actions>/s', $content, $matches)) {
             $jsonStr = trim($matches[1]);
             // Strip markdown code fences the model may have added.
             $jsonStr = preg_replace('/^```(?:json)?\s*/m', '', $jsonStr);
@@ -591,14 +718,14 @@ class AiChatPanel extends Component
 
             $decoded = json_decode($jsonStr, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                if (($decoded['type'] ?? null) === 'question') {
-                    $actions = $this->normalizeQuestionAction($decoded);
-                } elseif (isset($decoded['items']) && is_array($decoded['items'])) {
-                    $actions = $this->normalizeActions($decoded);
-                }
+                $actions = $this->normalizeAnyAction($decoded);
             }
 
             $cleanContent = trim(preg_replace('/<actions>.*?<\/actions>/s', '', $content));
+        }
+
+        if (($actions['type'] ?? null) === 'clarification') {
+            $cleanContent = $this->clarificationIntroLine($cleanContent);
         }
 
         $message = AiConversationMessage::create([
@@ -687,6 +814,11 @@ class AiChatPanel extends Component
         $title        = substr(strip_tags((string) ($data['title'] ?? '')), 0, 255);
         $description  = substr(strip_tags((string) ($data['description'] ?? '')), 0, 5000);
         $targetAction = (string) ($data['targetAction'] ?? 'backlog');
+        $actionType   = (string) ($data['actionType'] ?? 'backlog');
+        $itemType     = (string) ($data['type'] ?? 'feature');
+        $priority     = (string) ($data['priority'] ?? 'medium');
+        $weight       = (int) ($data['weight'] ?? 2);
+        $checklistRaw = is_array($data['checklist'] ?? null) ? $data['checklist'] : [];
         $sprintId     = isset($data['sprintId']) && $data['sprintId'] !== '' ? (int) $data['sprintId'] : null;
 
         if (empty($title)) {
@@ -703,6 +835,33 @@ class AiChatPanel extends Component
                 'status'      => 'draft',
                 'sort_order'  => 0,
             ]);
+        } elseif ($actionType === 'tasks') {
+            $task = Task::create([
+                'project_id'   => $this->projectId,
+                'sprint_id'    => ($targetAction === 'sprint' && $sprintId) ? $sprintId : null,
+                'title'        => $title,
+                'description'  => $description ?: null,
+                'type'         => in_array($itemType, ['feature', 'bug', 'change'], true) ? $itemType : 'feature',
+                'priority'     => in_array($priority, ['low', 'medium', 'high'], true) ? $priority : 'medium',
+                'status'       => 'todo',
+                'weight'       => max(1, min(5, $weight)),
+                'source'       => 'ai',
+                'original_input' => null,
+            ]);
+
+            $checklist = collect($checklistRaw)
+                ->map(fn ($item) => trim(strip_tags((string) $item)))
+                ->filter(fn ($item) => $item !== '')
+                ->values();
+
+            foreach ($checklist as $idx => $label) {
+                TaskChecklist::create([
+                    'task_id'    => $task->id,
+                    'label'      => Str::limit($label, 255, ''),
+                    'is_checked' => false,
+                    'sort_order' => $idx,
+                ]);
+            }
         } else {
             BacklogItem::create([
                 'project_id'  => $this->projectId,
@@ -725,6 +884,136 @@ class AiChatPanel extends Component
     }
 
     /**
+     * Confirm a grouped sprint_with_tasks action card.
+     */
+    public function confirmSprintWithTasks(int $messageId, array $payload): void
+    {
+        if (! $this->projectId) {
+            return;
+        }
+
+        $project = Project::findOrFail($this->projectId);
+        Gate::authorize('view', $project);
+
+        $mode = ($payload['target_mode'] ?? 'new') === 'existing' ? 'existing' : 'new';
+        $sprintName = Str::limit(strip_tags(trim((string) ($payload['sprint_name'] ?? ''))), 255, '');
+        $sprintDescription = Str::limit(strip_tags(trim((string) ($payload['sprint_description'] ?? ''))), 5000, '');
+        $existingSprintId = isset($payload['existing_sprint_id']) && $payload['existing_sprint_id'] !== ''
+            ? (int) $payload['existing_sprint_id']
+            : null;
+        $tasksRaw = is_array($payload['tasks'] ?? null) ? $payload['tasks'] : [];
+
+        $tasks = collect($tasksRaw)
+            ->map(function ($task): array {
+                $checklist = collect(is_array($task['checklist'] ?? null) ? $task['checklist'] : [])
+                    ->map(fn ($item) => trim(strip_tags((string) $item)))
+                    ->filter(fn ($item) => $item !== '')
+                    ->values()
+                    ->all();
+
+                return [
+                    'title'       => Str::limit(strip_tags(trim((string) ($task['title'] ?? ''))), 255, ''),
+                    'description' => Str::limit(strip_tags(trim((string) ($task['description'] ?? ''))), 5000, ''),
+                    'type'        => in_array(($task['type'] ?? ''), ['feature', 'bug', 'change'], true) ? $task['type'] : 'feature',
+                    'priority'    => in_array(($task['priority'] ?? ''), ['low', 'medium', 'high'], true) ? $task['priority'] : 'medium',
+                    'weight'      => max(1, min(5, (int) ($task['weight'] ?? 2))),
+                    'checklist'   => $checklist,
+                ];
+            })
+            ->filter(fn ($task) => $task['title'] !== '')
+            ->values();
+
+        if ($tasks->isEmpty()) {
+            return;
+        }
+
+        DB::transaction(function () use ($mode, $sprintName, $sprintDescription, $existingSprintId, $tasks, $messageId): void {
+            if ($mode === 'existing') {
+                $sprint = Sprint::where('project_id', $this->projectId)
+                    ->where('id', $existingSprintId)
+                    ->first();
+
+                if (! $sprint) {
+                    return;
+                }
+            } else {
+                if ($sprintName === '') {
+                    return;
+                }
+
+                $sprint = Sprint::create([
+                    'project_id'  => $this->projectId,
+                    'name'        => $sprintName,
+                    'description' => $sprintDescription !== '' ? $sprintDescription : null,
+                    'status'      => 'draft',
+                    'sort_order'  => 0,
+                ]);
+            }
+
+            foreach ($tasks as $taskData) {
+                $task = Task::create([
+                    'project_id'      => $this->projectId,
+                    'sprint_id'       => $sprint->id,
+                    'title'           => $taskData['title'],
+                    'description'     => $taskData['description'] !== '' ? $taskData['description'] : null,
+                    'type'            => $taskData['type'],
+                    'priority'        => $taskData['priority'],
+                    'status'          => 'todo',
+                    'weight'          => $taskData['weight'],
+                    'source'          => 'ai',
+                    'original_input'  => null,
+                ]);
+
+                foreach ($taskData['checklist'] as $idx => $label) {
+                    TaskChecklist::create([
+                        'task_id'    => $task->id,
+                        'label'      => Str::limit($label, 255, ''),
+                        'is_checked' => false,
+                        'sort_order' => $idx,
+                    ]);
+                }
+            }
+
+            foreach ($this->messages as $msgIdx => $msg) {
+                if (($msg['id'] ?? null) !== $messageId) {
+                    continue;
+                }
+
+                $this->messages[$msgIdx]['actions']['confirmed'] = true;
+                break;
+            }
+
+            $msg = AiConversationMessage::where('id', $messageId)
+                ->where('conversation_id', $this->conversationId)
+                ->first();
+
+            if ($msg && is_array($msg->actions)) {
+                $actions = $msg->actions;
+                $actions['confirmed'] = true;
+                $msg->update(['actions' => $actions]);
+            }
+
+            $count = $tasks->count();
+            $confirmationText = "Sprint created with {$count} tasks.";
+
+            $assistantMessage = AiConversationMessage::create([
+                'conversation_id' => $this->conversationId,
+                'role'            => 'assistant',
+                'content'         => $confirmationText,
+                'actions'         => null,
+            ]);
+
+            $this->messages[] = [
+                'id'         => $assistantMessage->id,
+                'role'       => 'assistant',
+                'content'    => $confirmationText,
+                'actions'    => null,
+                'created_at' => now()->toISOString(),
+            ];
+        });
+    }
+
+    /**
      * Skip (dismiss) a single AI-suggested action card.
      */
     public function skipAction(int $messageId, int $actionIndex): void
@@ -734,6 +1023,31 @@ class AiChatPanel extends Component
                 $this->messages[$msgIdx]['actions']['items'][$actionIndex]['skipped'] = true;
                 break;
             }
+        }
+    }
+
+    /**
+     * Skip a grouped sprint_with_tasks action card.
+     */
+    public function skipSprintWithTasks(int $messageId): void
+    {
+        foreach ($this->messages as $msgIdx => $msg) {
+            if (($msg['id'] ?? null) !== $messageId) {
+                continue;
+            }
+
+            $this->messages[$msgIdx]['actions']['skipped'] = true;
+            break;
+        }
+
+        $dbMessage = AiConversationMessage::where('id', $messageId)
+            ->where('conversation_id', $this->conversationId)
+            ->first();
+
+        if ($dbMessage && is_array($dbMessage->actions)) {
+            $actions = $dbMessage->actions;
+            $actions['skipped'] = true;
+            $dbMessage->update(['actions' => $actions]);
         }
     }
 
@@ -775,6 +1089,33 @@ class AiChatPanel extends Component
                         'status'      => 'draft',
                         'sort_order'  => 0,
                     ]);
+                } elseif ($actionType === 'tasks') {
+                    $task = Task::create([
+                        'project_id'      => $this->projectId,
+                        'sprint_id'       => null,
+                        'title'           => $title,
+                        'description'     => $description ?: null,
+                        'type'            => in_array(($item['type'] ?? ''), ['feature', 'bug', 'change'], true) ? $item['type'] : 'feature',
+                        'priority'        => in_array(($item['priority'] ?? ''), ['low', 'medium', 'high'], true) ? $item['priority'] : 'medium',
+                        'status'          => 'todo',
+                        'weight'          => max(1, min(5, (int) ($item['weight'] ?? 2))),
+                        'source'          => 'ai',
+                        'original_input'  => null,
+                    ]);
+
+                    $checklist = collect(is_array($item['checklist'] ?? null) ? $item['checklist'] : [])
+                        ->map(fn ($entry) => trim(strip_tags((string) $entry)))
+                        ->filter(fn ($entry) => $entry !== '')
+                        ->values();
+
+                    foreach ($checklist as $idx => $label) {
+                        TaskChecklist::create([
+                            'task_id'    => $task->id,
+                            'label'      => Str::limit($label, 255, ''),
+                            'is_checked' => false,
+                            'sort_order' => $idx,
+                        ]);
+                    }
                 } else {
                     BacklogItem::create([
                         'project_id'  => $this->projectId,
@@ -829,10 +1170,85 @@ class AiChatPanel extends Component
     private function normalizeActions(array $decoded): array
     {
         $decoded['items'] = array_map(function (array $item): array {
+            $item['checklist'] = collect(is_array($item['checklist'] ?? null) ? $item['checklist'] : [])
+                ->map(fn ($entry) => trim((string) $entry))
+                ->filter(fn ($entry) => $entry !== '')
+                ->values()
+                ->all();
+
             return array_merge(['confirmed' => false, 'skipped' => false], $item);
         }, $decoded['items'] ?? []);
 
         return $decoded;
+    }
+
+    /**
+     * Normalize clarification payload from AI responses.
+     */
+    private function normalizeClarificationAction(array $decoded): array
+    {
+        $questions = collect(is_array($decoded['questions'] ?? null) ? $decoded['questions'] : [])
+            ->map(function ($q, $idx): array {
+                $id = trim((string) ($q['id'] ?? 'q' . ($idx + 1)));
+                $type = (string) ($q['type'] ?? 'text');
+                $type = in_array($type, ['pills', 'text', 'multiselect'], true) ? $type : 'text';
+
+                return [
+                    'id' => $id !== '' ? $id : ('q' . ($idx + 1)),
+                    'text' => (string) ($q['text'] ?? ''),
+                    'type' => $type,
+                    'options' => collect(is_array($q['options'] ?? null) ? $q['options'] : [])
+                        ->map(fn ($v) => (string) $v)
+                        ->values()
+                        ->all(),
+                    'allow_other' => (bool) ($q['allow_other'] ?? false),
+                    'required' => (bool) ($q['required'] ?? true),
+                ];
+            })
+            ->filter(fn ($q) => trim((string) $q['text']) !== '')
+            ->values()
+            ->all();
+
+        return [
+            'type' => 'clarification',
+            'questions' => $questions,
+            'answered' => (bool) ($decoded['answered'] ?? false),
+            'answers' => is_array($decoded['answers'] ?? null) ? $decoded['answers'] : [],
+        ];
+    }
+
+    /**
+     * Normalize sprint_with_tasks payload from AI responses.
+     */
+    private function normalizeSprintWithTasksAction(array $decoded): array
+    {
+        $tasks = collect(is_array($decoded['tasks'] ?? null) ? $decoded['tasks'] : [])
+            ->map(function ($task): array {
+                return [
+                    'title'       => (string) ($task['title'] ?? ''),
+                    'description' => (string) ($task['description'] ?? ''),
+                    'type'        => in_array(($task['type'] ?? ''), ['feature', 'bug', 'change'], true) ? $task['type'] : 'feature',
+                    'priority'    => in_array(($task['priority'] ?? ''), ['low', 'medium', 'high'], true) ? $task['priority'] : 'medium',
+                    'weight'      => max(1, min(5, (int) ($task['weight'] ?? 2))),
+                    'checklist'   => collect(is_array($task['checklist'] ?? null) ? $task['checklist'] : [])
+                        ->map(fn ($entry) => trim((string) $entry))
+                        ->filter(fn ($entry) => $entry !== '')
+                        ->values()
+                        ->all(),
+                ];
+            })
+            ->filter(fn ($task) => trim($task['title']) !== '')
+            ->values()
+            ->all();
+
+        return [
+            'type'               => 'sprint_with_tasks',
+            'sprint_name'        => (string) ($decoded['sprint_name'] ?? ''),
+            'sprint_description' => (string) ($decoded['sprint_description'] ?? ''),
+            'tasks'              => $tasks,
+            'confirmed'          => (bool) ($decoded['confirmed'] ?? false),
+            'skipped'            => (bool) ($decoded['skipped'] ?? false),
+        ];
     }
 
     /**
@@ -854,6 +1270,40 @@ class AiChatPanel extends Component
             'answered'     => (bool) ($decoded['answered'] ?? false),
             'answer'       => (string) ($decoded['answer'] ?? ''),
         ];
+    }
+
+    /**
+     * Normalize any supported action payload.
+     */
+    private function normalizeAnyAction(array $decoded): ?array
+    {
+        return match ($decoded['type'] ?? null) {
+            'question' => $this->normalizeQuestionAction($decoded),
+            'clarification' => $this->normalizeClarificationAction($decoded),
+            'sprint_with_tasks' => $this->normalizeSprintWithTasksAction($decoded),
+            default => (isset($decoded['items']) && is_array($decoded['items']))
+                ? $this->normalizeActions($decoded)
+                : null,
+        };
+    }
+
+    /**
+     * Keep only the introductory line for clarification prompts in chat flow.
+     */
+    private function clarificationIntroLine(string $content): string
+    {
+        $trimmed = trim($content);
+        if ($trimmed === '') {
+            return 'I need a few clarifications before I can structure this.';
+        }
+
+        $firstLine = trim((string) preg_split('/\R/', $trimmed)[0]);
+
+        if ($firstLine !== '') {
+            return $firstLine;
+        }
+
+        return 'I need a few clarifications before I can structure this.';
     }
 
     public function render()

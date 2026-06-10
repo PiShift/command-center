@@ -1,4 +1,4 @@
-<x-layouts.app :title="isset($contract) ? 'Edit Draft Contract' : 'New Contract'">
+<x-layouts.app :title="'New Contract'">
 
 <div class="flex flex-wrap items-center gap-2 mb-6" style="font-size:13px">
     <a href="{{ route('employees.index') }}"
@@ -9,16 +9,16 @@
        style="color:#8c8c8a;text-decoration:none"
        onmouseover="this.style.color='#141413'" onmouseout="this.style.color='#8c8c8a'">{{ $employee->display_name }}</a>
     <span style="color:#c0bfbb">/</span>
-    <h1 style="font-size:24px;font-weight:600;color:#141413;line-height:1">{{ isset($contract) ? 'Edit Draft Contract' : 'New Contract' }}</h1>
+    <h1 style="font-size:24px;font-weight:600;color:#141413;line-height:1">New Contract</h1>
 </div>
 
 @include('components.flash')
 
-            <form method="POST" action="{{ isset($contract) ? route('employees.contracts.update', [$employee, $contract]) : route('employees.contracts.store', $employee) }}"
+            <form method="POST" action="{{ route('employees.contracts.store', $employee) }}"
                   class="max-w-xl mx-auto"
                   x-data="{
-                      type: '{{ old('employment_type', $contract?->employment_type ?? $employee->employment_type) }}',
-                      templateId: '{{ old('template_id', $contract?->template_id ?? '') }}',
+                      type: '{{ old('employment_type', $employee->employment_type) }}',
+                      templateId: '{{ old('template_id', '') }}',
                       allTemplates: @js($templates->map(fn($t) => ['id' => (string) $t->id, 'name' => $t->name, 'employment_type' => $t->employment_type, 'is_default' => (bool) $t->is_default])->values()),
                       previewLoading: false,
 
@@ -80,8 +80,6 @@
                   }"
                   id="contract-form">
                 @csrf
-                @isset($contract) @method('PATCH') @endisset
-
                 @if($errors->any())
                 <div class="mb-4 px-4 py-3 rounded-lg" style="background:#fff8f8;border:1px solid #ffd0d0;color:#b94040;font-size:13px">
                     <ul class="list-disc list-inside space-y-1">
@@ -156,7 +154,7 @@
                         {{-- Salary --}}
                         <div>
                             <label class="block text-muted font-bold uppercase tracking-wider mb-1.5" style="font-size:11px;letter-spacing:0.05em">Base Salary (MRU/month) <span class="text-red-500">*</span></label>
-                            <input type="number" name="base_salary" value="{{ old('base_salary', $contract?->base_salary) }}" required min="0" step="0.01"
+                            <input type="number" name="base_salary" value="{{ old('base_salary') }}" required min="0" step="0.01"
                                    placeholder="0.00"
                                    class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
                                    style="font-size:14px">
@@ -166,13 +164,13 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-muted font-bold uppercase tracking-wider mb-1.5" style="font-size:11px;letter-spacing:0.05em">Hours / Day <span class="text-red-500">*</span></label>
-                                <input type="number" name="working_hours_per_day" value="{{ old('working_hours_per_day', $contract?->working_hours_per_day ?? 8) }}" required min="1" max="24" step="0.5"
+                                <input type="number" name="working_hours_per_day" value="{{ old('working_hours_per_day', 8) }}" required min="1" max="24" step="0.5"
                                        class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
                                        style="font-size:14px">
                             </div>
                             <div>
                                 <label class="block text-muted font-bold uppercase tracking-wider mb-1.5" style="font-size:11px;letter-spacing:0.05em">Days / Week <span class="text-red-500">*</span></label>
-                                <input type="number" name="working_days_per_week" value="{{ old('working_days_per_week', $contract?->working_days_per_week ?? 5) }}" required min="1" max="7"
+                                <input type="number" name="working_days_per_week" value="{{ old('working_days_per_week', 5) }}" required min="1" max="7"
                                        class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
                                        style="font-size:14px">
                             </div>
@@ -181,7 +179,7 @@
                         {{-- Notice period --}}
                         <div>
                             <label class="block text-muted font-bold uppercase tracking-wider mb-1.5" style="font-size:11px;letter-spacing:0.05em">Notice Period (days) <span class="text-red-500">*</span></label>
-                            <input type="number" name="notice_period_days" value="{{ old('notice_period_days', $contract?->notice_period_days ?? 30) }}" required min="0"
+                            <input type="number" name="notice_period_days" value="{{ old('notice_period_days', 30) }}" required min="0"
                                    class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
                                    style="font-size:14px">
                         </div>
@@ -190,13 +188,13 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-muted font-bold uppercase tracking-wider mb-1.5" style="font-size:11px;letter-spacing:0.05em">Effective From <span class="text-red-500">*</span></label>
-                                <input type="date" name="effective_from" value="{{ old('effective_from', $contract?->effective_from?->format('Y-m-d') ?? now()->format('Y-m-d')) }}" required
+                                <input type="date" name="effective_from" value="{{ old('effective_from', now()->format('Y-m-d')) }}" required
                                        class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
                                        style="font-size:14px">
                             </div>
                             <div x-show="['CDD','internship'].includes(type)">
                                 <label class="block text-muted font-bold uppercase tracking-wider mb-1.5" style="font-size:11px;letter-spacing:0.05em">Effective To</label>
-                                <input type="date" name="effective_to" value="{{ old('effective_to', $contract?->effective_to?->format('Y-m-d')) }}"
+                                <input type="date" name="effective_to" value="{{ old('effective_to') }}"
                                        class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors"
                                        style="font-size:14px">
                             </div>
@@ -207,7 +205,7 @@
                             <label class="block text-muted font-bold uppercase tracking-wider mb-1.5" style="font-size:11px;letter-spacing:0.05em">Additional Clauses</label>
                             <textarea name="additional_clauses" rows="4" placeholder="Any additional terms or conditions..."
                                       class="w-full text-ink bg-surface border border-line rounded-lg px-3 py-2 focus:outline-none focus:border-accent transition-colors resize-none"
-                                      style="font-size:14px;line-height:1.5">{{ old('additional_clauses', $contract?->additional_clauses) }}</textarea>
+                                      style="font-size:14px;line-height:1.5">{{ old('additional_clauses') }}</textarea>
                         </div>
 
                     </div>
@@ -230,7 +228,7 @@
                                 formnovalidate
                                 class="font-medium rounded-lg px-4 py-2 transition-colors cursor-pointer"
                                 style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;font-size:13px">
-                            {{ isset($contract) ? 'Update Draft' : 'Save as Draft' }}
+                            Save as Draft
                         </button>
                         <button type="submit" name="action" value="activate"
                                 :disabled="!hasTemplates"
