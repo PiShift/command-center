@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('employee_loan_repayments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('loan_id')->constrained('employee_loans')->cascadeOnDelete();
-            $table->foreignId('payroll_entry_id')->nullable()->constrained('payroll_entries')->nullOnDelete();
+            $table->foreignId('payroll_entry_id')->nullable();
             $table->decimal('amount', 12, 2);
             $table->decimal('salary_snapshot', 12, 2);
             $table->decimal('percentage_snapshot', 5, 2)->nullable();
