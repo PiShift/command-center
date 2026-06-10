@@ -13,6 +13,10 @@ return new class extends Migration
             return;
         }
 
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            return;
+        }
+
         Schema::table('payroll_entries', function (Blueprint $table) {
             if (!Schema::hasColumn('payroll_entries', 'payroll_run_id')) {
                 $table->unsignedBigInteger('payroll_run_id');
@@ -110,11 +114,12 @@ return new class extends Migration
 
     private function addConstraintIfMissing(string $constraintName, string $statement): void
     {
-        $exists = DB::table('pg_constraint')
-            ->where('conname', $constraintName)
-            ->exists();
+        $exists = DB::selectOne(
+            'select exists(select 1 from pg_constraint where conname = ?) as exists',
+            [$constraintName]
+        );
 
-        if (!$exists) {
+        if (!($exists->exists ?? false)) {
             DB::statement($statement);
         }
     }
