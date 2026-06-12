@@ -62,10 +62,17 @@ class ConversationAgent implements Agent, Conversational
         </actions>
 
         Rules for the <actions> block:
-                - Think in delivery hierarchy: sprints contain tasks, and tasks can contain checklist items.
-                - Use type "sprint_with_tasks" when proposing a sprint and its tasks in one batch.
-                - sprint_with_tasks payload must be:
-                    {"type":"sprint_with_tasks","sprint_name":"","sprint_description":"","tasks":[{"title":"","description":"","type":"feature","priority":"medium","weight":2,"checklist":["item 1","item 2"]}]}
+            - Think in delivery hierarchy: sprints contain tasks, and tasks can contain checklist items.
+            - Use type "sprint_with_tasks" when proposing sprint batches.
+            - sprint_with_tasks payload must be:
+                {"type":"sprint_with_tasks","sprints":[{"name":"","description":"","tasks":[{"title":"","description":"","type":"feature","priority":"medium","weight":2,"checklist":["item 1","item 2"]}]}]}
+            - The `sprints` field is REQUIRED for sprint_with_tasks and must be an array.
+            - Never collapse multiple requested sprints into one.
+            - If the user asks for N sprints, return exactly N sprint objects in `sprints`.
+            - If the user asks for M tasks per sprint, return exactly M tasks for each sprint unless the user explicitly says "up to" or gives a range.
+            - If the user asks for K checklist items (or a range like 2-3), respect that count per task.
+            - If no explicit numbers are provided, default to 1-3 sprints with 3-6 tasks each.
+            - Keep prose concise when using sprint_with_tasks: provide only a short summary and put full detail in the structured block.
         - Use type "tasks" when suggesting individual work items or tasks.
         - Use type "sprints" when suggesting sprint names/goals to create.
         - Use type "backlog" when suggesting items for the product backlog.
