@@ -845,7 +845,7 @@ class AiChatPanel extends Component
                 'priority'     => in_array($priority, ['low', 'medium', 'high'], true) ? $priority : 'medium',
                 'status'       => 'todo',
                 'weight'       => max(1, min(5, $weight)),
-                'source'       => 'ai',
+                'source'       => 'ai-chat',
                 'original_input' => null,
             ]);
 
@@ -960,7 +960,7 @@ class AiChatPanel extends Component
                     'priority'        => $taskData['priority'],
                     'status'          => 'todo',
                     'weight'          => $taskData['weight'],
-                    'source'          => 'ai',
+                    'source'          => 'ai-chat',
                     'original_input'  => null,
                 ]);
 
@@ -1099,7 +1099,7 @@ class AiChatPanel extends Component
                         'priority'        => in_array(($item['priority'] ?? ''), ['low', 'medium', 'high'], true) ? $item['priority'] : 'medium',
                         'status'          => 'todo',
                         'weight'          => max(1, min(5, (int) ($item['weight'] ?? 2))),
-                        'source'          => 'ai',
+                        'source'          => 'ai-chat',
                         'original_input'  => null,
                     ]);
 
