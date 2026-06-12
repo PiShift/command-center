@@ -1,6 +1,8 @@
 {{-- Task Detail / New Task Modal — Livewire component --}}
 {{-- Root div required by Livewire; modal visibility controlled by @if($open) --}}
 <div x-data="{
+         panelOpen: false,
+         closing: false,
          guideOpen: false,
          guideMode: 'preview',
          guideAiLoading: false,
@@ -61,11 +63,22 @@
                  }
              } catch(e) {}
              this.commentUploading = false;
+         },
+         requestClose() {
+             if (!this.panelOpen || this.closing) return;
+             this.closing = true;
+             this.panelOpen = false;
+         },
+         finalizeClose(event) {
+             if (!this.closing || event.target !== event.currentTarget) return;
+             this.closing = false;
+             $wire.close();
          }
-     }"
-     x-on:open-task.window="$wire.openTask($event.detail.id)"
-     x-on:new-task.window="$wire.newTask()"
-     x-on:guide-saved.window="guideMode = 'preview'">
+    }"
+    x-init="$nextTick(() => { panelOpen = true })"
+    x-on:open-task.window="closing = false; panelOpen = true; $wire.openTask($event.detail.id)"
+    x-on:new-task.window="closing = false; panelOpen = true; $wire.newTask()"
+    x-on:guide-saved.window="guideMode = 'preview'">
 @php
     $priorityMap = [
         'critical' => ['label' => '↑↑ Critical', 'text' => '#b94040', 'bg' => '#fdf0f0'],
@@ -83,18 +96,35 @@
 
 @if($open)
 {{-- Overlay --}}
-<div class="fixed inset-0 flex items-stretch justify-center p-0 overflow-hidden sm:items-center sm:p-4"
+<div class="fixed inset-0 flex items-stretch justify-end overflow-hidden"
      style="z-index:40;background: rgba(0,0,0,0.45)"
-     wire:click.self="close"
-     x-on:keydown.escape.window="$wire.close()">
+    x-cloak
+    x-show="panelOpen"
+    x-transition:enter="transition-opacity duration-200 ease-out"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition-opacity duration-180 ease-in"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    x-on:mousedown.self.prevent="requestClose()"
+    x-on:click.self.prevent
+    x-on:transitionend="finalizeClose($event)"
+    x-on:keydown.escape.window="requestClose()">
 
     {{-- Modal shell: Surface outer + white left panel --}}
-    <div class="fixed inset-0 grid grid-cols-1 md:grid-cols-3 w-full h-full sm:relative sm:inset-auto sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:my-8 sm:mx-auto overflow-hidden sm:rounded-xl"
-         style="background:#F5F4EF; box-shadow: 0 20px 60px rgba(0,0,0,0.18)"
-         wire:click.stop>
+        <div class="h-full w-full max-w-[960px] bg-surface overflow-hidden shadow-modal flex flex-col md:flex-row"
+            style="background:#F5F4EF; box-shadow: 0 20px 60px rgba(0,0,0,0.18)"
+           x-show="panelOpen"
+           x-transition:enter="transform transition duration-250 ease-out"
+           x-transition:enter-start="translate-x-full"
+           x-transition:enter-end="translate-x-0"
+           x-transition:leave="transform transition duration-200 ease-in"
+           x-transition:leave-start="translate-x-0"
+           x-transition:leave-end="translate-x-full"
+            wire:click.stop>
 
         {{-- ── LEFT: Content panel ───────────────────────────────────────── --}}
-        <div class="md:col-span-2 flex flex-col min-w-0 bg-white overflow-y-auto pb-28 sm:pb-0">
+        <div class="flex-1 flex flex-col min-w-0 bg-white overflow-y-auto pb-28 sm:pb-0">
 
             {{-- Title area --}}
             <div class="sticky top-0 z-20 bg-white px-4 sm:px-7 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-hairline">
@@ -102,7 +132,7 @@
                     <div class="flex-1 min-w-0">
                         @if(($editingTitle || $isNew) && $canEdit['meta'])
                             <input wire:model="title"
-                                   wire:blur="saveField('title')"
+                                   x-on:blur="if (!closing) $wire.saveField('title')"
                                    wire:keydown.enter="saveField('title')"
                                    autofocus
                                    placeholder="Task title…"
@@ -122,7 +152,7 @@
                         </p>
                         @endif
                     </div>
-                    <button wire:click="close"
+                        <button x-on:click="requestClose()"
                             class="w-8 h-8 rounded-full flex items-center justify-center text-muted hover:text-ink transition-colors cursor-pointer"
                             style="background: rgba(0,0,0,0.07)"
                             title="Close">
@@ -136,7 +166,7 @@
                 <p class="text-[11px] font-bold uppercase tracking-wider text-muted mb-2">Description</p>
                 @if($editingDescription && $canEdit['meta'])
                     <textarea wire:model="description"
-                              wire:blur="saveField('description')"
+                              x-on:blur="if (!closing) $wire.saveField('description')"
                               rows="4"
                               placeholder="Add a description…"
                               class="w-full min-h-11 text-base sm:text-[13px] text-dim leading-relaxed bg-surface border border-line rounded-lg px-3 py-2.5 outline-none focus:border-accent focus:bg-white transition-colors resize-none placeholder:text-muted placeholder:italic"></textarea>
@@ -392,7 +422,7 @@
                                 $comDlUrl = route('comment-attachments.download', ['task' => $task->id, 'comment' => $comment->id]);
                                 $comSize  = $comAtt->size >= 1048576 ? round($comAtt->size/1048576, 1).'MB' : round($comAtt->size/1024, 1).'KB';
                             @endphp
-                            <div class="mt-1.5 flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-surface border border-hairline inline-flex max-w-xs">
+                            <div class="mt-1.5 inline-flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-surface border border-hairline max-w-xs">
                                 @if($comIsImg)
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
@@ -463,7 +493,7 @@
         </div>
 
         {{-- ── RIGHT: Meta sidebar ───────────────────────────────────────── --}}
-        <div class="md:col-span-1 shrink-0 flex flex-col border-t md:border-t-0 md:border-l border-hairline bg-surface overflow-y-auto pb-28 sm:pb-0">
+        <div class="w-full md:w-[320px] shrink-0 flex flex-col border-t md:border-t-0 md:border-l border-hairline bg-surface overflow-y-auto pb-28 sm:pb-0">
 
             <div class="px-4 sm:px-5 pt-4 sm:pt-0 pb-6 space-y-0 divide-y divide-hairline">
 

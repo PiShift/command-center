@@ -812,63 +812,78 @@
                             @elseif(! empty($message['actions']) && (($message['actions']['type'] ?? null) === 'sprint_with_tasks'))
                             @php
                                 $swtAction = $message['actions'];
-                                $swtTasks  = is_array($swtAction['tasks'] ?? null) ? $swtAction['tasks'] : [];
+                                $swtSprints = is_array($swtAction['sprints'] ?? null)
+                                    ? $swtAction['sprints']
+                                    : [
+                                        [
+                                            'name' => (string) ($swtAction['sprint_name'] ?? ''),
+                                            'description' => (string) ($swtAction['sprint_description'] ?? ''),
+                                            'tasks' => is_array($swtAction['tasks'] ?? null) ? $swtAction['tasks'] : [],
+                                        ],
+                                    ];
                                 $msgDbId   = $message['id'];
                             @endphp
                             <div class="mt-2 w-full"
                                  x-data="{
                                     confirmed: {{ ! empty($swtAction['confirmed']) ? 'true' : 'false' }},
                                     skipped: {{ ! empty($swtAction['skipped']) ? 'true' : 'false' }},
-                                    targetMode: 'new',
-                                    sprintName: @js($swtAction['sprint_name'] ?? ''),
-                                    sprintDescription: @js($swtAction['sprint_description'] ?? ''),
-                                    existingSprintId: '',
-                                    tasks: @js($swtTasks),
-                                    normalizeTasks() {
-                                        this.tasks = (Array.isArray(this.tasks) ? this.tasks : []).map(t => ({
-                                            title: t?.title ?? '',
-                                            description: t?.description ?? '',
-                                            type: ['feature','bug','change'].includes(t?.type) ? t.type : 'feature',
-                                            priority: ['low','medium','high'].includes(t?.priority) ? t.priority : 'medium',
-                                            weight: Math.min(5, Math.max(1, parseInt(t?.weight ?? 2))),
-                                            checklist: Array.isArray(t?.checklist) && t.checklist.length ? t.checklist : [''],
-                                        }));
-                                        if (!this.tasks.length) this.addTask();
+                                    sprints: @js($swtSprints),
+                                    normalizeSprints() {
+                                        this.sprints = (Array.isArray(this.sprints) ? this.sprints : []).map(sprint => ({
+                                            name: sprint?.name ?? '',
+                                            description: sprint?.description ?? '',
+                                            tasks: (Array.isArray(sprint?.tasks) ? sprint.tasks : []).map(task => ({
+                                                title: task?.title ?? '',
+                                                description: task?.description ?? '',
+                                                type: ['feature','bug','change'].includes(task?.type) ? task.type : 'feature',
+                                                priority: ['low','medium','high'].includes(task?.priority) ? task.priority : 'medium',
+                                                weight: Math.min(5, Math.max(1, parseInt(task?.weight ?? 2))),
+                                                checklist: Array.isArray(task?.checklist) && task.checklist.length ? task.checklist : [''],
+                                            })),
+                                        })).filter(sprint => sprint.name || sprint.tasks.length);
+                                        if (!this.sprints.length) this.addSprint();
                                     },
-                                    addTask() {
-                                        this.tasks.push({ title: '', description: '', type: 'feature', priority: 'medium', weight: 2, checklist: [''] });
+                                    addSprint() {
+                                        this.sprints.push({ name: '', description: '', tasks: [{ title: '', description: '', type: 'feature', priority: 'medium', weight: 2, checklist: [''] }] });
                                     },
-                                    removeTask(index) {
-                                        this.tasks.splice(index, 1);
-                                        if (!this.tasks.length) this.addTask();
+                                    removeSprint(index) {
+                                        this.sprints.splice(index, 1);
+                                        if (!this.sprints.length) this.addSprint();
                                     },
-                                    addChecklist(taskIndex) {
-                                        if (!Array.isArray(this.tasks[taskIndex].checklist)) this.tasks[taskIndex].checklist = [];
-                                        this.tasks[taskIndex].checklist.push('');
+                                    addTask(sprintIndex) {
+                                        this.sprints[sprintIndex].tasks.push({ title: '', description: '', type: 'feature', priority: 'medium', weight: 2, checklist: [''] });
                                     },
-                                    removeChecklist(taskIndex, itemIndex) {
-                                        const list = this.tasks[taskIndex].checklist;
+                                    removeTask(sprintIndex, taskIndex) {
+                                        this.sprints[sprintIndex].tasks.splice(taskIndex, 1);
+                                        if (!this.sprints[sprintIndex].tasks.length) this.addTask(sprintIndex);
+                                    },
+                                    addChecklist(sprintIndex, taskIndex) {
+                                        if (!Array.isArray(this.sprints[sprintIndex].tasks[taskIndex].checklist)) this.sprints[sprintIndex].tasks[taskIndex].checklist = [];
+                                        this.sprints[sprintIndex].tasks[taskIndex].checklist.push('');
+                                    },
+                                    removeChecklist(sprintIndex, taskIndex, itemIndex) {
+                                        const list = this.sprints[sprintIndex].tasks[taskIndex].checklist;
                                         list.splice(itemIndex, 1);
                                         if (!list.length) list.push('');
                                     },
                                     payload() {
                                         return {
-                                            target_mode: this.targetMode,
-                                            sprint_name: this.sprintName,
-                                            sprint_description: this.sprintDescription,
-                                            existing_sprint_id: this.targetMode === 'existing' ? this.existingSprintId : '',
-                                            tasks: this.tasks.map(task => ({
-                                                title: task.title,
-                                                description: task.description,
-                                                type: task.type,
-                                                priority: task.priority,
-                                                weight: task.weight,
-                                                checklist: (Array.isArray(task.checklist) ? task.checklist : []).filter(i => String(i).trim() !== ''),
+                                            sprints: this.sprints.map(sprint => ({
+                                                name: sprint.name,
+                                                description: sprint.description,
+                                                tasks: (Array.isArray(sprint.tasks) ? sprint.tasks : []).map(task => ({
+                                                    title: task.title,
+                                                    description: task.description,
+                                                    type: task.type,
+                                                    priority: task.priority,
+                                                    weight: task.weight,
+                                                    checklist: (Array.isArray(task.checklist) ? task.checklist : []).filter(i => String(i).trim() !== ''),
+                                                })),
                                             })),
                                         };
                                     },
                                     init() {
-                                        this.normalizeTasks();
+                                        this.normalizeSprints();
                                     }
                                  }">
                                 <div x-show="!skipped" x-cloak class="bg-white border border-line rounded-lg shadow-sm overflow-hidden">
@@ -886,85 +901,74 @@
                                                     class="text-[10px] text-muted hover:text-ink cursor-pointer">Skip</button>
                                         </div>
 
-                                        <div class="space-y-2">
-                                            <label class="block text-[10px] font-bold uppercase tracking-wider text-muted">Target sprint</label>
-                                            <div class="flex items-center gap-2 flex-wrap">
-                                                <button type="button"
-                                                        x-on:click="targetMode = 'new'"
-                                                        x-bind:class="targetMode === 'new' ? 'bg-accent text-white border-accent' : 'bg-surface text-dim border-line'"
-                                                        class="px-2 py-1 text-[11px] font-medium rounded-md border transition-colors cursor-pointer">Create as new sprint</button>
-                                                <button type="button"
-                                                        x-on:click="targetMode = 'existing'"
-                                                        x-bind:class="targetMode === 'existing' ? 'bg-accent text-white border-accent' : 'bg-surface text-dim border-line'"
-                                                        class="px-2 py-1 text-[11px] font-medium rounded-md border transition-colors cursor-pointer">Add to existing sprint</button>
-                                            </div>
-                                            <div x-show="targetMode === 'existing'" x-cloak>
-                                                <select x-model="existingSprintId" class="w-full text-[12px] text-ink bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent cursor-pointer">
-                                                    <option value="">Select sprint...</option>
-                                                    @foreach($availableSprints as $sp)
-                                                    <option value="{{ $sp['id'] }}">{{ $sp['name'] }} ({{ ucfirst($sp['status']) }})</option>
-                                                    @endforeach
-                                                </select>
-                                            </div>
-                                        </div>
-
-                                        <div x-show="targetMode === 'new'" x-cloak class="space-y-2">
-                                            <input x-model="sprintName" type="text" placeholder="Sprint name"
-                                                   class="w-full text-[12px] text-ink bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent">
-                                            <textarea x-model="sprintDescription" rows="2" placeholder="Sprint description"
-                                                      class="w-full text-[12px] text-dim bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent resize-none"></textarea>
-                                        </div>
-
-                                        <div class="space-y-2">
-                                            <template x-for="(task, tIndex) in tasks" :key="`task-${tIndex}`">
+                                        <div class="space-y-3">
+                                            <template x-for="(sprint, sIndex) in sprints" :key="`sprint-${sIndex}`">
                                                 <div class="border border-hairline rounded-md p-2.5 bg-white space-y-2">
-                                                    <div class="flex items-center gap-2">
-                                                        <input x-model="task.title" type="text" placeholder="Task title"
-                                                               class="flex-1 text-[12px] font-medium text-ink bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent">
-                                                        <button x-on:click="removeTask(tIndex)" class="text-[10px] text-muted hover:text-danger cursor-pointer">Remove task</button>
+                                                    <div class="flex items-center justify-between gap-2">
+                                                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted">Sprint <span x-text="sIndex + 1"></span></p>
+                                                        <button x-on:click="removeSprint(sIndex)" class="text-[10px] text-muted hover:text-danger cursor-pointer">Remove sprint</button>
                                                     </div>
 
-                                                    <textarea x-model="task.description" rows="2" placeholder="Task description"
+                                                    <input x-model="sprint.name" type="text" placeholder="Sprint name"
+                                                           class="w-full text-[12px] font-medium text-ink bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent">
+                                                    <textarea x-model="sprint.description" rows="2" placeholder="Sprint description"
                                                               class="w-full text-[11px] text-dim bg-surface border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent resize-none"></textarea>
 
-                                                    <div class="grid grid-cols-3 gap-1.5">
-                                                        <select x-model="task.type" class="text-[11px] text-dim bg-surface border border-line rounded px-1.5 py-1 outline-none cursor-pointer">
-                                                            <option value="feature">feature</option>
-                                                            <option value="bug">bug</option>
-                                                            <option value="change">change</option>
-                                                        </select>
-                                                        <select x-model="task.priority" class="text-[11px] text-dim bg-surface border border-line rounded px-1.5 py-1 outline-none cursor-pointer">
-                                                            <option value="low">low</option>
-                                                            <option value="medium">medium</option>
-                                                            <option value="high">high</option>
-                                                        </select>
-                                                        <input x-model.number="task.weight" type="number" min="1" max="5" step="1"
-                                                               class="text-[11px] text-dim bg-surface border border-line rounded px-1.5 py-1 outline-none" placeholder="Weight">
-                                                    </div>
+                                                    <div class="space-y-2">
+                                                        <template x-for="(task, tIndex) in sprint.tasks" :key="`sprint-${sIndex}-task-${tIndex}`">
+                                                            <div class="border border-hairline rounded-md p-2 bg-surface space-y-2">
+                                                                <div class="flex items-center gap-2">
+                                                                    <input x-model="task.title" type="text" placeholder="Task title"
+                                                                           class="flex-1 text-[12px] font-medium text-ink bg-white border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent">
+                                                                    <button x-on:click="removeTask(sIndex, tIndex)" class="text-[10px] text-muted hover:text-danger cursor-pointer">Remove task</button>
+                                                                </div>
 
-                                                    <div class="space-y-1.5">
-                                                        <div class="flex items-center justify-between">
-                                                            <span class="text-[10px] font-bold uppercase tracking-wider text-muted">Checklist</span>
-                                                            <button x-on:click="addChecklist(tIndex)" class="text-[10px] text-accent hover:underline cursor-pointer">+ Add item</button>
-                                                        </div>
-                                                        <template x-for="(item, cIndex) in task.checklist" :key="`task-${tIndex}-check-${cIndex}`">
-                                                            <div class="flex items-center gap-1.5">
-                                                                <span class="w-1.5 h-1.5 rounded-full bg-muted shrink-0"></span>
-                                                                <input x-model="task.checklist[cIndex]" type="text" placeholder="Checklist item"
-                                                                       class="flex-1 text-[11px] text-dim bg-surface border border-line rounded px-2 py-1 outline-none focus:border-accent">
-                                                                <button x-on:click="removeChecklist(tIndex, cIndex)" class="text-[10px] text-muted hover:text-danger cursor-pointer">Remove</button>
+                                                                <textarea x-model="task.description" rows="2" placeholder="Task description"
+                                                                          class="w-full text-[11px] text-dim bg-white border border-line rounded-md px-2 py-1.5 outline-none focus:border-accent resize-none"></textarea>
+
+                                                                <div class="grid grid-cols-3 gap-1.5">
+                                                                    <select x-model="task.type" class="text-[11px] text-dim bg-white border border-line rounded px-1.5 py-1 outline-none cursor-pointer">
+                                                                        <option value="feature">feature</option>
+                                                                        <option value="bug">bug</option>
+                                                                        <option value="change">change</option>
+                                                                    </select>
+                                                                    <select x-model="task.priority" class="text-[11px] text-dim bg-white border border-line rounded px-1.5 py-1 outline-none cursor-pointer">
+                                                                        <option value="low">low</option>
+                                                                        <option value="medium">medium</option>
+                                                                        <option value="high">high</option>
+                                                                    </select>
+                                                                    <input x-model.number="task.weight" type="number" min="1" max="5" step="1"
+                                                                           class="text-[11px] text-dim bg-white border border-line rounded px-1.5 py-1 outline-none" placeholder="Weight">
+                                                                </div>
+
+                                                                <div class="space-y-1.5">
+                                                                    <div class="flex items-center justify-between">
+                                                                        <span class="text-[10px] font-bold uppercase tracking-wider text-muted">Checklist</span>
+                                                                        <button x-on:click="addChecklist(sIndex, tIndex)" class="text-[10px] text-accent hover:underline cursor-pointer">+ Add item</button>
+                                                                    </div>
+                                                                    <template x-for="(item, cIndex) in task.checklist" :key="`sprint-${sIndex}-task-${tIndex}-check-${cIndex}`">
+                                                                        <div class="flex items-center gap-1.5">
+                                                                            <span class="w-1.5 h-1.5 rounded-full bg-muted shrink-0"></span>
+                                                                            <input x-model="task.checklist[cIndex]" type="text" placeholder="Checklist item"
+                                                                                   class="flex-1 text-[11px] text-dim bg-white border border-line rounded px-2 py-1 outline-none focus:border-accent">
+                                                                            <button x-on:click="removeChecklist(sIndex, tIndex, cIndex)" class="text-[10px] text-muted hover:text-danger cursor-pointer">Remove</button>
+                                                                        </div>
+                                                                    </template>
+                                                                </div>
                                                             </div>
                                                         </template>
+
+                                                        <button x-on:click="addTask(sIndex)" class="px-2 py-1 rounded-md text-[11px] font-medium border border-line text-dim hover:text-ink hover:bg-surface transition-colors cursor-pointer">+ Add task</button>
                                                     </div>
                                                 </div>
                                             </template>
 
-                                            <button x-on:click="addTask()" class="px-2 py-1 rounded-md text-[11px] font-medium border border-line text-dim hover:text-ink hover:bg-surface transition-colors cursor-pointer">+ Add task</button>
+                                            <button x-on:click="addSprint()" class="px-2 py-1 rounded-md text-[11px] font-medium border border-line text-dim hover:text-ink hover:bg-surface transition-colors cursor-pointer">+ Add sprint</button>
                                         </div>
 
                                         <div class="flex justify-end">
                                             <button x-on:click="confirmed = true; $wire.confirmSprintWithTasks({{ $msgDbId }}, payload())"
-                                                    class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover cursor-pointer transition-colors">Create sprint + tasks</button>
+                                                    class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-accent text-white hover:bg-accent-hover cursor-pointer transition-colors">Create sprints + tasks</button>
                                         </div>
                                     </div>
                                 </div>

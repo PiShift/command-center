@@ -726,6 +726,8 @@ class AiChatPanel extends Component
 
         if (($actions['type'] ?? null) === 'clarification') {
             $cleanContent = $this->clarificationIntroLine($cleanContent);
+        } elseif (($actions['type'] ?? null) === 'sprint_with_tasks') {
+            $cleanContent = $this->sprintWithTasksSummaryLine($cleanContent, $actions);
         }
 
         $message = AiConversationMessage::create([
@@ -895,82 +897,86 @@ class AiChatPanel extends Component
         $project = Project::findOrFail($this->projectId);
         Gate::authorize('view', $project);
 
-        $mode = ($payload['target_mode'] ?? 'new') === 'existing' ? 'existing' : 'new';
-        $sprintName = Str::limit(strip_tags(trim((string) ($payload['sprint_name'] ?? ''))), 255, '');
-        $sprintDescription = Str::limit(strip_tags(trim((string) ($payload['sprint_description'] ?? ''))), 5000, '');
-        $existingSprintId = isset($payload['existing_sprint_id']) && $payload['existing_sprint_id'] !== ''
-            ? (int) $payload['existing_sprint_id']
-            : null;
-        $tasksRaw = is_array($payload['tasks'] ?? null) ? $payload['tasks'] : [];
+        $sprintsRaw = is_array($payload['sprints'] ?? null)
+            ? $payload['sprints']
+            : [];
 
-        $tasks = collect($tasksRaw)
-            ->map(function ($task): array {
-                $checklist = collect(is_array($task['checklist'] ?? null) ? $task['checklist'] : [])
-                    ->map(fn ($item) => trim(strip_tags((string) $item)))
-                    ->filter(fn ($item) => $item !== '')
+        if (empty($sprintsRaw)) {
+            return;
+        }
+
+        $sprints = collect($sprintsRaw)
+            ->map(function ($sprint): array {
+                $tasks = collect(is_array($sprint['tasks'] ?? null) ? $sprint['tasks'] : [])
+                    ->map(function ($task): array {
+                        $checklist = collect(is_array($task['checklist'] ?? null) ? $task['checklist'] : [])
+                            ->map(fn ($item) => trim(strip_tags((string) $item)))
+                            ->filter(fn ($item) => $item !== '')
+                            ->values()
+                            ->all();
+
+                        return [
+                            'title'       => Str::limit(strip_tags(trim((string) ($task['title'] ?? ''))), 255, ''),
+                            'description' => Str::limit(strip_tags(trim((string) ($task['description'] ?? ''))), 5000, ''),
+                            'type'        => in_array(($task['type'] ?? ''), ['feature', 'bug', 'change'], true) ? $task['type'] : 'feature',
+                            'priority'    => in_array(($task['priority'] ?? ''), ['low', 'medium', 'high'], true) ? $task['priority'] : 'medium',
+                            'weight'      => max(1, min(5, (int) ($task['weight'] ?? 2))),
+                            'checklist'   => $checklist,
+                        ];
+                    })
+                    ->filter(fn ($task) => $task['title'] !== '')
                     ->values()
                     ->all();
 
                 return [
-                    'title'       => Str::limit(strip_tags(trim((string) ($task['title'] ?? ''))), 255, ''),
-                    'description' => Str::limit(strip_tags(trim((string) ($task['description'] ?? ''))), 5000, ''),
-                    'type'        => in_array(($task['type'] ?? ''), ['feature', 'bug', 'change'], true) ? $task['type'] : 'feature',
-                    'priority'    => in_array(($task['priority'] ?? ''), ['low', 'medium', 'high'], true) ? $task['priority'] : 'medium',
-                    'weight'      => max(1, min(5, (int) ($task['weight'] ?? 2))),
-                    'checklist'   => $checklist,
+                    'name'        => Str::limit(strip_tags(trim((string) ($sprint['name'] ?? ''))), 255, ''),
+                    'description' => Str::limit(strip_tags(trim((string) ($sprint['description'] ?? ''))), 5000, ''),
+                    'tasks'       => $tasks,
                 ];
             })
-            ->filter(fn ($task) => $task['title'] !== '')
+            ->filter(fn ($sprint) => $sprint['name'] !== '' && ! empty($sprint['tasks']))
             ->values();
 
-        if ($tasks->isEmpty()) {
+        if ($sprints->isEmpty()) {
             return;
         }
 
-        DB::transaction(function () use ($mode, $sprintName, $sprintDescription, $existingSprintId, $tasks, $messageId): void {
-            if ($mode === 'existing') {
-                $sprint = Sprint::where('project_id', $this->projectId)
-                    ->where('id', $existingSprintId)
-                    ->first();
+        DB::transaction(function () use ($sprints, $messageId): void {
+            $createdSprintNames = [];
 
-                if (! $sprint) {
-                    return;
-                }
-            } else {
-                if ($sprintName === '') {
-                    return;
-                }
-
+            foreach ($sprints as $sprintData) {
                 $sprint = Sprint::create([
                     'project_id'  => $this->projectId,
-                    'name'        => $sprintName,
-                    'description' => $sprintDescription !== '' ? $sprintDescription : null,
+                    'name'        => $sprintData['name'],
+                    'description' => $sprintData['description'] !== '' ? $sprintData['description'] : null,
                     'status'      => 'draft',
                     'sort_order'  => 0,
                 ]);
-            }
 
-            foreach ($tasks as $taskData) {
-                $task = Task::create([
-                    'project_id'      => $this->projectId,
-                    'sprint_id'       => $sprint->id,
-                    'title'           => $taskData['title'],
-                    'description'     => $taskData['description'] !== '' ? $taskData['description'] : null,
-                    'type'            => $taskData['type'],
-                    'priority'        => $taskData['priority'],
-                    'status'          => 'todo',
-                    'weight'          => $taskData['weight'],
-                    'source'          => 'ai-chat',
-                    'original_input'  => null,
-                ]);
+                $createdSprintNames[] = $sprint->name;
 
-                foreach ($taskData['checklist'] as $idx => $label) {
-                    TaskChecklist::create([
-                        'task_id'    => $task->id,
-                        'label'      => Str::limit($label, 255, ''),
-                        'is_checked' => false,
-                        'sort_order' => $idx,
+                foreach ($sprintData['tasks'] as $taskData) {
+                    $task = Task::create([
+                        'project_id'      => $this->projectId,
+                        'sprint_id'       => $sprint->id,
+                        'title'           => $taskData['title'],
+                        'description'     => $taskData['description'] !== '' ? $taskData['description'] : null,
+                        'type'            => $taskData['type'],
+                        'priority'        => $taskData['priority'],
+                        'status'          => 'todo',
+                        'weight'          => $taskData['weight'],
+                        'source'          => 'ai-chat',
+                        'original_input'  => null,
                     ]);
+
+                    foreach ($taskData['checklist'] as $idx => $label) {
+                        TaskChecklist::create([
+                            'task_id'    => $task->id,
+                            'label'      => Str::limit($label, 255, ''),
+                            'is_checked' => false,
+                            'sort_order' => $idx,
+                        ]);
+                    }
                 }
             }
 
@@ -993,8 +999,11 @@ class AiChatPanel extends Component
                 $msg->update(['actions' => $actions]);
             }
 
-            $count = $tasks->count();
-            $confirmationText = "Sprint created with {$count} tasks.";
+            $sprintCount = $sprints->count();
+            $taskCount = $sprints->sum(fn ($sprint) => count($sprint['tasks']));
+            $confirmationText = $sprintCount === 1
+                ? "Sprint created with {$taskCount} tasks."
+                : "{$sprintCount} sprints created with {$taskCount} tasks.";
 
             $assistantMessage = AiConversationMessage::create([
                 'conversation_id' => $this->conversationId,
@@ -1222,33 +1231,89 @@ class AiChatPanel extends Component
      */
     private function normalizeSprintWithTasksAction(array $decoded): array
     {
-        $tasks = collect(is_array($decoded['tasks'] ?? null) ? $decoded['tasks'] : [])
-            ->map(function ($task): array {
+        $normalizeTask = function (array $task): array {
+            return [
+                'title'       => (string) ($task['title'] ?? ''),
+                'description' => (string) ($task['description'] ?? ''),
+                'type'        => in_array(($task['type'] ?? ''), ['feature', 'bug', 'change'], true) ? $task['type'] : 'feature',
+                'priority'    => in_array(($task['priority'] ?? ''), ['low', 'medium', 'high'], true) ? $task['priority'] : 'medium',
+                'weight'      => max(1, min(5, (int) ($task['weight'] ?? 2))),
+                'checklist'   => collect(is_array($task['checklist'] ?? null) ? $task['checklist'] : [])
+                    ->map(fn ($entry) => trim((string) $entry))
+                    ->filter(fn ($entry) => $entry !== '')
+                    ->values()
+                    ->all(),
+            ];
+        };
+
+        $sprints = collect(is_array($decoded['sprints'] ?? null) ? $decoded['sprints'] : [])
+            ->map(function ($sprint) use ($normalizeTask): array {
+                $tasks = collect(is_array($sprint['tasks'] ?? null) ? $sprint['tasks'] : [])
+                    ->map(fn ($task) => $normalizeTask(is_array($task) ? $task : []))
+                    ->filter(fn ($task) => trim($task['title']) !== '')
+                    ->values()
+                    ->all();
+
                 return [
-                    'title'       => (string) ($task['title'] ?? ''),
-                    'description' => (string) ($task['description'] ?? ''),
-                    'type'        => in_array(($task['type'] ?? ''), ['feature', 'bug', 'change'], true) ? $task['type'] : 'feature',
-                    'priority'    => in_array(($task['priority'] ?? ''), ['low', 'medium', 'high'], true) ? $task['priority'] : 'medium',
-                    'weight'      => max(1, min(5, (int) ($task['weight'] ?? 2))),
-                    'checklist'   => collect(is_array($task['checklist'] ?? null) ? $task['checklist'] : [])
-                        ->map(fn ($entry) => trim((string) $entry))
-                        ->filter(fn ($entry) => $entry !== '')
-                        ->values()
-                        ->all(),
+                    'name'        => trim((string) ($sprint['name'] ?? '')),
+                    'description' => trim((string) ($sprint['description'] ?? '')),
+                    'tasks'       => $tasks,
                 ];
             })
-            ->filter(fn ($task) => trim($task['title']) !== '')
+            ->filter(fn ($sprint) => $sprint['name'] !== '' && ! empty($sprint['tasks']))
             ->values()
             ->all();
 
+        // Backward compatibility with the old single-sprint payload shape.
+        if (empty($sprints)) {
+            $legacyTasks = collect(is_array($decoded['tasks'] ?? null) ? $decoded['tasks'] : [])
+                ->map(fn ($task) => $normalizeTask(is_array($task) ? $task : []))
+                ->filter(fn ($task) => trim($task['title']) !== '')
+                ->values()
+                ->all();
+
+            if (! empty($legacyTasks)) {
+                $sprints = [[
+                    'name'        => trim((string) ($decoded['sprint_name'] ?? 'Sprint 1')),
+                    'description' => trim((string) ($decoded['sprint_description'] ?? '')),
+                    'tasks'       => $legacyTasks,
+                ]];
+            }
+        }
+
         return [
             'type'               => 'sprint_with_tasks',
-            'sprint_name'        => (string) ($decoded['sprint_name'] ?? ''),
-            'sprint_description' => (string) ($decoded['sprint_description'] ?? ''),
-            'tasks'              => $tasks,
+            'sprints'            => $sprints,
+            'sprint_name'        => (string) ($decoded['sprint_name'] ?? ($sprints[0]['name'] ?? '')),
+            'sprint_description' => (string) ($decoded['sprint_description'] ?? ($sprints[0]['description'] ?? '')),
+            'tasks'              => $sprints[0]['tasks'] ?? [],
             'confirmed'          => (bool) ($decoded['confirmed'] ?? false),
             'skipped'            => (bool) ($decoded['skipped'] ?? false),
         ];
+    }
+
+    /**
+     * Keep sprint proposal prose concise when a structured sprint form is present.
+     */
+    private function sprintWithTasksSummaryLine(string $content, array $actions): string
+    {
+        $sprints = collect(is_array($actions['sprints'] ?? null) ? $actions['sprints'] : [])
+            ->filter(fn ($s) => is_array($s) && trim((string) ($s['name'] ?? '')) !== '')
+            ->values();
+
+        if ($sprints->isEmpty()) {
+            $trimmed = trim($content);
+            return $trimmed !== '' ? $trimmed : 'I drafted a sprint proposal below. Please review and confirm.';
+        }
+
+        $sprintCount = $sprints->count();
+        $names = $sprints->take(3)->map(fn ($s) => (string) $s['name'])->all();
+        $nameText = implode(', ', $names);
+        $suffix = $sprintCount > 3 ? ', and more' : '';
+
+        return $sprintCount === 1
+            ? "I drafted 1 sprint proposal ({$nameText}). Review and edit the details below, then confirm."
+            : "I drafted {$sprintCount} sprint proposals ({$nameText}{$suffix}). Review and edit the details below, then confirm.";
     }
 
     /**
