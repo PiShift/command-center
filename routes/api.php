@@ -299,9 +299,7 @@ Route::prefix('daemon')->middleware(DaemonTokenMiddleware::class)->group(functio
         return response()->json(['status' => 'ok']);
     });
     Route::post('tasks/{taskId}/messages', [DaemonController::class, 'messages']);
-    Route::post('tasks/{taskId}/usage', function() {
-        return response()->json(['status' => 'ok']);
-    });
+    Route::post('tasks/{taskId}/usage', [DaemonController::class, 'usage']);
 
     Route::post('register', [DaemonController::class, 'register']);
     Route::post('deregister', [DaemonController::class, 'deregister']);

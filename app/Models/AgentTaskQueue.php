@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class AgentTaskQueue extends Model
@@ -69,6 +70,11 @@ class AgentTaskQueue extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(AgentTaskMessage::class, 'task_queue_id');
+    }
+
+    public function usage(): HasOne
+    {
+        return $this->hasOne(AgentTaskUsage::class, 'task_queue_id');
     }
 
     public static function buildPrompt(Task $task): string
