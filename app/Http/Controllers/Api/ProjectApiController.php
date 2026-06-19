@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\ProjectResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
 
 class ProjectApiController extends Controller
@@ -160,19 +161,17 @@ class ProjectApiController extends Controller
 
     public function destroy(Request $request, string $id): JsonResponse
     {
-        if (! $request->user()->hasPermission('projects.manage')) {
+        $project = Project::query()->whereKey((int) $id)->first();
+
+        if (! $project) {
+            return response()->json(['error' => 'project not found'], 404);
+        }
+
+        if (! Gate::forUser($request->user())->allows('manage', $project)) {
             return response()->json(['error' => 'forbidden'], 403);
         }
 
-        $project = $this->scopedProjects($request)
-            ->where('id', (int) $id)
-            ->first();
-
-        if (! $project) {
-            return response()->json(['error' => 'not found'], 404);
-        }
-
-        Project::query()->whereKey($project->id)->delete();
+        $project->delete();
 
         return response()->json(['status' => 'ok']);
     }
