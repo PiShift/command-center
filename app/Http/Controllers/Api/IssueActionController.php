@@ -8,22 +8,140 @@ use App\Models\Project;
 use App\Models\Task;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class IssueActionController
 {
-    public function search(): JsonResponse
+    public function search(Request $request): JsonResponse
     {
-        return response()->json(['issues' => [], 'total' => 0]);
+        $q = trim((string) $request->query('q', ''));
+
+        if ($q === '') {
+            return response()->json(['issues' => [], 'total' => 0]);
+        }
+
+        $limit = max(1, min(200, (int) $request->query('limit', 20)));
+        $offset = max(0, (int) $request->query('offset', 0));
+        $includeClosed = filter_var($request->query('include_closed', false), FILTER_VALIDATE_BOOLEAN);
+
+        $query = Task::query()->with(['project.teams:id', 'assignee:id']);
+        $user = $request->user();
+
+        if (! $user->hasPermission('projects.view_all')) {
+            $userId = $user->id;
+            $query->whereHas('project.teams.members', function ($memberQuery) use ($userId): void {
+                $memberQuery->where('users.id', $userId);
+            });
+        }
+
+        $query->where(function ($issueQuery) use ($q): void {
+            $issueQuery
+                ->where('title', 'like', '%' . $q . '%')
+                ->orWhere('description', 'like', '%' . $q . '%');
+        });
+
+        if (! $includeClosed) {
+            $query->where('status', '!=', 'done');
+        }
+
+        $total = (clone $query)->count();
+        $issues = $query
+            ->orderByDesc('updated_at')
+            ->offset($offset)
+            ->limit($limit)
+            ->get();
+
+        return response()->json([
+            'issues' => $issues->map(fn (Task $task): array => $this->issuePayload($task))->values(),
+            'total'  => $total,
+        ]);
     }
 
-    public function grouped(): JsonResponse
+    public function grouped(Request $request): JsonResponse
     {
-        return response()->json(['groups' => [], 'total' => 0]);
+        $groupBy = trim((string) $request->query('group_by', 'status'));
+        $allowed = ['status', 'priority', 'project_id', 'assignee_id'];
+
+        if (! in_array($groupBy, $allowed, true)) {
+            $groupBy = 'status';
+        }
+
+        $column = match ($groupBy) {
+            'assignee_id' => 'assigned_to',
+            default => $groupBy,
+        };
+
+        $query = Task::query()->with(['project.teams:id', 'assignee:id']);
+        $user = $request->user();
+
+        if (! $user->hasPermission('projects.view_all')) {
+            $userId = $user->id;
+            $query->whereHas('project.teams.members', function ($memberQuery) use ($userId): void {
+                $memberQuery->where('users.id', $userId);
+            });
+        }
+
+        $issues = $query->orderByDesc('updated_at')->get();
+        $grouped = $issues->groupBy(function (Task $task) use ($column, $groupBy): string {
+            $raw = $task->{$column};
+
+            if ($groupBy === 'status') {
+                return $this->mapOutgoingStatus((string) $raw);
+            }
+
+            if ($raw === null || $raw === '') {
+                return 'null';
+            }
+
+            return (string) $raw;
+        });
+
+        $groups = $grouped
+            ->map(function (Collection $items, string $key): array {
+                return [
+                    'key'    => $key,
+                    'issues' => $items->map(fn (Task $task): array => $this->issuePayload($task))->values(),
+                    'total'  => $items->count(),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'groups' => $groups,
+            'total'  => $issues->count(),
+        ]);
     }
 
-    public function assigneeFrequency(): JsonResponse
+    public function assigneeFrequency(Request $request): JsonResponse
     {
-        return response()->json([]);
+        $query = Task::query();
+        $user = $request->user();
+
+        if (! $user->hasPermission('projects.view_all')) {
+            $userId = $user->id;
+            $query->whereHas('project.teams.members', function ($memberQuery) use ($userId): void {
+                $memberQuery->where('users.id', $userId);
+            });
+        }
+
+        $frequencies = $query
+            ->select('assigned_to', DB::raw('COUNT(*) as count'))
+            ->whereNotNull('assigned_to')
+            ->groupBy('assigned_to')
+            ->orderByDesc('count')
+            ->limit(10)
+            ->get();
+
+        return response()->json(
+            $frequencies->map(static function ($row): array {
+                return [
+                    'assignee_type' => 'user',
+                    'assignee_id'   => (string) $row->assigned_to,
+                    'count'         => (int) $row->count,
+                ];
+            })->values()
+        );
     }
 
     public function create(Request $request): JsonResponse
@@ -116,7 +234,7 @@ class IssueActionController
             'identifier'      => 'task-' . $task->id,
             'title'           => (string) $task->title,
             'description'     => AgentTaskQueue::buildPrompt($task),
-            'status'          => (string) $task->status,
+            'status'          => $this->mapOutgoingStatus((string) $task->status),
             'priority'        => (string) $task->priority,
             'assignee_type'   => $assigneeId ? 'user' : null,
             'assignee_id'     => $assigneeId,
@@ -134,6 +252,16 @@ class IssueActionController
             'attachments'     => [],
             'labels'          => [],
         ];
+    }
+
+    private function mapOutgoingStatus(string $status): string
+    {
+        return match ($status) {
+            'open' => 'todo',
+            'in-progress' => 'in_progress',
+            'in-review' => 'in_review',
+            default => $status,
+        };
     }
 
     private function mapIncomingStatus(string $status): string

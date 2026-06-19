@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AgentTaskMessage;
 use App\Models\AgentRuntime;
 use App\Models\AgentTaskQueue;
+use App\Models\AgentTaskUsage;
 use App\Models\ProjectResource;
 use App\Models\TaskToken;
 use App\Models\Team;
@@ -403,6 +404,33 @@ class DaemonController extends Controller
             'status' => 'ok',
             'count'  => $inserted,
         ]);
+    }
+
+    public function usage(Request $request, string $taskId): JsonResponse
+    {
+        $queue = $this->ownedQueue($request, $taskId);
+
+        if (! $queue) {
+            return response()->json(['error' => 'task not found'], 404);
+        }
+
+        $data = $request->validate([
+            'input_tokens'  => ['nullable', 'integer', 'min:0'],
+            'output_tokens' => ['nullable', 'integer', 'min:0'],
+            'cost'          => ['nullable', 'numeric', 'min:0'],
+            'model'         => ['nullable', 'string', 'max:255'],
+        ]);
+
+        AgentTaskUsage::create([
+            'task_queue_id' => $queue->id,
+            'input_tokens'  => (int) ($data['input_tokens'] ?? 0),
+            'output_tokens' => (int) ($data['output_tokens'] ?? 0),
+            'cost'          => (float) ($data['cost'] ?? 0),
+            'model'         => isset($data['model']) ? trim((string) $data['model']) : null,
+            'created_at'    => now(),
+        ]);
+
+        return response()->json(['status' => 'ok']);
     }
 
     public function completeTask(Request $request, string $taskId): JsonResponse
