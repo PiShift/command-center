@@ -20,21 +20,11 @@ class ProjectApiController extends Controller
         }
 
         $projects = $this->scopedProjects($request)
-            ->withCount('resources')
-            ->orderBy('name')
+            ->orderBy('name', 'asc')
             ->get();
 
         return response()->json([
-            'projects' => $projects->map(static function (Project $project): array {
-                return [
-                    'id'             => (string) $project->id,
-                    'name'           => $project->name,
-                    'description'    => $project->description,
-                    'status'         => $project->status,
-                    'health'         => $project->health,
-                    'resource_count' => (int) $project->resources_count,
-                ];
-            })->values(),
+            'projects' => $projects->map(fn (Project $project): array => $this->projectSummaryPayload($project))->values(),
             'total' => $projects->count(),
         ]);
     }
@@ -93,10 +83,10 @@ class ProjectApiController extends Controller
             return $project;
         });
 
-        $project->load(['resources']);
+        $project->load(['resources', 'teams']);
 
         return response()->json([
-            'project' => $this->projectPayload($project),
+            'project' => $this->projectDetailPayload($project),
         ], 201);
     }
 
@@ -107,7 +97,7 @@ class ProjectApiController extends Controller
         }
 
         $project = $this->scopedProjects($request)
-            ->with('resources')
+            ->with(['resources', 'teams'])
             ->where('id', (int) $id)
             ->first();
 
@@ -115,9 +105,7 @@ class ProjectApiController extends Controller
             return response()->json(['error' => 'not found'], 404);
         }
 
-        return response()->json([
-            'project' => $this->projectPayload($project),
-        ]);
+        return response()->json($this->projectDetailPayload($project));
     }
 
     public function update(Request $request, string $id): JsonResponse
@@ -127,7 +115,7 @@ class ProjectApiController extends Controller
         }
 
         $project = $this->scopedProjects($request)
-            ->with('resources')
+            ->with(['resources', 'teams'])
             ->where('id', (int) $id)
             ->first();
 
@@ -166,7 +154,7 @@ class ProjectApiController extends Controller
         }
 
         return response()->json([
-            'project' => $this->projectPayload($project->fresh('resources')),
+            'project' => $this->projectDetailPayload($project->fresh(['resources', 'teams'])),
         ]);
     }
 
@@ -205,27 +193,57 @@ class ProjectApiController extends Controller
         return $query;
     }
 
-    private function projectPayload(Project $project): array
+    private function projectSummaryPayload(Project $project): array
     {
+        $workspaceId = (string) ($project->teams()->first()?->id ?? '1');
+
         return [
-            'id'          => (string) $project->id,
-            'name'        => $project->name,
-            'description' => $project->description,
-            'status'      => $project->status,
-            'health'      => $project->health,
-            'resources'   => $project->resources->map(static function (ProjectResource $resource): array {
-                return [
-                    'id'            => (string) $resource->id,
-                    'project_id'    => (string) $resource->project_id,
-                    'resource_type' => $resource->resource_type,
-                    'resource_ref'  => $resource->resource_ref ?? [],
-                    'label'         => $resource->label,
-                    'position'      => $resource->position,
-                    'created_at'    => optional($resource->created_at)?->toIso8601String(),
-                    'updated_at'    => optional($resource->updated_at)?->toIso8601String(),
-                ];
-            })->values(),
+            'id'             => (string) $project->id,
+            'workspace_id'   => $workspaceId,
+            'title'          => $project->name,
+            'description'    => $project->description,
+            'icon'           => null,
+            'status'         => $this->mapOutgoingProjectStatus((string) $project->status),
+            'priority'       => 'medium',
+            'lead_type'      => null,
+            'lead_id'        => null,
+            'created_at'     => optional($project->created_at)?->toIso8601String(),
+            'updated_at'     => optional($project->updated_at)?->toIso8601String(),
+            'issue_count'    => (int) $project->tasks()->count(),
+            'done_count'     => (int) $project->tasks()->where('status', 'done')->count(),
+            'resource_count' => (int) $project->resources()->count(),
         ];
+    }
+
+    private function projectDetailPayload(Project $project): array
+    {
+        return array_merge(
+            $this->projectSummaryPayload($project),
+            [
+                'resources' => $project->resources->map(static function (ProjectResource $resource): array {
+                    return [
+                        'id'            => (string) $resource->id,
+                        'project_id'    => (string) $resource->project_id,
+                        'resource_type' => $resource->resource_type,
+                        'resource_ref'  => $resource->resource_ref ?? [],
+                        'label'         => $resource->label,
+                        'position'      => $resource->position,
+                        'created_at'    => optional($resource->created_at)?->toIso8601String(),
+                        'updated_at'    => optional($resource->updated_at)?->toIso8601String(),
+                    ];
+                })->values(),
+            ]
+        );
+    }
+
+    private function mapOutgoingProjectStatus(string $status): string
+    {
+        return match ($status) {
+            'active' => 'in_progress',
+            'paused' => 'paused',
+            'complete' => 'completed',
+            default => 'planned',
+        };
     }
 
     private function normalizeResourceRef(Project $project, string $resourceType, array $resourceRef): array
