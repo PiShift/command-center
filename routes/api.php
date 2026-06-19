@@ -96,6 +96,9 @@ Route::middleware([
     Route::get('/invitations', function() {
         return response()->json([]);
     });
+    Route::post('/me/onboarding/complete', function() {
+        return response()->json(['status' => 'ok']);
+    });
 });
 
 Route::prefix('daemon')->middleware(DaemonTokenMiddleware::class)->group(function () {
