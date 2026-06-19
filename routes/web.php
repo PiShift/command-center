@@ -62,6 +62,9 @@ Route::get('/login/verify',  [LoginController::class, 'showVerify'])->name('logi
 Route::post('/login/verify', [LoginController::class, 'verify'])->name('login.verify.submit');
 Route::post('/login/resend-otp', [LoginController::class, 'resendOtp'])->name('login.resend-otp');
 
+Route::post('/auth/send-code', [\App\Http\Controllers\Api\AuthCodeController::class, 'sendCode']);
+Route::post('/auth/verify-code', [\App\Http\Controllers\Api\AuthCodeController::class, 'verifyCode']);
+
 // ── Authenticated app ─────────────────────────────────────────────────────────
 Route::middleware(['auth', 'require-2fa'])->group(function () {
 
