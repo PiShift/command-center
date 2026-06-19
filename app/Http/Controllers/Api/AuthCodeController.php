@@ -98,7 +98,7 @@ class AuthCodeController extends Controller
         return response()->json([
             'token' => $generated['raw'],
             'user'  => [
-                'id'    => $user->id,
+                'id'    => (string) $user->id,
                 'name'  => $user->name,
                 'email' => $user->email,
             ],

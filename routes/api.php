@@ -27,6 +27,14 @@ Route::middleware('api.secret')->prefix('v1')->group(function () {
 Route::post('/auth/send-code', [AuthCodeController::class, 'sendCode']);
 Route::post('/auth/verify-code', [AuthCodeController::class, 'verifyCode']);
 
+Route::get('/config', function() {
+    return response()->json([
+        'apiUrl' => config('app.url') . '/api',
+        'appUrl' => config('app.url'),
+        'wsUrl'  => 'ws://' . parse_url(config('app.url'), PHP_URL_HOST) . '/ws',
+    ]);
+});
+
 Route::middleware([
     \Illuminate\Session\Middleware\StartSession::class,
     ApiSessionOrPatAuth::class,
@@ -61,6 +69,11 @@ Route::middleware([
     Route::post('/issues/{id}/comments', [\App\Http\Controllers\Api\IssueController::class, 'storeComment']);
 
     Route::get('/agent-tasks/{queueId}/messages', [AgentTaskController::class, 'messages']);
+
+    // Placeholder for future invitation implementation
+    Route::get('/invitations', function() {
+        return response()->json([]);
+    });
 });
 
 Route::prefix('daemon')->middleware(DaemonTokenMiddleware::class)->group(function () {
