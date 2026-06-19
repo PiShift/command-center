@@ -88,18 +88,7 @@ class IssueListController extends Controller
     private function mapIncomingStatus(string $status): ?string
     {
         $incoming = strtolower(trim($status));
-
-        $statusMap = [
-            'backlog'     => 'open',
-            'todo'        => 'open',
-            'in_progress' => 'in-progress',
-            'in_review'   => 'in-review',
-            'done'        => 'done',
-            'blocked'     => 'in-progress',
-            'cancelled'   => 'done',
-        ];
-
-        return $statusMap[$incoming] ?? null;
+        return str_replace('_', '-', $incoming);
     }
 
     private function mapOutgoingStatus(string $status): string
