@@ -23,6 +23,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'require-2fa' => \App\Http\Middleware\RequiresTwoFactor::class,
             'api.secret'  => \App\Http\Middleware\ApiSecretKey::class,
         ]);
+
+        $middleware->validateCsrfTokens(except: [
+            'auth/send-code',
+            'auth/verify-code',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
