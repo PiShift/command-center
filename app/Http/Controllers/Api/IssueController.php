@@ -113,6 +113,19 @@ class IssueController extends Controller
         return response()->json($this->commentPayload($comment), 201);
     }
 
+    public function destroy(Request $request, string $id): JsonResponse
+    {
+        $task = $this->resolveTask($id);
+
+        if (! $task) {
+            return response()->json(['error' => 'issue not found'], 404);
+        }
+
+        Task::query()->whereKey($task->id)->delete();
+
+        return response()->json(['status' => 'ok']);
+    }
+
     private function resolveTask(string $id): ?Task
     {
         if (preg_match('/^[0-9a-f-]{36}$/i', $id) === 1) {
