@@ -29,9 +29,13 @@ Route::post('/auth/verify-code', [AuthCodeController::class, 'verifyCode']);
 
 Route::get('/config', function() {
     return response()->json([
-        'apiUrl' => config('app.url') . '/api',
-        'appUrl' => config('app.url'),
-        'wsUrl'  => 'wss://' . parse_url(config('app.url'), PHP_URL_HOST) . '/ws',
+        'cdn_domain'             => null,
+        'cdn_signed'             => false,
+        'allow_signup'           => false,
+        'google_client_id'       => null,
+        'posthog_key'            => null,
+        'posthog_host'           => null,
+        'analytics_environment'  => 'production',
     ]);
 });
 

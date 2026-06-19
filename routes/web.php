@@ -167,6 +167,10 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::post('projects/{project}/teams',         [ProjectTeamController::class, 'store'])->name('projects.teams.store');
     Route::delete('projects/{project}/teams/{team}',[ProjectTeamController::class, 'destroy'])->name('projects.teams.destroy');
 
+    Route::get('/workspaces/new', function() {
+        return redirect('/teams/create');
+    });
+
     // AI
     Route::post('projects/{project}/ai/plan',         [AiController::class, 'plan'])->name('ai.plan');
     Route::post('projects/{project}/ai/plan/confirm', [AiController::class, 'confirmPlan'])->name('ai.plan.confirm');
