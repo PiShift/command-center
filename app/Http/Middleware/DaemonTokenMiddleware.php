@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\PersonalAccessToken;
+use App\Models\TaskToken;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\JsonResponse;
@@ -23,37 +24,54 @@ class DaemonTokenMiddleware
 
         $token = trim($matches[1]);
 
-        if (! str_starts_with($token, 'mul_')) {
-            return $this->unauthorized();
-        }
-
         $hash = hash('sha256', $token);
-        $cacheKey = 'pat:' . $hash;
-        $userId = Cache::get($cacheKey);
+        $user = null;
 
-        if (! $userId) {
-            $personalToken = PersonalAccessToken::query()
-                ->where('token_hash', $hash)
-                ->active()
-                ->first();
+        if (str_starts_with($token, 'mul_')) {
+            $cacheKey = 'pat:' . $hash;
+            $userId = Cache::get($cacheKey);
 
-            if (! $personalToken) {
+            if (! $userId) {
+                $personalToken = PersonalAccessToken::query()
+                    ->where('token_hash', $hash)
+                    ->active()
+                    ->first();
+
+                if (! $personalToken) {
+                    return $this->unauthorized();
+                }
+
+                $userId = $personalToken->user_id;
+                Cache::put($cacheKey, $userId, now()->addMinutes(10));
+            }
+
+            $user = User::find($userId);
+
+            if (! $user) {
                 return $this->unauthorized();
             }
 
-            $userId = $personalToken->user_id;
-            Cache::put($cacheKey, $userId, now()->addMinutes(10));
-        }
+            app()->terminating(static function () use ($hash): void {
+                PersonalAccessToken::where('token_hash', $hash)->update(['last_used_at' => now()]);
+            });
+        } elseif (str_starts_with($token, 'mat_')) {
+            $taskToken = TaskToken::query()
+                ->where('token_hash', $hash)
+                ->where('expires_at', '>', now())
+                ->first();
 
-        $user = User::find($userId);
+            if (! $taskToken || ! $taskToken->user_id) {
+                return $this->unauthorized();
+            }
 
-        if (! $user) {
+            $user = User::find($taskToken->user_id);
+
+            if (! $user) {
+                return $this->unauthorized();
+            }
+        } else {
             return $this->unauthorized();
         }
-
-        app()->terminating(static function () use ($hash): void {
-            PersonalAccessToken::where('token_hash', $hash)->update(['last_used_at' => now()]);
-        });
 
         Auth::setUser($user);
         $request->setUserResolver(fn () => $user);

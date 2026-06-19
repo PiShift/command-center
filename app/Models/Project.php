@@ -69,6 +69,13 @@ class Project extends Model
             ->orderBy('id');
     }
 
+    public function resources(): HasMany
+    {
+        return $this->hasMany(ProjectResource::class)
+            ->orderBy('position')
+            ->orderBy('created_at');
+    }
+
     public function isOverdue(): bool
     {
         return $this->deadline && $this->deadline->isPast() && $this->status !== 'complete';

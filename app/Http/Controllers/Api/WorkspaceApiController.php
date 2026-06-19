@@ -25,6 +25,6 @@ class WorkspaceApiController extends Controller
             ];
         })->values();
 
-        return response()->json(['workspaces' => $workspaces]);
+        return response()->json($workspaces);
     }
 }

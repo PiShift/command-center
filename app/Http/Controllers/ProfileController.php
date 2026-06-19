@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Agent;
 use App\Models\Task;
 use App\Models\UserDevice;
 use Illuminate\Http\Request;
@@ -46,6 +47,12 @@ class ProfileController extends Controller
 
         // Login history (last 10)
         $loginHistory = $user->loginHistory->take(10);
+        $agents = Agent::query()
+            ->where('owner_id', $user->id)
+            ->whereNull('archived_at')
+            ->with(['runtime:id,name,provider,status', 'team:id,name'])
+            ->orderBy('name')
+            ->get();
 
         return view('profile.show', compact(
             'user',
@@ -56,6 +63,7 @@ class ProfileController extends Controller
             'sprintsParticipated',
             'mostActiveProject',
             'loginHistory',
+            'agents',
         ));
     }
 

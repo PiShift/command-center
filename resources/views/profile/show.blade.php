@@ -329,6 +329,37 @@
                     </div>
                 </div>
 
+                {{-- Agents Card --}}
+                <div style="background:#fff;border:1px solid #e5e4df;border-radius:14px;padding:28px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                        <h2 style="margin:0;font-size:16px;font-weight:700;color:#141413">My Agents</h2>
+                        <a href="{{ url('/api/agents') }}" style="font-size:12px;color:#D97757;text-decoration:none">Create via API</a>
+                    </div>
+                    <p style="margin:0 0 16px;font-size:13px;color:#5c5c5a">Informational list of agents you own. Full management UI will be added later.</p>
+
+                    <div style="border:1px solid #eeeee9;border-radius:10px;overflow:hidden">
+                        <div style="display:grid;grid-template-columns:1.2fr 1fr 0.7fr 0.7fr;gap:10px;padding:10px 14px;background:#faf9f5;font-size:11px;font-weight:700;color:#8c8c8a;text-transform:uppercase;letter-spacing:.05em">
+                            <div>Name</div>
+                            <div>Runtime</div>
+                            <div>Visibility</div>
+                            <div>Status</div>
+                        </div>
+                        @forelse($agents as $agent)
+                            <div style="display:grid;grid-template-columns:1.2fr 1fr 0.7fr 0.7fr;gap:10px;padding:12px 14px;border-top:1px solid #eeeee9;align-items:center;font-size:13px;color:#141413">
+                                <div>
+                                    <div>{{ $agent->name }}</div>
+                                    <div style="font-size:11px;color:#8c8c8a">{{ $agent->team?->name ?? 'No team' }}</div>
+                                </div>
+                                <div style="color:#5c5c5a">{{ $agent->runtime?->name ?? 'Unlinked' }}</div>
+                                <div style="color:#5c5c5a">{{ $agent->visibility }}</div>
+                                <div style="color:#5c5c5a">{{ $agent->status }}</div>
+                            </div>
+                        @empty
+                            <div style="padding:14px;font-size:13px;color:#8c8c8a">No agents yet.</div>
+                        @endforelse
+                    </div>
+                </div>
+
                 {{-- Login History Card --}}
                 <div style="background:#fff;border:1px solid #e5e4df;border-radius:14px;padding:28px">
                     <h2 style="margin:0 0 16px;font-size:16px;font-weight:700;color:#141413">Login History</h2>

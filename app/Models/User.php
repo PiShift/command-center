@@ -24,8 +24,6 @@ class User extends Authenticatable
         'role_id',
         'color',
         'initials',
-        'is_agent',
-        'agent_cli',
         'notification_preferences',
     ];
 
@@ -74,6 +72,11 @@ class User extends Authenticatable
     public function personalAccessTokens(): HasMany
     {
         return $this->hasMany(PersonalAccessToken::class);
+    }
+
+    public function agents(): HasMany
+    {
+        return $this->hasMany(Agent::class, 'owner_id');
     }
 
     public function loginHistory(): HasMany
@@ -143,7 +146,6 @@ class User extends Authenticatable
             'email_verified_at'        => 'datetime',
             'password'                 => 'hashed',
             'notification_preferences' => 'array',
-            'is_agent'                 => 'boolean',
         ];
     }
 }

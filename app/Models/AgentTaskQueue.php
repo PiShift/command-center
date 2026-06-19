@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class AgentTaskQueue extends Model
@@ -19,6 +20,7 @@ class AgentTaskQueue extends Model
         'task_id',
         'team_id',
         'runtime_id',
+        'agent_id',
         'status',
         'prompt',
         'output',
@@ -54,9 +56,19 @@ class AgentTaskQueue extends Model
         return $this->belongsTo(AgentRuntime::class, 'runtime_id');
     }
 
+    public function agent(): BelongsTo
+    {
+        return $this->belongsTo(Agent::class, 'agent_id');
+    }
+
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(AgentTaskMessage::class, 'task_queue_id');
     }
 
     public static function buildPrompt(Task $task): string

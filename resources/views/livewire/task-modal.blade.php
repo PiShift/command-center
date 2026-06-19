@@ -583,6 +583,29 @@
                     @endif
                 </div>
 
+                {{-- Agent --}}
+                <div class="py-3.5">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">Agent</p>
+                    @if($canEdit['assignee'])
+                    <select wire:model.live="agentId"
+                            wire:change="saveField('agentId')"
+                            class="w-full min-h-11 text-base sm:text-[12px] font-medium text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
+                        <option value="">No agent</option>
+                        @foreach($agents as $agent)
+                        <option value="{{ $agent->id }}" @selected($agentId == $agent->id)>{{ $agent->name }} — {{ $agent->runtime?->name ?? 'No runtime' }}</option>
+                        @endforeach
+                    </select>
+                    @endif
+                    @if($task?->agent)
+                    <p class="text-[12px] text-dim mt-2">{{ $task->agent->name }} · {{ strtoupper($task->agent->runtime?->provider ?? 'n/a') }}</p>
+                    @else
+                    <p class="text-[12px] text-muted">No agent assigned</p>
+                    @endif
+                    @if($agents->isEmpty())
+                    <p class="text-[11px] text-muted mt-1">No agents configured. Create one to enable AI execution.</p>
+                    @endif
+                </div>
+
                 {{-- Due date --}}
                 <div class="py-3.5">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">Due Date</p>

@@ -22,7 +22,7 @@ class WorkspaceController extends Controller
             ];
         }
 
-        return response()->json(['workspaces' => $workspaces]);
+        return response()->json($workspaces);
     }
 
     public function show(Request $request, string $workspaceId): JsonResponse

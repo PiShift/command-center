@@ -3,12 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AgentTaskMessage;
 use App\Models\AgentRuntime;
 use App\Models\AgentTaskQueue;
+use App\Models\ProjectResource;
+use App\Models\TaskToken;
 use App\Models\Team;
 use App\Models\TaskComment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
 class DaemonController extends Controller
@@ -31,7 +36,7 @@ class DaemonController extends Controller
         ]);
 
         $teamId = (int) ($data['workspace_id'] ?? 0);
-        $team = Team::find($teamId);
+        $team = Team::query()->whereKey($teamId)->first();
 
         if (! $team) {
             return response()->json(['error' => 'workspace not found'], 404);
@@ -146,7 +151,7 @@ class DaemonController extends Controller
     public function workspaceRepos(Request $request, string $workspaceId): JsonResponse
     {
         $teamId = (int) $workspaceId;
-        $team = Team::find($teamId);
+        $team = Team::query()->whereKey($teamId)->first();
 
         if (! $team) {
             return response()->json(['error' => 'workspace not found'], 404);
@@ -177,55 +182,101 @@ class DaemonController extends Controller
             return response()->json(['error' => 'runtime not found'], 404);
         }
 
-        if (! $request->user()->is_agent) {
-            return response()->json(['task' => null]);
-        }
-
-        $queue = DB::transaction(function () use ($request, $runtime) {
-            $teamId = $runtime->team_id;
-
-            return AgentTaskQueue::query()
+        $claimed = DB::transaction(function () use ($runtime) {
+            /** @var AgentTaskQueue|null $queue */
+            $queue = AgentTaskQueue::query()
                 ->where('status', 'queued')
-                ->whereHas('task', fn ($query) => $query->where('assigned_to', $request->user()->id))
-                ->whereHas('task.project.teams', fn ($query) => $query->where('teams.id', $teamId))
+                ->where('runtime_id', $runtime->id)
+                ->whereNotNull('agent_id')
                 ->orderBy('created_at')
                 ->lockForUpdate()
                 ->first();
+
+            if (! $queue) {
+                return null;
+            }
+
+            $queue->forceFill([
+                'runtime_id' => $runtime->id,
+                'status'     => 'dispatched',
+                'claimed_at' => now(),
+            ])->save();
+
+            $rawTaskToken = 'mat_' . bin2hex(random_bytes(20));
+            $taskTokenHash = hash('sha256', $rawTaskToken);
+
+            TaskToken::create([
+                'token_hash' => $taskTokenHash,
+                'task_id'    => $queue->id,
+                'agent_id'   => $queue->agent_id,
+                'team_id'    => $runtime->team_id,
+                'user_id'    => $runtime->user_id,
+                'expires_at' => now()->addHour(),
+            ]);
+
+            return ['queue' => $queue, 'auth_token' => $rawTaskToken];
         });
 
-        if (! $queue) {
+        if (! $claimed) {
             return response()->json(['task' => null]);
         }
 
-        $queue->forceFill([
-            'runtime_id' => $runtime->id,
-            'status'     => 'dispatched',
-            'claimed_at' => now(),
-        ])->save();
+        $queue = $claimed['queue'];
+        $rawTaskToken = $claimed['auth_token'];
 
         $queue->loadMissing('task.project');
         $task = $queue->task;
         $project = $task?->project;
+        $projectResources = [];
         $repos = [];
 
         if ($project) {
-            $projectRepos = is_array($project->repos) ? $project->repos : [];
-            foreach ($projectRepos as $repo) {
-                if (is_array($repo)) {
-                    $repos[] = $repo;
+            $resources = $project->resources()->get();
+
+            foreach ($resources as $resource) {
+                $projectResources[] = [
+                    'id'            => (string) $resource->id,
+                    'resource_type' => $resource->resource_type,
+                    'resource_ref'  => $resource->resource_ref ?? [],
+                    'label'         => $resource->label,
+                ];
+
+                if ($resource->resource_type === 'github_repo') {
+                    $repos[] = [
+                        'url'         => (string) ($resource->resource_ref['url'] ?? ''),
+                        'description' => (string) ($resource->label ?? ''),
+                    ];
                 }
             }
+
+            if (empty($repos)) {
+                $repos = [];
+            }
         }
+
+        Log::info('claim response', [
+            'runtime_id' => $runtime->id,
+            'provider'   => $runtime->provider,
+            'team_id'    => $runtime->team_id,
+        ]);
 
         return response()->json([
             'task' => [
                 'id'              => $queue->id,
-                'task_id'         => $queue->task_id,
+                'task_id'         => (string) $queue->task_id,
                 'issue_id'        => 'task-' . $queue->task_id,
-                'title'           => $task?->title ?? '',
-                'description'     => $queue->prompt ?: ($task ? AgentTaskQueue::buildPrompt($task) : ''),
-                'workspace_id'    => $project?->id,
-                'local_directory' => $this->resolveLocalDirectory($repos, $runtime->provider),
+                'title'           => (string) $task->title,
+                'description'     => $queue->prompt ?: AgentTaskQueue::buildPrompt($task),
+                'workspace_id'    => (string) $runtime->team_id,
+                'runtime_id'      => $runtime->id,
+                'agent_id'        => (string) $queue->agent_id,
+                'project_id'      => (string) ($project?->id ?? ''),
+                'project_title'   => $project?->name ?? '',
+                'provider'        => $runtime->provider,
+                'auth_token'      => $rawTaskToken,
+                'repos'           => $this->deduplicateRepos($repos),
+                'project_resources' => $projectResources,
+                'local_directory' => $this->resolveLocalDirectory($projectResources, $runtime->provider),
             ],
         ]);
     }
@@ -272,15 +323,86 @@ class DaemonController extends Controller
 
         $queue->save();
 
-        if (($data['type'] ?? null) === 'text' && mb_strlen($content) >= 10) {
-            TaskComment::create([
-                'task_id' => $queue->task_id,
-                'user_id' => $request->user()->id,
-                'body'    => $content,
-            ]);
+        return response()->json(['status' => 'ok']);
+    }
+
+    public function messages(Request $request, string $taskId): JsonResponse
+    {
+        $queue = AgentTaskQueue::query()
+            ->with(['task.project.teams'])
+            ->where('id', $taskId)
+            ->first();
+
+        if (! $queue || ! $queue->task || ! $queue->task->project) {
+            return response()->json(['error' => 'task not found'], 404);
         }
 
-        return response()->json(['status' => 'ok']);
+        $userId = (int) $request->user()->id;
+        $hasTeamAccess = $queue->task->project->teams()
+            ->whereHas('members', function ($query) use ($userId): void {
+                $query->where('users.id', $userId);
+            })
+            ->exists();
+
+        $hasTaskScopedMat = $this->hasValidMatTokenForTask($request, $queue->id);
+
+        if (! $hasTeamAccess && ! $hasTaskScopedMat) {
+            return response()->json(['error' => 'forbidden'], 403);
+        }
+
+        $data = $request->validate([
+            'messages'           => ['required', 'array'],
+            'messages.*.seq'     => ['required', 'integer', 'min:0'],
+            'messages.*.type'    => ['required', 'string', 'max:50'],
+            'messages.*.tool'    => ['nullable', 'string', 'max:255'],
+            'messages.*.content' => ['nullable', 'string'],
+            'messages.*.input'   => ['nullable', 'array'],
+            'messages.*.output'  => ['nullable', 'string'],
+        ]);
+
+        $incoming = $data['messages'];
+        $incomingSeqs = collect($incoming)
+            ->pluck('seq')
+            ->filter(static fn ($seq) => is_int($seq))
+            ->unique()
+            ->values();
+
+        $existingSeqs = AgentTaskMessage::query()
+            ->where('task_queue_id', $queue->id)
+            ->whereIn('seq', $incomingSeqs->all())
+            ->pluck('seq')
+            ->map(static fn ($seq) => (int) $seq)
+            ->all();
+
+        $seen = array_fill_keys($existingSeqs, true);
+        $inserted = 0;
+
+        foreach ($incoming as $message) {
+            $seq = (int) $message['seq'];
+
+            if (isset($seen[$seq])) {
+                continue;
+            }
+
+            AgentTaskMessage::create([
+                'task_queue_id' => $queue->id,
+                'seq'           => $seq,
+                'type'          => (string) $message['type'],
+                'tool'          => isset($message['tool']) ? (string) $message['tool'] : null,
+                'content'       => isset($message['content']) ? (string) $message['content'] : null,
+                'input'         => $message['input'] ?? null,
+                'output'        => isset($message['output']) ? (string) $message['output'] : null,
+                'created_at'    => now(),
+            ]);
+
+            $seen[$seq] = true;
+            $inserted++;
+        }
+
+        return response()->json([
+            'status' => 'ok',
+            'count'  => $inserted,
+        ]);
     }
 
     public function completeTask(Request $request, string $taskId): JsonResponse
@@ -304,17 +426,7 @@ class DaemonController extends Controller
 
         $queue->task()->update(['status' => 'in-review']);
 
-        $message = '✅ Agent completed this task.';
-        $output = trim((string) ($data['output'] ?? ''));
-        if ($output !== '') {
-            $message .= "\n\n" . substr($output, 0, 1000);
-        }
-
-        TaskComment::create([
-            'task_id' => $queue->task_id,
-            'user_id' => $request->user()->id,
-            'body'    => $message,
-        ]);
+        TaskToken::query()->where('task_id', $queue->id)->delete();
 
         return response()->json(['status' => 'ok']);
     }
@@ -344,6 +456,8 @@ class DaemonController extends Controller
             'body'    => '❌ Agent failed: ' . ($data['error'] ?? 'Unknown error'),
         ]);
 
+        TaskToken::query()->where('task_id', $queue->id)->delete();
+
         return response()->json(['status' => 'ok']);
     }
 
@@ -362,6 +476,8 @@ class DaemonController extends Controller
             'user_id' => $request->user()->id,
             'body'    => '⚠️ Task cancelled.',
         ]);
+
+        TaskToken::query()->where('task_id', $queue->id)->delete();
 
         return response()->json(['status' => 'ok']);
     }
@@ -386,14 +502,24 @@ class DaemonController extends Controller
     {
         $repos = [];
 
-        $projects = $team->projects()->select('projects.repos')->get();
+        $resources = ProjectResource::query()
+            ->select(['project_id', 'resource_type', 'resource_ref', 'label', 'position'])
+            ->where('resource_type', 'github_repo')
+            ->whereHas('project.teams', function ($query) use ($team): void {
+                $query->where('teams.id', $team->id);
+            })
+            ->orderBy('project_id')
+            ->orderBy('position')
+            ->get();
 
-        foreach ($projects as $project) {
-            $projectRepos = is_array($project->repos) ? $project->repos : [];
-            foreach ($projectRepos as $repo) {
-                if (is_array($repo) && ! empty($repo['url'])) {
-                    $repos[] = $repo;
-                }
+        foreach ($resources as $resource) {
+            $url = trim((string) ($resource->resource_ref['url'] ?? ''));
+
+            if ($url !== '') {
+                $repos[] = [
+                    'url'         => $url,
+                    'description' => (string) ($resource->label ?? ''),
+                ];
             }
         }
 
@@ -437,18 +563,51 @@ class DaemonController extends Controller
         return $version !== '' ? $version : null;
     }
 
-    private function resolveLocalDirectory(array $repos, string $provider): string
+    private function resolveLocalDirectory(array $projectResources, string $provider): string
     {
-        $provider = strtolower(trim($provider));
+        $authUserId = Auth::id();
 
-        foreach ($repos as $repo) {
-            $stack = strtolower(trim((string) ($repo['stack'] ?? '')));
+        if (! $authUserId) {
+            return '';
+        }
 
-            if ($stack !== '' && ($stack === $provider || str_contains($stack, $provider) || str_contains($provider, $stack))) {
-                return (string) ($repo['local_path'] ?? '');
+        $daemonId = AgentRuntime::query()
+            ->where('provider', $provider)
+            ->where('user_id', $authUserId)
+            ->value('daemon_id');
+
+        foreach ($projectResources as $resource) {
+            if (
+                ($resource['resource_type'] ?? '') === 'local_directory'
+                && ($resource['resource_ref']['daemon_id'] ?? '') === $daemonId
+            ) {
+                return (string) ($resource['resource_ref']['local_path'] ?? '');
             }
         }
 
-        return (string) ($repos[0]['local_path'] ?? '');
+        return '';
+    }
+
+    private function hasValidMatTokenForTask(Request $request, string $taskId): bool
+    {
+        $authHeader = (string) $request->header('Authorization', '');
+
+        if (! preg_match('/^Bearer\s+(.+)$/i', $authHeader, $matches)) {
+            return false;
+        }
+
+        $token = trim((string) $matches[1]);
+
+        if (! str_starts_with($token, 'mat_')) {
+            return false;
+        }
+
+        $hash = hash('sha256', $token);
+
+        return TaskToken::query()
+            ->where('token_hash', $hash)
+            ->where('task_id', $taskId)
+            ->where('expires_at', '>', now())
+            ->exists();
     }
 }

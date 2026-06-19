@@ -16,6 +16,7 @@ class Task extends Model implements HasMedia
         'project_id',
         'sprint_id',
         'assigned_to',
+        'agent_id',
         'title',
         'description',
         'type',
@@ -53,6 +54,21 @@ class Task extends Model implements HasMedia
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function agent(): BelongsTo
+    {
+        return $this->belongsTo(Agent::class, 'agent_id');
+    }
+
+    public function queueEntries(): HasMany
+    {
+        return $this->hasMany(AgentTaskQueue::class, 'task_id');
+    }
+
+    public function latestQueue(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(AgentTaskQueue::class, 'task_id')->latestOfMany();
     }
 
     public function isOverdue(): bool

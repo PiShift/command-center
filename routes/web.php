@@ -48,6 +48,10 @@ use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LeaveTypeController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/health', function() {
+    return response()->json(['status' => 'ok']);
+});
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 Route::get('/login',  [LoginController::class, 'showLogin'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);

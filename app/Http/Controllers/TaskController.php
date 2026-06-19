@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\KanbanColumn;
+use App\Models\Agent;
 use App\Models\AgentTaskQueue;
 use App\Models\Project;
 use App\Models\Role;
@@ -53,8 +54,14 @@ class TaskController extends Controller
         $projects = Project::orderBy('name')->get(['id', 'name']);
         $users    = User::orderBy('name')->get(['id', 'name']);
         $columns  = KanbanColumn::orderBy('position')->get(['slug', 'name']);
+        $agents   = Agent::query()
+            ->where('owner_id', auth()->id())
+            ->whereNull('archived_at')
+            ->with('runtime:id,name,provider')
+            ->orderBy('name')
+            ->get();
 
-        return view('tasks.form', ['task' => null, 'projects' => $projects, 'users' => $users, 'columns' => $columns]);
+        return view('tasks.form', ['task' => null, 'projects' => $projects, 'users' => $users, 'columns' => $columns, 'agents' => $agents]);
     }
 
     public function store(Request $request)
@@ -63,7 +70,7 @@ class TaskController extends Controller
 
         $data = $this->validated($request);
         $task = Task::create($data);
-        $this->queueAgentTaskIfNeeded($task);
+        $this->syncAgentQueue($task, $data['agent_id'] ?? null, null);
 
         if (! empty($data['assigned_to'])) {
             $assignee = User::find($data['assigned_to']);
@@ -78,7 +85,15 @@ class TaskController extends Controller
     public function show(Task $task)
     {
         abort_unless(auth()->user()->hasPermission('tasks.view'), 403);
-        $task->load(['project', 'assignee', 'checklists', 'media', 'comments' => fn($q) => $q->with(['author', 'media'])->latest()]);
+        $task->load([
+            'project',
+            'assignee',
+            'agent.runtime',
+            'latestQueue',
+            'checklists',
+            'media',
+            'comments' => fn($q) => $q->with(['author', 'media'])->latest(),
+        ]);
         return view('tasks.show', compact('task'));
     }
 
@@ -89,8 +104,14 @@ class TaskController extends Controller
         $projects = Project::orderBy('name')->get(['id', 'name']);
         $users    = User::orderBy('name')->get(['id', 'name']);
         $columns  = KanbanColumn::orderBy('position')->get(['slug', 'name']);
+        $agents   = Agent::query()
+            ->where('owner_id', auth()->id())
+            ->whereNull('archived_at')
+            ->with('runtime:id,name,provider')
+            ->orderBy('name')
+            ->get();
 
-        return view('tasks.form', compact('task', 'projects', 'users', 'columns'));
+        return view('tasks.form', compact('task', 'projects', 'users', 'columns', 'agents'));
     }
 
     public function update(Request $request, Task $task)
@@ -98,14 +119,15 @@ class TaskController extends Controller
         abort_unless(auth()->user()->hasPermission('tasks.edit_any'), 403);
 
         $oldAssignedTo = $task->assigned_to;
+        $oldAgentId    = $task->agent_id;
         $oldStatus     = $task->status;
         $data          = $this->validated($request);
 
         $task->update($data);
 
-        if (array_key_exists('assigned_to', $data) && ! empty($data['assigned_to']) && (int) $data['assigned_to'] !== (int) $oldAssignedTo) {
+        if (array_key_exists('agent_id', $data)) {
             $task->refresh();
-            $this->queueAgentTaskIfNeeded($task);
+            $this->syncAgentQueue($task, $data['agent_id'] ?? null, $oldAgentId);
         }
 
         // Set/clear completed_at based on status transition
@@ -186,7 +208,6 @@ class TaskController extends Controller
         $task->assigned_to = $user->id;
         $task->status      = 'todo';
         $task->save();
-        $this->queueAgentTaskIfNeeded($task);
 
         activity()
             ->performedOn($task)
@@ -209,6 +230,7 @@ class TaskController extends Controller
             'title'           => 'required|string|max:255',
             'project_id'      => 'required|exists:projects,id',
             'assigned_to'     => 'nullable|exists:users,id',
+            'agent_id'        => 'nullable|exists:agents,id',
             'type'            => 'required|in:bug,feature,change',
             'priority'        => 'required|in:low,medium,high',
             'status'          => 'required|string',
@@ -223,34 +245,39 @@ class TaskController extends Controller
         ]);
     }
 
-    private function queueAgentTaskIfNeeded(Task $task): void
+    private function syncAgentQueue(Task $task, ?string $newAgentId, ?string $oldAgentId): void
     {
-        if (! $task->assigned_to) {
+        if ((string) ($newAgentId ?? '') === (string) ($oldAgentId ?? '')) {
             return;
         }
 
-        $assignee = $task->relationLoaded('assignee') ? $task->assignee : $task->assignee()->first();
-
-        if (! $assignee || ! $assignee->is_agent) {
-            return;
-        }
-
-        $exists = AgentTaskQueue::query()
+        AgentTaskQueue::query()
             ->where('task_id', $task->id)
-            ->whereIn('status', ['queued', 'dispatched', 'running'])
-            ->exists();
+            ->whereIn('status', ['queued', 'dispatched'])
+            ->update(['status' => 'cancelled']);
 
-        if ($exists) {
+        if (! $newAgentId) {
             return;
         }
 
-        $teamId = $task->project->teams()->first()?->id;
+        $agent = Agent::query()
+            ->where('id', $newAgentId)
+            ->whereNull('archived_at')
+            ->first();
+
+        if (! $agent) {
+            return;
+        }
+
+        $task->loadMissing('checklists');
 
         AgentTaskQueue::create([
-            'task_id'  => $task->id,
-            'team_id'  => $teamId,
-            'status'   => 'queued',
-            'prompt'   => AgentTaskQueue::buildPrompt($task),
+            'task_id'    => $task->id,
+            'agent_id'   => $agent->id,
+            'runtime_id' => $agent->runtime_id,
+            'team_id'    => $agent->team_id,
+            'status'     => 'queued',
+            'prompt'     => AgentTaskQueue::buildPrompt($task),
         ]);
     }
 }

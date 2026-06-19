@@ -58,18 +58,29 @@ class LoginController extends Controller
 
     // ── Step 1: Password verification ─────────────────────────────────────────
 
-    public function showLogin()
+    public function showLogin(Request $request, TokenService $tokenService)
     {
-        if (Auth::check()) {
-            return redirect()->route('dashboard');
+        $rawCliCallback = $this->requestCliCallback($request);
+        $cliCallback = $this->validatedCliCallback($rawCliCallback);
+
+        if ($rawCliCallback !== '' && ! $cliCallback) {
+            abort(400, 'Invalid CLI callback URL.');
         }
 
-        $cliCallback = $this->validatedCliCallback($this->requestCliCallback(request()));
         if ($cliCallback) {
-            request()->session()->put('auth.cli_callback', $cliCallback);
-            request()->session()->put('auth.cli_state', (string) request()->query('cli_state', ''));
-        } elseif (request()->has('cli_callback')) {
-            request()->session()->forget(['auth.cli_callback', 'auth.cli_state']);
+            $request->session()->put('auth.cli_callback', $cliCallback);
+            $request->session()->put('auth.cli_state', (string) $request->query('cli_state', ''));
+        } elseif ($request->has('cli_callback')) {
+            $request->session()->forget(['auth.cli_callback', 'auth.cli_state']);
+        }
+
+        if (Auth::check()) {
+            if ($cliCallback) {
+                return $this->cliRedirectIfNeeded($request, $request->user(), $tokenService)
+                    ?? redirect()->route('dashboard');
+            }
+
+            return redirect()->route('dashboard');
         }
 
         return view('auth.login');
