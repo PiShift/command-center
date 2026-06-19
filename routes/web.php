@@ -46,6 +46,7 @@ use App\Http\Controllers\CompanyBankAccountController;
 use App\Http\Controllers\BankAccountTransferController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LeaveTypeController;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function() {
@@ -64,6 +65,10 @@ Route::post('/login/resend-otp', [LoginController::class, 'resendOtp'])->name('l
 
 Route::post('/auth/send-code', [\App\Http\Controllers\Api\AuthCodeController::class, 'sendCode']);
 Route::post('/auth/verify-code', [\App\Http\Controllers\Api\AuthCodeController::class, 'verifyCode']);
+Route::post('/auth/logout', function () {
+    Auth::logout();
+    return response()->json(['status' => 'ok']);
+});
 
 // ── Authenticated app ─────────────────────────────────────────────────────────
 Route::middleware(['auth', 'require-2fa'])->group(function () {
