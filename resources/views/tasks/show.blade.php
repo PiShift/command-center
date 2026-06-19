@@ -70,6 +70,18 @@
                 @endif
             </div>
             <div>
+                <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-0.5">Agent</p>
+                @if($task->agent)
+                    <p class="text-ink">{{ $task->agent->name }} · {{ strtoupper($task->agent->runtime?->provider ?? 'n/a') }}</p>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-hairline text-dim mt-1">{{ $task->agent->status }}</span>
+                    @if($task->latestQueue)
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface text-dim mt-1">Queue: {{ $task->latestQueue->status }}</span>
+                    @endif
+                @else
+                    <p class="text-dim">No agent assigned <a href="{{ route('tasks.edit', $task) }}" class="text-accent hover:underline">Assign one</a></p>
+                @endif
+            </div>
+            <div>
                 <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-0.5">Due Date</p>
                 <p class="{{ $task->isOverdue() ? 'text-red-600 font-medium' : 'text-ink' }}">
                     {{ $task->due_date?->format('M d, Y') ?? '—' }}

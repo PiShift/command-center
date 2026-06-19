@@ -2,6 +2,8 @@
 
 namespace App\Livewire;
 
+use App\Models\Agent;
+use App\Models\AgentTaskQueue;
 use App\Models\KanbanColumn;
 use App\Models\Project;
 use App\Models\Task;
@@ -24,6 +26,7 @@ class TaskModal extends Component
     public string $priority = 'medium';
     public ?int $projectId = null;
     public ?int $assignedTo = null;
+    public ?string $agentId = null;
     public string $dueDate = '';
     public string $estimatedHours = '';
 
@@ -49,6 +52,7 @@ class TaskModal extends Component
             'priority'       => 'required|string|in:critical,high,medium,low',
             'projectId'      => 'nullable|exists:projects,id',
             'assignedTo'     => 'nullable|exists:users,id',
+            'agentId'        => 'nullable|exists:agents,id',
             'dueDate'        => 'nullable|date',
             'estimatedHours' => 'nullable|numeric|min:0|max:999',
         ];
@@ -64,7 +68,7 @@ class TaskModal extends Component
 
     public function openTask(int $id): void
     {
-        $task = Task::with(['project', 'assignee', 'comments.author', 'comments.media', 'media'])->findOrFail($id);
+        $task = Task::with(['project', 'assignee', 'agent', 'comments.author', 'comments.media', 'media'])->findOrFail($id);
 
         $this->taskId          = $task->id;
         $this->title           = $task->title;
@@ -74,6 +78,7 @@ class TaskModal extends Component
         $this->priority        = $task->priority;
         $this->projectId       = $task->project_id;
         $this->assignedTo      = $task->assigned_to;
+        $this->agentId         = $task->agent_id;
         $this->dueDate         = $task->due_date?->format('Y-m-d') ?? '';
         $this->estimatedHours  = $task->estimated_hours ?? '';
         $this->commentBody     = '';
@@ -94,6 +99,7 @@ class TaskModal extends Component
         $this->priority        = 'medium';
         $this->projectId       = $projectId;
         $this->assignedTo      = null;
+        $this->agentId         = null;
         $this->dueDate         = '';
         $this->estimatedHours  = '';
         $this->commentBody     = '';
@@ -117,6 +123,7 @@ class TaskModal extends Component
             'priority'       => 'editPriority',
             'projectId'      => 'editProject',
             'assignedTo'     => 'editAssignee',
+            'agentId'        => 'editAssignee',
             'dueDate'        => 'editDates',
             'estimatedHours' => 'editDates',
         ];
@@ -130,12 +137,19 @@ class TaskModal extends Component
             'priority'       => 'priority',
             'projectId'      => 'project_id',
             'assignedTo'     => 'assigned_to',
+            'agentId'        => 'agent_id',
             'dueDate'        => 'due_date',
             'estimatedHours' => 'estimated_hours',
         ];
 
-        $oldStatus = $task->status;
+        $oldStatus     = $task->status;
+        $oldAgentId    = $task->agent_id;
         $task->update([$map[$field] => $this->$field ?: null]);
+
+        if ($field === 'agentId') {
+            $task->refresh();
+            $this->syncAgentQueue($task, $this->agentId, $oldAgentId);
+        }
 
         if ($field === 'status') {
             if ($this->status === 'done' && $oldStatus !== 'done') {
@@ -161,11 +175,13 @@ class TaskModal extends Component
             'priority'        => $this->priority,
             'project_id'      => $this->projectId,
             'assigned_to'     => $this->assignedTo,
+            'agent_id'        => $this->agentId,
             'due_date'        => $this->dueDate ?: null,
             'estimated_hours' => $this->estimatedHours ?: null,
         ]);
         $this->taskId = $task->id;
         $this->isNew  = false;
+        $this->syncAgentQueue($task, $this->agentId, null);
         $this->dispatch('task-saved');
         $this->openTask($task->id);
     }
@@ -282,7 +298,7 @@ class TaskModal extends Component
     public function render()
     {
         $task = $this->taskId
-            ? Task::with(['project', 'assignee', 'comments.author', 'comments.media', 'checklists', 'media'])->find($this->taskId)
+            ? Task::with(['project', 'assignee', 'agent.runtime', 'comments.author', 'comments.media', 'checklists', 'media'])->find($this->taskId)
             : null;
 
         $canEdit = [
@@ -300,8 +316,50 @@ class TaskModal extends Component
 
         $projects = Project::orderBy('name')->get(['id', 'name', 'color']);
         $users    = User::orderBy('name')->get(['id', 'name', 'color', 'initials']);
+        $agents   = Agent::query()
+            ->where('owner_id', auth()->id())
+            ->whereNull('archived_at')
+            ->with('runtime:id,name,provider,status')
+            ->orderBy('name')
+            ->get();
         $columns  = KanbanColumn::orderBy('position')->get(['slug', 'name', 'color']);
 
-        return view('livewire.task-modal', compact('task', 'projects', 'users', 'columns', 'canEdit', 'canClaim'));
+        return view('livewire.task-modal', compact('task', 'projects', 'users', 'agents', 'columns', 'canEdit', 'canClaim'));
+    }
+
+    private function syncAgentQueue(Task $task, ?string $newAgentId, ?string $oldAgentId): void
+    {
+        if ((string) ($newAgentId ?? '') === (string) ($oldAgentId ?? '')) {
+            return;
+        }
+
+        AgentTaskQueue::query()
+            ->where('task_id', $task->id)
+            ->whereIn('status', ['queued', 'dispatched'])
+            ->update(['status' => 'cancelled']);
+
+        if (! $newAgentId) {
+            return;
+        }
+
+        $agent = Agent::query()
+            ->where('id', $newAgentId)
+            ->whereNull('archived_at')
+            ->first();
+
+        if (! $agent) {
+            return;
+        }
+
+        $task->loadMissing('checklists');
+
+        AgentTaskQueue::create([
+            'task_id'    => $task->id,
+            'agent_id'   => $agent->id,
+            'runtime_id' => $agent->runtime_id,
+            'team_id'    => $agent->team_id,
+            'status'     => 'queued',
+            'prompt'     => AgentTaskQueue::buildPrompt($task),
+        ]);
     }
 }

@@ -112,7 +112,7 @@
     x-on:keydown.escape.window="requestClose()">
 
     {{-- Modal shell: Surface outer + white left panel --}}
-        <div class="h-full w-full max-w-[960px] bg-surface overflow-hidden shadow-modal flex flex-col md:flex-row"
+        <div class="h-full w-full max-w-[960px] bg-surface overflow-y-auto shadow-modal flex flex-col md:items-start"
             style="background:#F5F4EF; box-shadow: 0 20px 60px rgba(0,0,0,0.18)"
            x-show="panelOpen"
            x-transition:enter="transform transition duration-250 ease-out"
@@ -124,7 +124,7 @@
             wire:click.stop>
 
         {{-- ── LEFT: Content panel ───────────────────────────────────────── --}}
-        <div class="flex-1 flex flex-col min-w-0 bg-white overflow-y-auto pb-28 sm:pb-0">
+        <div class="flex-1 flex flex-col min-w-0 bg-white pb-28 sm:pb-0">
 
             {{-- Title area --}}
             <div class="sticky top-0 z-20 bg-white px-4 sm:px-7 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-hairline">
@@ -183,11 +183,11 @@
             </div>
 
             {{-- Implementation Guide trigger --}}
-            @if(! $isNew)
+            @if(! $isNew && ($task?->guide || $canEdit['meta']))
             <div class="px-4 sm:px-7 py-3 border-b border-hairline flex items-center gap-2">
                 @if($task?->guide)
                 <button @click="guideOpen = true; guideMode = 'preview'"
-                        class="inline-flex items-center gap-1.5 text-[12px] font-medium text-info-text hover:text-accent transition-colors cursor-pointer">
+                        class="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.966 8.966 0 0 0-6 2.292m0-14.25v14.25"/>
                     </svg>
@@ -493,7 +493,7 @@
         </div>
 
         {{-- ── RIGHT: Meta sidebar ───────────────────────────────────────── --}}
-        <div class="w-full md:w-[320px] shrink-0 flex flex-col border-t md:border-t-0 md:border-l border-hairline bg-surface overflow-y-auto pb-28 sm:pb-0">
+        <div class="w-full md:w-[320px] shrink-0 flex flex-col border-t md:border-t-0 md:border-l border-hairline bg-surface pb-28 sm:pb-0 md:sticky md:top-0 md:self-start md:max-h-screen md:overflow-y-auto">
 
             <div class="px-4 sm:px-5 pt-4 sm:pt-0 pb-6 space-y-0 divide-y divide-hairline">
 
@@ -580,6 +580,29 @@
                     </div>
                     @else
                     <p class="text-[12px] text-muted">Unassigned</p>
+                    @endif
+                </div>
+
+                {{-- Agent --}}
+                <div class="py-3.5">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">Agent</p>
+                    @if($canEdit['assignee'])
+                    <select wire:model.live="agentId"
+                            wire:change="saveField('agentId')"
+                            class="w-full min-h-11 text-base sm:text-[12px] font-medium text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
+                        <option value="">No agent</option>
+                        @foreach($agents as $agent)
+                        <option value="{{ $agent->id }}" @selected($agentId == $agent->id)>{{ $agent->name }} — {{ $agent->runtime?->name ?? 'No runtime' }}</option>
+                        @endforeach
+                    </select>
+                    @endif
+                    @if($task?->agent)
+                    <p class="text-[12px] text-dim mt-2">{{ $task->agent->name }} · {{ strtoupper($task->agent->runtime?->provider ?? 'n/a') }}</p>
+                    @else
+                    <p class="text-[12px] text-muted">No agent assigned</p>
+                    @endif
+                    @if($agents->isEmpty())
+                    <p class="text-[11px] text-muted mt-1">No agents configured. Create one to enable AI execution.</p>
                     @endif
                 </div>
 

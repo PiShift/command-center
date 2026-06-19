@@ -19,6 +19,7 @@ use App\Http\Controllers\ProjectTeamController;
 use App\Http\Controllers\SprintController;
 use App\Http\Controllers\BacklogItemController;
 use App\Http\Controllers\TaskChecklistController;
+use App\Http\Controllers\DaemonTokenController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\AiConversationController;
 use App\Http\Controllers\TaskAttachmentController;
@@ -46,6 +47,10 @@ use App\Http\Controllers\BankAccountTransferController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LeaveTypeController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/health', function() {
+    return response()->json(['status' => 'ok']);
+});
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 Route::get('/login',  [LoginController::class, 'showLogin'])->name('login');
@@ -81,6 +86,8 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::patch('/profile/notifications', [ProfileController::class, 'updateNotifications'])->name('profile.notifications');
     Route::delete('/profile/devices/{device}', [ProfileController::class, 'revokeDevice'])->name('profile.devices.revoke');
     Route::delete('/profile/devices',    [ProfileController::class, 'revokeAllDevices'])->name('profile.devices.revoke-all');
+    Route::post('/profile/daemon-tokens', [DaemonTokenController::class, 'store'])->name('daemon-tokens.store');
+    Route::delete('/profile/daemon-tokens/{token}', [DaemonTokenController::class, 'destroy'])->name('daemon-tokens.destroy');
 
     // Two-Factor Authentication
     Route::get('/profile/2fa/setup',              [TwoFactorController::class, 'setup'])->name('2fa.setup');

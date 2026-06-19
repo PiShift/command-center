@@ -69,6 +69,16 @@ class User extends Authenticatable
         return $this->hasMany(UserDevice::class);
     }
 
+    public function personalAccessTokens(): HasMany
+    {
+        return $this->hasMany(PersonalAccessToken::class);
+    }
+
+    public function agents(): HasMany
+    {
+        return $this->hasMany(Agent::class, 'owner_id');
+    }
+
     public function loginHistory(): HasMany
     {
         return $this->hasMany(UserLoginHistory::class)->orderByDesc('created_at');

@@ -57,6 +57,22 @@
                     </select>
                 </div>
 
+                {{-- Agent --}}
+                <div>
+                    <label class="block text-[12px] font-medium text-dim mb-1">Agent (optional)</label>
+                    <select name="agent_id" class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
+                        <option value="">— None —</option>
+                        @foreach($agents as $agent)
+                            <option value="{{ $agent->id }}" {{ old('agent_id', $task->agent_id ?? '') == $agent->id ? 'selected' : '' }}>
+                                {{ $agent->name }} — {{ $agent->runtime?->name ?? 'No runtime' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @if($agents->isEmpty())
+                        <p class="mt-1 text-[12px] text-muted">No agents configured. Create one to enable AI execution.</p>
+                    @endif
+                </div>
+
                 {{-- Type --}}
                 <div>
                     <label class="block text-[12px] font-medium text-dim mb-1">Type *</label>
