@@ -99,6 +99,21 @@ Route::middleware([
     Route::post('/me/onboarding/complete', function() {
         return response()->json(['status' => 'ok']);
     });
+    Route::get('/agent-activity-30d', function() {
+        return response()->json([]);
+    });
+    Route::get('/agent-run-counts', function() {
+        return response()->json([]);
+    });
+    Route::get('/runtimes/{runtimeId}/usage', function() {
+        return response()->json([
+            'days'  => [],
+            'total' => 0,
+        ]);
+    });
+    Route::get('/skills', function() {
+        return response()->json([]);
+    });
 });
 
 Route::prefix('daemon')->middleware(DaemonTokenMiddleware::class)->group(function () {
