@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\KanbanColumn;
+use App\Models\AgentTaskQueue;
 use App\Models\Project;
 use App\Models\Role;
 use App\Models\Task;
@@ -62,6 +63,7 @@ class TaskController extends Controller
 
         $data = $this->validated($request);
         $task = Task::create($data);
+        $this->queueAgentTaskIfNeeded($task);
 
         if (! empty($data['assigned_to'])) {
             $assignee = User::find($data['assigned_to']);
@@ -100,6 +102,11 @@ class TaskController extends Controller
         $data          = $this->validated($request);
 
         $task->update($data);
+
+        if (array_key_exists('assigned_to', $data) && ! empty($data['assigned_to']) && (int) $data['assigned_to'] !== (int) $oldAssignedTo) {
+            $task->refresh();
+            $this->queueAgentTaskIfNeeded($task);
+        }
 
         // Set/clear completed_at based on status transition
         if (isset($data['status'])) {
@@ -179,6 +186,7 @@ class TaskController extends Controller
         $task->assigned_to = $user->id;
         $task->status      = 'todo';
         $task->save();
+        $this->queueAgentTaskIfNeeded($task);
 
         activity()
             ->performedOn($task)
@@ -212,6 +220,37 @@ class TaskController extends Controller
             'source'          => 'required|in:manual,ai-chat',
             'original_input'  => 'nullable|string',
             'guide'           => 'nullable|string',
+        ]);
+    }
+
+    private function queueAgentTaskIfNeeded(Task $task): void
+    {
+        if (! $task->assigned_to) {
+            return;
+        }
+
+        $assignee = $task->relationLoaded('assignee') ? $task->assignee : $task->assignee()->first();
+
+        if (! $assignee || ! $assignee->is_agent) {
+            return;
+        }
+
+        $exists = AgentTaskQueue::query()
+            ->where('task_id', $task->id)
+            ->whereIn('status', ['queued', 'dispatched', 'running'])
+            ->exists();
+
+        if ($exists) {
+            return;
+        }
+
+        $teamId = $task->project->teams()->first()?->id;
+
+        AgentTaskQueue::create([
+            'task_id'  => $task->id,
+            'team_id'  => $teamId,
+            'status'   => 'queued',
+            'prompt'   => AgentTaskQueue::buildPrompt($task),
         ]);
     }
 }

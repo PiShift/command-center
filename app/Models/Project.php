@@ -23,11 +23,13 @@ class Project extends Model
         'start_date',
         'deadline',
         'health',
+        'repos',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'deadline'   => 'date',
+        'repos'      => 'array',
     ];
 
     public function customer(): BelongsTo

@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\AgentTaskQueue;
 use App\Models\KanbanColumn;
 use App\Models\Project;
 use App\Models\Task;
@@ -134,8 +135,14 @@ class TaskModal extends Component
             'estimatedHours' => 'estimated_hours',
         ];
 
-        $oldStatus = $task->status;
+        $oldStatus     = $task->status;
+        $oldAssignedTo = $task->assigned_to;
         $task->update([$map[$field] => $this->$field ?: null]);
+
+        if ($field === 'assignedTo') {
+            $task->refresh();
+            $this->queueAgentTaskIfNeeded($task);
+        }
 
         if ($field === 'status') {
             if ($this->status === 'done' && $oldStatus !== 'done') {
@@ -166,6 +173,7 @@ class TaskModal extends Component
         ]);
         $this->taskId = $task->id;
         $this->isNew  = false;
+        $this->queueAgentTaskIfNeeded($task);
         $this->dispatch('task-saved');
         $this->openTask($task->id);
     }
@@ -303,5 +311,36 @@ class TaskModal extends Component
         $columns  = KanbanColumn::orderBy('position')->get(['slug', 'name', 'color']);
 
         return view('livewire.task-modal', compact('task', 'projects', 'users', 'columns', 'canEdit', 'canClaim'));
+    }
+
+    private function queueAgentTaskIfNeeded(Task $task): void
+    {
+        if (! $task->assigned_to) {
+            return;
+        }
+
+        $assignee = $task->relationLoaded('assignee') ? $task->assignee : $task->assignee()->first();
+
+        if (! $assignee || ! $assignee->is_agent) {
+            return;
+        }
+
+        $exists = AgentTaskQueue::query()
+            ->where('task_id', $task->id)
+            ->whereIn('status', ['queued', 'dispatched', 'running'])
+            ->exists();
+
+        if ($exists) {
+            return;
+        }
+
+        $teamId = $task->project ? $task->project->teams()->first()?->id : null;
+
+        AgentTaskQueue::create([
+            'task_id' => $task->id,
+            'team_id' => $teamId,
+            'status'  => 'queued',
+            'prompt'  => AgentTaskQueue::buildPrompt($task),
+        ]);
     }
 }

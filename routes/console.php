@@ -18,5 +18,8 @@ Schedule::call(fn () => app(LeaveService::class)->accrueMonthlyLeave(now()))->mo
 // Carry remaining annual leave into the next year shortly after year-end
 Schedule::call(fn () => app(LeaveService::class)->carryOverBalances(now()->subYear()->year))->yearlyOn(1, 1, '01:00');
 
+// Sweep stale daemon runtimes
+Schedule::command('daemon:sweep')->everyTwoMinutes();
+
 // Send scheduled notifications (overdue tasks, sprint deadlines, invoice reminders) daily at 08:00
 Schedule::command('notifications:send-scheduled')->dailyAt('08:00');
