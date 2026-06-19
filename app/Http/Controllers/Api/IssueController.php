@@ -182,7 +182,7 @@ class IssueController extends Controller
             'identifier'      => 'task-' . $task->id,
             'title'           => (string) $task->title,
             'description'     => (string) $task->description,
-            'status'          => $this->mapIncomingStatus((string) $task->status),
+            'status'          => $this->mapOutgoingStatus((string) $task->status),
             'priority'        => (string) $task->priority,
             'assignee_type'   => $assigneeId ? 'user' : null,
             'assignee_id'     => $assigneeId,
@@ -207,7 +207,7 @@ class IssueController extends Controller
         $incoming = strtolower(trim($status));
 
         $statusMap = [
-            'todo'        => 'open',
+            'todo'        => 'todo',
             'open'        => 'open',
             'in_progress' => 'in-progress',
             'in-progress' => 'in-progress',
@@ -225,5 +225,15 @@ class IssueController extends Controller
         }
 
         return KanbanColumn::query()->where('slug', $incoming)->exists() ? $incoming : null;
+    }
+
+    private function mapOutgoingStatus(string $status): string
+    {
+        return match ($status) {
+            'open' => 'backlog',
+            'in-progress' => 'in_progress',
+            'in-review' => 'in_review',
+            default => $status,
+        };
     }
 }
