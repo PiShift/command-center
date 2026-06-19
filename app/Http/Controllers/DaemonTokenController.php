@@ -2,39 +2,40 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\DaemonToken;
-use App\Services\DaemonTokenService;
+use App\Models\PersonalAccessToken;
+use App\Services\TokenService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
 class DaemonTokenController extends Controller
 {
-    public function store(Request $request, DaemonTokenService $service)
+    public function store(Request $request, TokenService $service)
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
         ]);
 
-        $generated = $service->generate();
+        $generated = $service->generatePAT();
 
-        DaemonToken::create([
+        PersonalAccessToken::create([
             'user_id'    => $request->user()->id,
-            'token_hash' => $generated['hash'],
             'name'       => $data['name'],
+            'token_hash' => $generated['hash'],
+            'token_prefix' => $generated['prefix'],
         ]);
 
         return back()
-            ->with('success', 'Daemon token generated.')
-            ->with('daemon_token_raw', $generated['raw']);
+            ->with('success', 'Personal access token generated.')
+            ->with('personal_access_token_raw', $generated['raw']);
     }
 
-    public function destroy(Request $request, DaemonToken $token)
+    public function destroy(Request $request, PersonalAccessToken $token)
     {
         abort_unless($token->user_id === $request->user()->id, 403);
 
-        Cache::forget('daemon_token:' . $token->token_hash);
-        $token->delete();
+        Cache::forget('pat:' . $token->token_hash);
+        $token->update(['revoked' => true]);
 
-        return back()->with('success', 'Daemon token revoked.');
+        return back()->with('success', 'Personal access token revoked.');
     }
 }

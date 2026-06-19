@@ -1,14 +1,33 @@
 <?php
 
 use App\Http\Controllers\Api\DaemonController;
+use App\Http\Controllers\Api\AuthCodeController;
 use App\Http\Controllers\Api\CustomerApiController;
+use App\Http\Controllers\Api\MeController;
+use App\Http\Controllers\Api\PersonalAccessTokenController;
+use App\Http\Controllers\Api\WorkspaceApiController;
 use App\Http\Controllers\Api\WorkspaceController;
+use App\Http\Middleware\ApiSessionOrPatAuth;
 use App\Http\Middleware\DaemonTokenMiddleware;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('api.secret')->prefix('v1')->group(function () {
     Route::get('customers/{identifier}/invoices', [CustomerApiController::class, 'invoices']);
     Route::post('customers/invoices', [CustomerApiController::class, 'invoices']);
+});
+
+Route::post('/auth/send-code', [AuthCodeController::class, 'sendCode']);
+Route::post('/auth/verify-code', [AuthCodeController::class, 'verifyCode']);
+
+Route::middleware([
+    \Illuminate\Session\Middleware\StartSession::class,
+    ApiSessionOrPatAuth::class,
+])->group(function () {
+    Route::post('/tokens', [PersonalAccessTokenController::class, 'store']);
+    Route::get('/tokens', [PersonalAccessTokenController::class, 'index']);
+    Route::delete('/tokens/{id}', [PersonalAccessTokenController::class, 'destroy']);
+    Route::get('/me', [MeController::class, 'show']);
+    Route::get('/workspaces', [WorkspaceApiController::class, 'index']);
 });
 
 Route::prefix('daemon')->middleware(DaemonTokenMiddleware::class)->group(function () {

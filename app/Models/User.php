@@ -71,9 +71,9 @@ class User extends Authenticatable
         return $this->hasMany(UserDevice::class);
     }
 
-    public function daemonTokens(): HasMany
+    public function personalAccessTokens(): HasMany
     {
-        return $this->hasMany(DaemonToken::class);
+        return $this->hasMany(PersonalAccessToken::class);
     }
 
     public function loginHistory(): HasMany

@@ -11,10 +11,14 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response;
 
-class DaemonTokenMiddleware
+class ApiSessionOrPatAuth
 {
     public function handle(Request $request, Closure $next): Response
     {
+        if (Auth::check()) {
+            return $next($request);
+        }
+
         $authHeader = (string) $request->header('Authorization', '');
 
         if (! preg_match('/^Bearer\s+(.+)$/i', $authHeader, $matches)) {
@@ -56,7 +60,7 @@ class DaemonTokenMiddleware
         });
 
         Auth::setUser($user);
-        $request->setUserResolver(fn () => $user);
+        $request->setUserResolver(static fn () => $user);
 
         return $next($request);
     }

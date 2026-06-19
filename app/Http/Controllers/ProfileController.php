@@ -11,7 +11,7 @@ class ProfileController extends Controller
 {
     public function show(Request $request)
     {
-        $user = $request->user()->load(['roleModel', 'twoFactor', 'devices', 'daemonTokens', 'loginHistory']);
+        $user = $request->user()->load(['roleModel', 'twoFactor', 'devices', 'personalAccessTokens', 'loginHistory']);
 
         // ── Stats ─────────────────────────────────────────────────────────────
 

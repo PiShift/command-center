@@ -2,26 +2,27 @@
 
 namespace App\Console\Commands;
 
-use App\Models\DaemonToken;
+use App\Models\PersonalAccessToken;
 use App\Models\User;
-use App\Services\DaemonTokenService;
+use App\Services\TokenService;
 use Illuminate\Console\Command;
 
 class DaemonTokenCreate extends Command
 {
     protected $signature = 'daemon:token:create {user_id} {name}';
 
-    protected $description = 'Create a daemon token for a user.';
+    protected $description = 'Create a personal access token for a user.';
 
-    public function handle(DaemonTokenService $service): int
+    public function handle(TokenService $service): int
     {
         $user = User::findOrFail((int) $this->argument('user_id'));
-        $generated = $service->generate();
+        $generated = $service->generatePAT();
 
-        DaemonToken::create([
+        PersonalAccessToken::create([
             'user_id'    => $user->id,
-            'token_hash' => $generated['hash'],
             'name'       => (string) $this->argument('name'),
+            'token_hash' => $generated['hash'],
+            'token_prefix' => $generated['prefix'],
         ]);
 
         $this->line($generated['raw']);

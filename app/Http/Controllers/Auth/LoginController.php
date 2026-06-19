@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Mail\LoginOtpMail;
+use App\Models\PersonalAccessToken;
 use App\Models\User;
 use App\Models\UserDevice;
 use App\Models\UserLoginHistory;
 use App\Models\UserPendingVerification;
+use App\Services\TokenService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -60,15 +63,36 @@ class LoginController extends Controller
         if (Auth::check()) {
             return redirect()->route('dashboard');
         }
+
+        $cliCallback = $this->validatedCliCallback($this->requestCliCallback(request()));
+        if ($cliCallback) {
+            request()->session()->put('auth.cli_callback', $cliCallback);
+            request()->session()->put('auth.cli_state', (string) request()->query('cli_state', ''));
+        } elseif (request()->has('cli_callback')) {
+            request()->session()->forget(['auth.cli_callback', 'auth.cli_state']);
+        }
+
         return view('auth.login');
     }
 
-    public function login(Request $request)
+    public function login(Request $request, TokenService $tokenService)
     {
         $credentials = $request->validate([
             'email'    => ['required', 'email'],
             'password' => ['required'],
+            'cli_callback' => ['nullable', 'string', 'max:2048'],
+            'cli_state' => ['nullable', 'string', 'max:255'],
         ]);
+
+        $cliCallback = $this->validatedCliCallback($this->requestCliCallback($request));
+        if ($this->requestCliCallback($request) !== '' && ! $cliCallback) {
+            return back()->withErrors(['email' => 'Invalid CLI callback URL.'])->onlyInput('email');
+        }
+
+        if ($cliCallback) {
+            $request->session()->put('auth.cli_callback', $cliCallback);
+            $request->session()->put('auth.cli_state', (string) $request->input('cli_state', $request->query('cli_state', '')));
+        }
 
         $user = User::where('email', $credentials['email'])->first();
         $ua = $request->header('User-Agent', '');
@@ -91,6 +115,12 @@ class LoginController extends Controller
                 $this->recordLogin($user->id, 'success', $device, $ip);
                 Auth::login($user, $request->boolean('remember'));
                 $request->session()->regenerate();
+
+                $cliRedirect = $this->cliRedirectIfNeeded($request, $user, $tokenService);
+                if ($cliRedirect) {
+                    return $cliRedirect;
+                }
+
                 return redirect()->intended(route('dashboard'));
             }
         }
@@ -118,6 +148,12 @@ class LoginController extends Controller
             Auth::login($user);
             $request->session()->regenerate();
             $request->session()->forget(['auth.pending_user_id', 'auth.pending_device']);
+
+            $cliRedirect = $this->cliRedirectIfNeeded($request, $user, app(TokenService::class));
+            if ($cliRedirect) {
+                return $cliRedirect;
+            }
+
             return redirect()->intended(route('dashboard'));
         }
 
@@ -129,6 +165,12 @@ class LoginController extends Controller
             Auth::login($user);
             $request->session()->regenerate();
             $request->session()->forget(['auth.pending_user_id', 'auth.pending_device']);
+
+            $cliRedirect = $this->cliRedirectIfNeeded($request, $user, app(TokenService::class));
+            if ($cliRedirect) {
+                return $cliRedirect;
+            }
+
             return redirect()->route('2fa.setup')
                 ->with('warning', 'Your role requires two-factor authentication. Please set it up now.');
         }
@@ -210,6 +252,11 @@ class LoginController extends Controller
         $request->session()->regenerate();
         $request->session()->forget(['auth.pending_user_id', 'auth.pending_device']);
 
+        $cliRedirect = $this->cliRedirectIfNeeded($request, $user, app(TokenService::class));
+        if ($cliRedirect) {
+            return $cliRedirect;
+        }
+
         // Create device record
         $plainToken = Str::random(64);
         $trusted = $request->boolean('trust_device');
@@ -267,5 +314,71 @@ class LoginController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect()->route('login');
+    }
+
+    private function cliRedirectIfNeeded(Request $request, User $user, TokenService $tokenService): ?RedirectResponse
+    {
+        $callback = $this->validatedCliCallback((string) $request->session()->get('auth.cli_callback', ''));
+
+        if (! $callback) {
+            return null;
+        }
+
+        $state = (string) $request->session()->get('auth.cli_state', '');
+        $request->session()->forget(['auth.cli_callback', 'auth.cli_state']);
+
+        $generated = $tokenService->generatePAT();
+
+        PersonalAccessToken::create([
+            'user_id'      => $user->id,
+            'name'         => 'CLI (browser)',
+            'token_hash'   => $generated['hash'],
+            'token_prefix' => $generated['prefix'],
+            'expires_at'   => now()->addDays(90),
+        ]);
+
+        $separator = str_contains($callback, '?') ? '&' : '?';
+        $target = $callback
+            . $separator
+            . 'token=' . urlencode($generated['raw'])
+            . '&state=' . urlencode($state);
+
+        return redirect()->away($target);
+    }
+
+    private function requestCliCallback(Request $request): string
+    {
+        return (string) ($request->query('cli_callback') ?: $request->input('cli_callback', ''));
+    }
+
+    private function validatedCliCallback(string $callback): ?string
+    {
+        if ($callback === '') {
+            return null;
+        }
+
+        $parts = parse_url($callback);
+
+        if (! is_array($parts)) {
+            return null;
+        }
+
+        $scheme = $parts['scheme'] ?? null;
+        $host = $parts['host'] ?? null;
+        $port = $parts['port'] ?? null;
+
+        if ($scheme !== 'http') {
+            return null;
+        }
+
+        if (! in_array($host, ['localhost', '127.0.0.1'], true)) {
+            return null;
+        }
+
+        if (! is_int($port) || $port < 1 || $port > 65535) {
+            return null;
+        }
+
+        return $callback;
     }
 }
