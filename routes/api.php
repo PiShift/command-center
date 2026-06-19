@@ -31,7 +31,7 @@ Route::get('/config', function() {
     return response()->json([
         'apiUrl' => config('app.url') . '/api',
         'appUrl' => config('app.url'),
-        'wsUrl'  => 'ws://' . parse_url(config('app.url'), PHP_URL_HOST) . '/ws',
+        'wsUrl'  => 'wss://' . parse_url(config('app.url'), PHP_URL_HOST) . '/ws',
     ]);
 });
 
