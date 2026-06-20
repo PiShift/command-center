@@ -56,7 +56,7 @@ class IssuePayloadTransformer
         }
 
         $statusMap = [
-            'todo'        => 'open',
+            'todo'        => 'todo',
             'open'        => 'open',
             'backlog'     => 'open',
             'in_progress' => 'in-progress',
