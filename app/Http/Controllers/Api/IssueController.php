@@ -21,7 +21,7 @@ class IssueController extends Controller
             return response()->json(['error' => 'issue not found'], 404);
         }
 
-        return response()->json($this->issuePayloadTransformer->transform($task));
+        return response()->json($this->issuePayloadTransformer->transform($task, $request->user()?->id));
     }
 
     public function update(Request $request, string $id): JsonResponse

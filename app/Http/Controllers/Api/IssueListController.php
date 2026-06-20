@@ -19,7 +19,7 @@ class IssueListController extends Controller
             'sort'   => ['nullable', 'string', 'max:100'],
         ]);
 
-        $query = Task::query()->with(['project.teams:id', 'assignee:id']);
+        $query = Task::query()->with(['project.teams:id,lead_user_id', 'assignee:id']);
         $user = $request->user();
 
         if (! $user->hasPermission('projects.view_all')) {
@@ -44,9 +44,10 @@ class IssueListController extends Controller
         }
 
         $issues = $query->get();
+        $fallbackUserId = $user?->id;
 
         return response()->json([
-            'issues' => $issues->map(fn (Task $task): array => $this->issuePayloadTransformer->transform($task))->values(),
+            'issues' => $issues->map(fn (Task $task): array => $this->issuePayloadTransformer->transform($task, $fallbackUserId))->values(),
             'total'  => $issues->count(),
         ]);
     }
