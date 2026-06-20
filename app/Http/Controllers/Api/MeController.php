@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\PersonalAccessToken;
+use App\Models\User;
 use App\Services\TokenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,13 +14,14 @@ class MeController extends Controller
 {
     public function show(Request $request): JsonResponse
     {
-        $user = $request->user();
+        return response()->json($this->userPayload($request->user()));
+    }
 
-        return response()->json([
-            'id'    => $user->id,
-            'name'  => $user->name,
-            'email' => $user->email,
-        ]);
+    public function completeOnboarding(Request $request): JsonResponse
+    {
+        // When an onboarded_at column is added, mark it here:
+        // $user->forceFill(['onboarded_at' => now()])->save();
+        return response()->json($this->userPayload($request->user()));
     }
 
     public function update(Request $request): JsonResponse
@@ -43,16 +45,30 @@ class MeController extends Controller
             $user->save();
         }
 
-        return response()->json([
-            'id'    => $user->id,
-            'name'  => $user->name,
-            'email' => $user->email,
-        ]);
+        return response()->json($this->userPayload($user));
     }
 
     public function updateOnboarding(): JsonResponse
     {
         return response()->json(['status' => 'ok']);
+    }
+
+    private function userPayload(User $user): array
+    {
+        return [
+            'id'                       => (string) $user->id,
+            'name'                     => (string) $user->name,
+            'email'                    => (string) $user->email,
+            'avatar_url'               => $user->getAttribute('avatar_url') ?? null,
+            'onboarded_at'             => optional($user->getAttribute('onboarded_at'))?->toIso8601String() ?? null,
+            'onboarding_questionnaire' => (object) [],
+            'starter_content_state'    => $user->getAttribute('starter_content_state') ?? null,
+            'language'                 => $user->getAttribute('language') ?? null,
+            'profile_description'      => (string) ($user->getAttribute('profile_description') ?? ''),
+            'timezone'                 => $user->getAttribute('timezone') ?? null,
+            'created_at'               => optional($user->created_at)?->toIso8601String() ?? '',
+            'updated_at'               => optional($user->updated_at)?->toIso8601String() ?? '',
+        ];
     }
 
     public function cloudWaitlist(): JsonResponse
