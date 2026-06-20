@@ -13,7 +13,7 @@ class WorkspaceMemberController extends Controller
     {
         $team = Team::query()
             ->with(['members' => function ($query): void {
-                $query->select('users.id', 'users.name', 'users.email');
+                $query->select('users.id', 'users.name', 'users.email')->orderBy('users.id');
             }])
             ->whereKey((int) $workspaceId)
             ->first();
@@ -29,10 +29,15 @@ class WorkspaceMemberController extends Controller
         }
 
         return response()->json($team->members->map(function ($member) use ($team, $workspaceId): array {
+            $actorId = 'member-' . (string) $member->id;
+
             return [
                 'id'           => (string) $member->id,
                 'workspace_id' => (string) $workspaceId,
-                'user_id'      => 'member-'.(string) $member->id,
+                'actor_type'   => 'member',
+                'actor_id'     => $actorId,
+                'member_id'    => $actorId,
+                'user_id'      => $actorId,
                 'role'         => (int) $team->lead_user_id === (int) $member->id ? 'owner' : 'member',
                 'created_at'   => optional($member->pivot?->created_at)?->toIso8601String(),
                 'name'         => (string) $member->name,
