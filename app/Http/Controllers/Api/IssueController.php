@@ -60,7 +60,7 @@ class IssueController extends Controller
         if (array_key_exists('assignee_id', $data) && array_key_exists('assignee_type', $data)) {
             $assigneeType = strtolower(trim((string) ($data['assignee_type'] ?? '')));
 
-            if ($assigneeType === 'user') {
+            if ($assigneeType === 'user' || $assigneeType === 'member') {
                 $assigneeRaw = trim((string) ($data['assignee_id'] ?? ''));
 
                 if ($assigneeRaw !== '' && is_numeric($assigneeRaw)) {
