@@ -173,7 +173,16 @@ class IssueController extends Controller
         $task->loadMissing(['project.teams:id', 'assignee', 'checklists']);
 
         $workspaceId = $task->project?->teams?->first()?->id;
-        $assigneeId = $task->assigned_to ? (string) $task->assigned_to : null;
+        $typedAssigneeId = null;
+        $assigneeType = null;
+
+        if (!empty($task->agent_id)) {
+            $assigneeType = 'agent';
+            $typedAssigneeId = 'agent-' . (string) $task->agent_id;
+        } elseif (!empty($task->assigned_to)) {
+            $assigneeType = 'user';
+            $typedAssigneeId = 'user-' . (string) $task->assigned_to;
+        }
 
         return [
             'id'              => (string) $task->id,
@@ -184,10 +193,10 @@ class IssueController extends Controller
             'description'     => (string) $task->description,
             'status'          => $this->mapOutgoingStatus((string) $task->status),
             'priority'        => (string) $task->priority,
-            'assignee_type'   => $assigneeId ? 'user' : null,
-            'assignee_id'     => $assigneeId,
+            'assignee_type'   => $assigneeType,
+            'assignee_id'     => $typedAssigneeId,
             'creator_type'    => 'user',
-            'creator_id'      => $assigneeId,
+            'creator_id'      => 'user-1',
             'parent_issue_id' => null,
             'project_id'      => (string) $task->project_id,
             'position'        => 0.0,
