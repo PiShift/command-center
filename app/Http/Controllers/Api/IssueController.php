@@ -3,8 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\AgentTaskQueue;
-use App\Models\KanbanColumn;
 use App\Models\Task;
 use App\Models\TaskComment;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +11,8 @@ use Illuminate\Support\Facades\Log;
 
 class IssueController extends Controller
 {
+    public function __construct(private readonly IssuePayloadTransformer $issuePayloadTransformer = new IssuePayloadTransformer()) {}
+
     public function show(Request $request, string $id): JsonResponse
     {
         $task = $this->resolveTask($id);
@@ -21,7 +21,7 @@ class IssueController extends Controller
             return response()->json(['error' => 'issue not found'], 404);
         }
 
-        return response()->json($this->issuePayload($task));
+        return response()->json($this->issuePayloadTransformer->transform($task));
     }
 
     public function update(Request $request, string $id): JsonResponse
@@ -42,7 +42,7 @@ class IssueController extends Controller
         ]);
 
         if (array_key_exists('status', $data)) {
-            $mappedStatus = $this->mapIncomingStatus((string) $data['status']);
+            $mappedStatus = $this->issuePayloadTransformer->normalizeIncomingStatus((string) $data['status']);
 
             if ($mappedStatus !== null) {
                 $task->status = $mappedStatus;
@@ -57,16 +57,12 @@ class IssueController extends Controller
             }
         }
 
-        if (array_key_exists('assignee_id', $data) && array_key_exists('assignee_type', $data)) {
-            $assigneeType = strtolower(trim((string) ($data['assignee_type'] ?? '')));
-
-            if ($assigneeType === 'user' || $assigneeType === 'member') {
-                $assigneeRaw = trim((string) ($data['assignee_id'] ?? ''));
-
-                if ($assigneeRaw !== '' && is_numeric($assigneeRaw)) {
-                    $task->assigned_to = (int) $assigneeRaw;
-                }
-            }
+        if (array_key_exists('assignee_id', $data) || array_key_exists('assignee_type', $data)) {
+            $this->issuePayloadTransformer->applyIncomingAssignee(
+                $task,
+                $data['assignee_type'] ?? null,
+                $data['assignee_id'] ?? null,
+            );
         }
 
         Log::info('Saving issue', ['id' => $id, 'status' => $task->status, 'priority' => $task->priority, 'assigned_to' => $task->assigned_to]);
@@ -75,7 +71,7 @@ class IssueController extends Controller
             $task->save();
         }
 
-        return response()->json($this->issuePayload($task->fresh()));
+        return response()->json($this->issuePayloadTransformer->transform($task->fresh()));
     }
 
     public function comments(Request $request, string $id): JsonResponse
@@ -173,81 +169,4 @@ class IssueController extends Controller
         ];
     }
 
-    private function issuePayload(Task $task): array
-    {
-        $task->loadMissing(['project.teams:id', 'assignee', 'checklists']);
-
-        $workspaceId = $task->project?->teams?->first()?->id;
-        $typedAssigneeId = null;
-        $assigneeType = null;
-
-        if (!empty($task->agent_id)) {
-            $assigneeType = 'agent';
-            $typedAssigneeId = 'agent-' . (string) $task->agent_id;
-        } elseif (!empty($task->assigned_to)) {
-            $assigneeType = 'member';
-            $typedAssigneeId = 'member-' . (string) $task->assigned_to;
-        }
-
-        return [
-            'id'              => (string) $task->id,
-            'workspace_id'    => $workspaceId ? (string) $workspaceId : '',
-            'number'          => (int) $task->id,
-            'identifier'      => 'task-' . $task->id,
-            'title'           => (string) $task->title,
-            'description'     => (string) $task->description,
-            'status'          => $this->mapOutgoingStatus((string) $task->status),
-            'priority'        => (string) $task->priority,
-            'assignee_type'   => $assigneeType,
-            'assignee_id'     => $typedAssigneeId,
-            'creator_type'    => 'user',
-            'creator_id'      => 'user-1',
-            'parent_issue_id' => null,
-            'project_id'      => (string) $task->project_id,
-            'position'        => 0.0,
-            'start_date'      => null,
-            'due_date'        => optional($task->due_date)?->toDateString(),
-            'created_at'      => optional($task->created_at)?->toIso8601String(),
-            'updated_at'      => optional($task->updated_at)?->toIso8601String(),
-            'metadata'        => (object) [],
-            'reactions'       => [],
-            'attachments'     => [],
-            'labels'          => [],
-        ];
-    }
-
-    private function mapIncomingStatus(string $status): ?string
-    {
-        $incoming = strtolower(trim($status));
-
-        $statusMap = [
-            'todo'        => 'todo',
-            'open'        => 'open',
-            'in_progress' => 'in-progress',
-            'in-progress' => 'in-progress',
-            'in_review'   => 'in-review',
-            'in-review'   => 'in-review',
-            'done'        => 'done',
-            'completed'   => 'done',
-            'backlog'     => 'open',
-            'blocked'     => 'in-progress',
-            'cancelled'   => 'done',
-        ];
-
-        if (array_key_exists($incoming, $statusMap)) {
-            return $statusMap[$incoming];
-        }
-
-        return KanbanColumn::query()->where('slug', $incoming)->exists() ? $incoming : null;
-    }
-
-    private function mapOutgoingStatus(string $status): string
-    {
-        return match ($status) {
-            'open' => 'backlog',
-            'in-progress' => 'in_progress',
-            'in-review' => 'in_review',
-            default => $status,
-        };
-    }
 }

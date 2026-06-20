@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\AgentTaskQueue;
-use App\Models\KanbanColumn;
 use App\Models\Project;
 use App\Models\Task;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 
 class IssueActionController
 {
+    public function __construct(private readonly IssuePayloadTransformer $issuePayloadTransformer = new IssuePayloadTransformer()) {}
+
     public function search(Request $request): JsonResponse
     {
         $q = trim((string) $request->query('q', ''));
@@ -53,7 +53,7 @@ class IssueActionController
             ->get();
 
         return response()->json([
-            'issues' => $issues->map(fn (Task $task): array => $this->issuePayload($task))->values(),
+            'issues' => $issues->map(fn (Task $task): array => $this->issuePayloadTransformer->transform($task))->values(),
             'total'  => $total,
         ]);
     }
@@ -87,7 +87,13 @@ class IssueActionController
             $raw = $task->{$column};
 
             if ($groupBy === 'status') {
-                return $this->mapOutgoingStatus((string) $raw);
+                return $this->issuePayloadTransformer->normalizeOutgoingStatus((string) $raw);
+            }
+
+            if ($groupBy === 'assignee_id') {
+                [, $assigneeId] = $this->issuePayloadTransformer->normalizeIncomingAssignee('member', $raw === null ? null : (string) $raw);
+
+                return $assigneeId ? 'member-' . $assigneeId : 'null';
             }
 
             if ($raw === null || $raw === '') {
@@ -101,7 +107,7 @@ class IssueActionController
             ->map(function (Collection $items, string $key): array {
                 return [
                     'key'    => $key,
-                    'issues' => $items->map(fn (Task $task): array => $this->issuePayload($task))->values(),
+                    'issues' => $items->map(fn (Task $task): array => $this->issuePayloadTransformer->transform($task))->values(),
                     'total'  => $items->count(),
                 ];
             })
@@ -136,8 +142,8 @@ class IssueActionController
         return response()->json(
             $frequencies->map(static function ($row): array {
                 return [
-                    'assignee_type' => 'user',
-                    'assignee_id'   => (string) $row->assigned_to,
+                    'assignee_type' => 'member',
+                    'assignee_id'   => 'member-' . (string) $row->assigned_to,
                     'count'         => (int) $row->count,
                 ];
             })->values()
@@ -182,13 +188,19 @@ class IssueActionController
             'description' => $data['description'] ?? null,
             'type' => 'feature',
             'priority' => $data['priority'] ?? 'medium',
-            'status' => $this->mapIncomingStatus((string) ($data['status'] ?? 'todo')),
-            'assigned_to' => (isset($data['assignee_type'], $data['assignee_id']) && strtolower((string) $data['assignee_type']) === 'user' && is_numeric((string) $data['assignee_id']))
-                ? (int) $data['assignee_id']
-                : null,
+            'status' => $this->issuePayloadTransformer->normalizeIncomingStatus((string) ($data['status'] ?? 'backlog')) ?? 'open',
         ]);
 
-        return response()->json($this->issuePayload($task->fresh()), 201);
+        if (array_key_exists('assignee_id', $data) || array_key_exists('assignee_type', $data)) {
+            $this->issuePayloadTransformer->applyIncomingAssignee(
+                $task,
+                $data['assignee_type'] ?? null,
+                $data['assignee_id'] ?? null,
+            );
+            $task->save();
+        }
+
+        return response()->json($this->issuePayloadTransformer->transform($task->fresh()), 201);
     }
 
     public function quickCreate(): JsonResponse
@@ -221,71 +233,4 @@ class IssueActionController
         return response()->json(['status' => 'ok']);
     }
 
-    private function issuePayload(Task $task): array
-    {
-        $task->loadMissing(['project.teams:id', 'checklists']);
-        $workspaceId = $task->project?->teams?->first()?->id;
-        $assigneeId = $task->assigned_to ? (string) $task->assigned_to : null;
-
-        return [
-            'id'              => (string) $task->id,
-            'workspace_id'    => $workspaceId ? (string) $workspaceId : '',
-            'number'          => (int) $task->id,
-            'identifier'      => 'task-' . $task->id,
-            'title'           => (string) $task->title,
-            'description'     => AgentTaskQueue::buildPrompt($task),
-            'status'          => $this->mapOutgoingStatus((string) $task->status),
-            'priority'        => (string) $task->priority,
-            'assignee_type'   => $assigneeId ? 'user' : null,
-            'assignee_id'     => $assigneeId,
-            'creator_type'    => 'user',
-            'creator_id'      => $assigneeId,
-            'parent_issue_id' => null,
-            'project_id'      => (string) $task->project_id,
-            'position'        => 0.0,
-            'start_date'      => null,
-            'due_date'        => optional($task->due_date)?->toDateString(),
-            'created_at'      => optional($task->created_at)?->toIso8601String(),
-            'updated_at'      => optional($task->updated_at)?->toIso8601String(),
-            'metadata'        => (object) [],
-            'reactions'       => [],
-            'attachments'     => [],
-            'labels'          => [],
-        ];
-    }
-
-    private function mapOutgoingStatus(string $status): string
-    {
-        return match ($status) {
-            'open' => 'todo',
-            'in-progress' => 'in_progress',
-            'in-review' => 'in_review',
-            default => $status,
-        };
-    }
-
-    private function mapIncomingStatus(string $status): string
-    {
-        $incoming = strtolower(trim($status));
-
-        $statusMap = [
-            'todo' => 'open',
-            'open' => 'open',
-            'in_progress' => 'in-progress',
-            'in-progress' => 'in-progress',
-            'in_review' => 'in-review',
-            'in-review' => 'in-review',
-            'done' => 'done',
-            'completed' => 'done',
-            'backlog' => 'open',
-            'blocked' => 'in-progress',
-            'cancelled' => 'done',
-        ];
-
-        if (array_key_exists($incoming, $statusMap)) {
-            return $statusMap[$incoming];
-        }
-
-        return KanbanColumn::query()->where('slug', $incoming)->exists() ? $incoming : 'open';
-    }
 }
