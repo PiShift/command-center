@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 
 class IssuePayloadTransformer
 {
-    private const STATUS_ALLOWED = ['backlog', 'in_progress', 'in_review', 'blocked', 'done', 'cancelled'];
+    private const STATUS_ALLOWED = ['todo', 'backlog', 'in_progress', 'in_review', 'blocked', 'done', 'cancelled'];
 
     private const PRIORITY_ALLOWED = ['low', 'medium', 'high'];
 
