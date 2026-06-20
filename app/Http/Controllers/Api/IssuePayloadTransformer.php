@@ -56,7 +56,7 @@ class IssuePayloadTransformer
         }
 
         $statusMap = [
-            'todo'        => 'todo',   // Multica "todo" maps to DB "open"
+            'todo'        => 'open',   // Multica "todo" maps to DB "open"
             'open'        => 'open',
             'backlog'     => 'open',
             'in_progress' => 'in-progress',

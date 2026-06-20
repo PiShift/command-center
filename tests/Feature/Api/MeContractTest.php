@@ -108,4 +108,26 @@ class MeContractTest extends TestCase
 
         $this->assertSame(array_keys($me), array_keys($complete));
     }
+
+    public function test_patch_me_onboarding_returns_full_user_payload_shape(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->patchJson('/api/me/onboarding', [
+            'onboarding_questionnaire' => ['role' => 'developer'],
+        ]);
+
+        $response->assertOk();
+
+        $payload = $response->json();
+
+        foreach (self::REQUIRED_KEYS as $key) {
+            $this->assertArrayHasKey($key, $payload, "PATCH /api/me/onboarding response missing key: {$key}");
+        }
+
+        $this->assertSame((string) $user->id, $payload['id']);
+        $this->assertIsString($payload['profile_description']);
+        $this->assertNull($payload['avatar_url']);
+        $this->assertNull($payload['onboarded_at']);
+    }
 }

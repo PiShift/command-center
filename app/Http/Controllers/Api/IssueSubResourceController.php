@@ -77,11 +77,11 @@ class IssueSubResourceController
 
         return response()->json([
             [
-                'id'         => (string) $task->assigned_to,
                 'issue_id'   => (string) $task->id,
-                'user_id'    => (string) $task->assigned_to,
-                'user_type'  => 'user',
-                'created_at' => optional($task->updated_at ?? $task->created_at)?->toIso8601String(),
+                'user_type'  => 'member',
+                'user_id'    => 'member-' . (string) $task->assigned_to,
+                'reason'     => 'assignee',
+                'created_at' => optional($task->updated_at ?? $task->created_at)?->toIso8601String() ?? '',
             ],
         ]);
     }
