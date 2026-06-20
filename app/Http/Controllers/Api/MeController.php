@@ -48,9 +48,11 @@ class MeController extends Controller
         return response()->json($this->userPayload($user));
     }
 
-    public function updateOnboarding(): JsonResponse
+    public function updateOnboarding(Request $request): JsonResponse
     {
-        return response()->json(['status' => 'ok']);
+        // Accept and ignore questionnaire fields until schema columns exist.
+        // Returning the full user payload satisfies the desktop schema parser.
+        return response()->json($this->userPayload($request->user()));
     }
 
     private function userPayload(User $user): array
