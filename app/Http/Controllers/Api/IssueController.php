@@ -37,7 +37,7 @@ class IssueController extends Controller
         $data = $request->validate([
             'status'        => ['sometimes', 'string', 'max:100'],
             'priority'      => ['sometimes', 'string'],
-            'assignee_id'   => ['sometimes', 'nullable', 'string'],
+            'assigned_to'   => ['sometimes', 'nullable', 'string'],
             'assignee_type' => ['sometimes', 'nullable', 'string'],
         ]);
 
@@ -57,11 +57,11 @@ class IssueController extends Controller
             }
         }
 
-        if (array_key_exists('assignee_id', $data) && array_key_exists('assignee_type', $data)) {
+        if (array_key_exists('assigned_to', $data) && array_key_exists('assignee_type', $data)) {
             $assigneeType = strtolower(trim((string) ($data['assignee_type'] ?? '')));
 
             if ($assigneeType === 'user') {
-                $assigneeRaw = trim((string) ($data['assignee_id'] ?? ''));
+                $assigneeRaw = trim((string) ($data['assigned_to'] ?? ''));
 
                 if ($assigneeRaw !== '' && is_numeric($assigneeRaw)) {
                     $task->assigned_to = (int) $assigneeRaw;
