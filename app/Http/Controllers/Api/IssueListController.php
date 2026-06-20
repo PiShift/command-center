@@ -75,7 +75,7 @@ class IssueListController extends Controller
             'number'          => (int) $task->id,
             'identifier'      => 'task-' . $task->id,
             'title'           => (string) $task->title,
-            'description'     => AgentTaskQueue::buildPrompt($task),
+            'description'     => (string) $task->description,
             'status'          => $this->mapOutgoingStatus((string) $task->status),
             'priority'        => (string) $task->priority,
             'assignee_type'   => $assigneeType,
