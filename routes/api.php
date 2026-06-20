@@ -270,9 +270,7 @@ Route::middleware([
     Route::get('/invitations', function() {
         return response()->json([]);
     });
-    Route::post('/me/onboarding/complete', function() {
-        return response()->json(['status' => 'ok']);
-    });
+    Route::post('/me/onboarding/complete', [MeController::class, 'completeOnboarding']);
     Route::get('/agent-activity-30d', function() {
         return response()->json([]);
     });
