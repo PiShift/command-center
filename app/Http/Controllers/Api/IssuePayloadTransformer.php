@@ -4,16 +4,21 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\KanbanColumn;
 use App\Models\Task;
+use Illuminate\Support\Facades\Log;
 
 class IssuePayloadTransformer
 {
-    public function transform(Task $task): array
+    private const STATUS_ALLOWED = ['backlog', 'in_progress', 'in_review', 'blocked', 'done', 'cancelled'];
+
+    private const PRIORITY_ALLOWED = ['low', 'medium', 'high'];
+
+    public function transform(Task $task, ?int $fallbackUserId = null): array
     {
         $task->loadMissing(['project.teams:id,lead_user_id', 'assignee:id', 'agent:id']);
 
         $workspaceId = $task->project?->teams?->sortBy('id')->first()?->id;
         [$assigneeType, $assigneeId] = $this->outgoingAssignee($task);
-        [$creatorType, $creatorId] = $this->creatorFallback();
+        [$creatorType, $creatorId] = $this->creatorPayload($task, $fallbackUserId);
 
         return [
             'id'              => (string) $task->id,
@@ -23,7 +28,7 @@ class IssuePayloadTransformer
             'title'           => (string) $task->title,
             'description'     => (string) ($task->description ?? ''),
             'status'          => $this->normalizeOutgoingStatus((string) $task->status),
-            'priority'        => (string) $task->priority,
+            'priority'        => $this->normalizeOutgoingPriority((string) $task->priority),
             'assignee_type'   => $assigneeType,
             'assignee_id'     => $assigneeId,
             'creator_type'    => $creatorType,
@@ -51,7 +56,7 @@ class IssuePayloadTransformer
         }
 
         $statusMap = [
-            'todo'        => 'todo',
+            'todo'        => 'open',
             'open'        => 'open',
             'backlog'     => 'open',
             'in_progress' => 'in-progress',
@@ -75,12 +80,40 @@ class IssuePayloadTransformer
 
     public function normalizeOutgoingStatus(string $status): string
     {
-        return match ($status) {
+        $normalized = match ($status) {
             'open' => 'backlog',
             'in-progress' => 'in_progress',
             'in-review' => 'in_review',
             default => str_replace('-', '_', $status),
         };
+
+        if (! in_array($normalized, self::STATUS_ALLOWED, true)) {
+            Log::warning('Issue payload status normalized to fallback', [
+                'incoming_status' => $status,
+                'normalized_status' => $normalized,
+                'fallback_status' => 'backlog',
+            ]);
+
+            return 'backlog';
+        }
+
+        return $normalized;
+    }
+
+    public function normalizeOutgoingPriority(string $priority): string
+    {
+        $normalized = strtolower(trim($priority));
+
+        if (in_array($normalized, self::PRIORITY_ALLOWED, true)) {
+            return $normalized;
+        }
+
+        Log::warning('Issue payload priority normalized to fallback', [
+            'incoming_priority' => $priority,
+            'fallback_priority' => 'medium',
+        ]);
+
+        return 'medium';
     }
 
     public function normalizeIncomingAssignee(?string $assigneeType, ?string $assigneeId): array
@@ -157,6 +190,14 @@ class IssuePayloadTransformer
 
     private function outgoingAssignee(Task $task): array
     {
+        if (! empty($task->agent_id) && ! empty($task->assigned_to)) {
+            Log::warning('Issue payload had both member and agent assignee; prioritizing agent', [
+                'task_id' => (string) $task->id,
+                'agent_id' => (string) $task->agent_id,
+                'assigned_to' => (string) $task->assigned_to,
+            ]);
+        }
+
         if (! empty($task->agent_id)) {
             return ['agent', 'agent-' . (string) $task->agent_id];
         }
@@ -168,10 +209,39 @@ class IssuePayloadTransformer
         return [null, null];
     }
 
-    private function creatorFallback(): array
+    private function creatorPayload(Task $task, ?int $fallbackUserId): array
     {
-        // Tasks do not currently persist a creator reference, so the API exposes
-        // a stable null creator contract until a dedicated creator column exists.
-        return [null, null];
+        $creatorUserId = $this->resolveCreatorUserId($task, $fallbackUserId);
+
+        return ['member', 'member-' . $creatorUserId];
+    }
+
+    private function resolveCreatorUserId(Task $task, ?int $fallbackUserId): int
+    {
+        $createdBy = $task->getAttribute('created_by');
+
+        if (is_numeric($createdBy) && (int) $createdBy > 0) {
+            return (int) $createdBy;
+        }
+
+        if (! empty($task->assigned_to) && is_numeric((string) $task->assigned_to)) {
+            return (int) $task->assigned_to;
+        }
+
+        $leadUserId = $task->project?->teams?->sortBy('id')->first()?->lead_user_id;
+
+        if (is_numeric($leadUserId) && (int) $leadUserId > 0) {
+            return (int) $leadUserId;
+        }
+
+        if (is_numeric($fallbackUserId) && (int) $fallbackUserId > 0) {
+            return (int) $fallbackUserId;
+        }
+
+        Log::warning('Issue payload creator fallback exhausted; defaulting to member-0', [
+            'task_id' => (string) $task->id,
+        ]);
+
+        return 0;
     }
 }

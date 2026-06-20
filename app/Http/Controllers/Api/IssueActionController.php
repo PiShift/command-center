@@ -25,7 +25,7 @@ class IssueActionController
         $offset = max(0, (int) $request->query('offset', 0));
         $includeClosed = filter_var($request->query('include_closed', false), FILTER_VALIDATE_BOOLEAN);
 
-        $query = Task::query()->with(['project.teams:id', 'assignee:id']);
+        $query = Task::query()->with(['project.teams:id,lead_user_id', 'assignee:id']);
         $user = $request->user();
 
         if (! $user->hasPermission('projects.view_all')) {
@@ -51,9 +51,10 @@ class IssueActionController
             ->offset($offset)
             ->limit($limit)
             ->get();
+        $fallbackUserId = $user?->id;
 
         return response()->json([
-            'issues' => $issues->map(fn (Task $task): array => $this->issuePayloadTransformer->transform($task))->values(),
+            'issues' => $issues->map(fn (Task $task): array => $this->issuePayloadTransformer->transform($task, $fallbackUserId))->values(),
             'total'  => $total,
         ]);
     }
@@ -72,7 +73,7 @@ class IssueActionController
             default => $groupBy,
         };
 
-        $query = Task::query()->with(['project.teams:id', 'assignee:id']);
+        $query = Task::query()->with(['project.teams:id,lead_user_id', 'assignee:id']);
         $user = $request->user();
 
         if (! $user->hasPermission('projects.view_all')) {
@@ -103,11 +104,13 @@ class IssueActionController
             return (string) $raw;
         });
 
+        $fallbackUserId = $user?->id;
+
         $groups = $grouped
-            ->map(function (Collection $items, string $key): array {
+            ->map(function (Collection $items, string $key) use ($fallbackUserId): array {
                 return [
                     'key'    => $key,
-                    'issues' => $items->map(fn (Task $task): array => $this->issuePayloadTransformer->transform($task))->values(),
+                    'issues' => $items->map(fn (Task $task): array => $this->issuePayloadTransformer->transform($task, $fallbackUserId))->values(),
                     'total'  => $items->count(),
                 ];
             })

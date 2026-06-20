@@ -159,18 +159,49 @@ class IssueContractTest extends TestCase
 
         $update->assertOk()
             ->assertJsonPath('assignee_id', 'member-' . $assigneeB->id)
-            ->assertJsonPath('creator_type', null)
-            ->assertJsonPath('creator_id', null);
+            ->assertJsonPath('creator_type', 'member')
+            ->assertJsonPath('creator_id', 'member-' . $assigneeB->id);
 
         $detail->assertOk()
             ->assertJsonPath('assignee_id', 'member-' . $assigneeB->id)
-            ->assertJsonPath('creator_type', null)
-            ->assertJsonPath('creator_id', null);
+            ->assertJsonPath('creator_type', 'member')
+            ->assertJsonPath('creator_id', 'member-' . $assigneeB->id);
 
         $list->assertOk();
         $this->assertSame('member-' . $assigneeB->id, data_get($list->json(), 'issues.0.assignee_id'));
-        $this->assertNull(data_get($list->json(), 'issues.0.creator_type'));
-        $this->assertNull(data_get($list->json(), 'issues.0.creator_id'));
+        $this->assertSame('member', data_get($list->json(), 'issues.0.creator_type'));
+        $this->assertSame('member-' . $assigneeB->id, data_get($list->json(), 'issues.0.creator_id'));
+    }
+
+    public function test_status_todo_filter_returns_non_null_creator_and_enum_safe_payload(): void
+    {
+        ['viewer' => $viewer, 'task' => $task] = $this->makeIssueFixture();
+
+        $task->forceFill([
+            'status' => 'open',
+            'priority' => 'medium',
+            'assigned_to' => null,
+        ])->save();
+
+        $response = $this->actingAs($viewer)->getJson('/api/issues?status=todo');
+
+        $response->assertOk()->assertJsonCount(1, 'issues');
+
+        $issue = data_get($response->json(), 'issues.0');
+
+        $this->assertNotNull($issue['creator_type']);
+        $this->assertNotNull($issue['creator_id']);
+        $this->assertSame('member', $issue['creator_type']);
+        $this->assertSame('member-' . $viewer->id, $issue['creator_id']);
+
+        $this->assertContains($issue['status'], ['backlog', 'in_progress', 'in_review', 'blocked', 'done', 'cancelled']);
+        $this->assertContains($issue['priority'], ['low', 'medium', 'high']);
+        $this->assertContains($issue['assignee_type'], ['member', 'agent', 'squad', null]);
+
+        if ($issue['assignee_type'] !== null) {
+            $this->assertIsString($issue['assignee_id']);
+            $this->assertMatchesRegularExpression('/^(member|agent|squad)-.+$/', $issue['assignee_id']);
+        }
     }
 
     private function makeIssueFixture(): array
