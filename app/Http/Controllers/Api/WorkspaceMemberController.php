@@ -32,7 +32,7 @@ class WorkspaceMemberController extends Controller
             return [
                 'id'           => (string) $member->id,
                 'workspace_id' => (string) $workspaceId,
-                'user_id'      => 'user-'.(string) $member->id,
+                'user_id'      => 'member-'.(string) $member->id,
                 'role'         => (int) $team->lead_user_id === (int) $member->id ? 'owner' : 'member',
                 'created_at'   => optional($member->pivot?->created_at)?->toIso8601String(),
                 'name'         => (string) $member->name,

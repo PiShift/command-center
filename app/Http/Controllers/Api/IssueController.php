@@ -185,8 +185,8 @@ class IssueController extends Controller
             $assigneeType = 'agent';
             $typedAssigneeId = 'agent-' . (string) $task->agent_id;
         } elseif (!empty($task->assigned_to)) {
-            $assigneeType = 'user';
-            $typedAssigneeId = 'user-' . (string) $task->assigned_to;
+            $assigneeType = 'member';
+            $typedAssigneeId = 'member-' . (string) $task->assigned_to;
         }
 
         return [
