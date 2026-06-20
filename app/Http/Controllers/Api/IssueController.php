@@ -9,6 +9,7 @@ use App\Models\Task;
 use App\Models\TaskComment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class IssueController extends Controller
 {
@@ -30,6 +31,8 @@ class IssueController extends Controller
         if (! $task) {
             return response()->json(['error' => 'issue not found'], 404);
         }
+
+        Log::info('Updating issue', ['id' => $id, 'payload' => $request->all()]);
 
         $data = $request->validate([
             'status'        => ['sometimes', 'string', 'max:100'],
@@ -65,6 +68,8 @@ class IssueController extends Controller
                 }
             }
         }
+
+        Log::info('Saving issue', ['id' => $id, 'status' => $task->status, 'priority' => $task->priority, 'assigned_to' => $task->assigned_to]);
 
         if ($task->isDirty()) {
             $task->save();
