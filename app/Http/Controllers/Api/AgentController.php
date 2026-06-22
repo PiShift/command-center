@@ -8,11 +8,14 @@ use App\Models\AgentRuntime;
 use App\Models\Team;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class AgentController extends Controller
 {
     public function store(Request $request): JsonResponse
     {
+        Log::info('create agent request', $request->all());
+
         $data = $request->validate([
             'name'                 => ['required', 'string', 'max:255'],
             'description'          => ['nullable', 'string'],
