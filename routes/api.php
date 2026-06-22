@@ -287,7 +287,7 @@ Route::prefix('daemon')->middleware(DaemonTokenMiddleware::class)->group(functio
 
     // Placeholder for future runtime profile implementation
     Route::get('workspaces/{workspaceId}/runtime-profiles', function() {
-        return response()->json([]);
+        return response()->json(['profiles' => []]);
     });
     Route::post('tasks/{taskId}/session', function() {
         return response()->json(['status' => 'ok']);
