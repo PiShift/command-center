@@ -7,12 +7,10 @@ use App\WebSocket\PiShiftWebSocketServer;
 use React\EventLoop\Factory;
 use React\Socket\SocketServer;
 use React\Socket\ConnectionInterface;
-use Ratchet\RFC6455\Handshake\ServerNegotiator;
-use Ratchet\RFC6455\Handshake\RequestVerifier;
 use Ratchet\RFC6455\Messaging\MessageBuffer;
 use Ratchet\RFC6455\Messaging\CloseFrameChecker;
 use Ratchet\RFC6455\Messaging\Frame;
-use GuzzleHttp\Psr7\Message;
+use GuzzleHttp\Psr7\Request;
 
 class WebSocketServe extends Command
 {
@@ -31,72 +29,80 @@ class WebSocketServe extends Command
         $this->line('Waiting for connections...');
 
         try {
-            $loop      = Factory::create();
-            $wsServer  = new PiShiftWebSocketServer();
-            $negotiator = new ServerNegotiator(new RequestVerifier());
+            $loop     = Factory::create();
+            $wsServer = new PiShiftWebSocketServer();
 
-            // Relax strict subprotocol check so clients that don't send a subprotocol still connect
-            $negotiator->setStrictSubProtocolCheck(false);
-
-            // Store in container so WebSocketBroadcaster can reach it
             app()->instance(PiShiftWebSocketServer::class, $wsServer);
 
             $socket = new SocketServer("{$host}:{$port}", [], $loop);
 
-            $socket->on('connection', function (ConnectionInterface $tcpConn) use ($wsServer, $negotiator) {
+            $socket->on('connection', function (ConnectionInterface $tcpConn) use ($wsServer) {
                 $httpBuffer = '';
                 $connId     = spl_object_id($tcpConn);
                 /** @var MessageBuffer|null $msgBuffer */
                 $msgBuffer = null;
 
                 $tcpConn->on('data', function (string $data) use (
-                    $tcpConn, $wsServer, $negotiator, $connId, &$httpBuffer, &$msgBuffer
+                    $tcpConn, $wsServer, $connId, &$httpBuffer, &$msgBuffer
                 ) {
-                    // Already upgraded — pass data directly to the frame parser
+                    // Already upgraded — pass to frame parser
                     if ($msgBuffer !== null) {
                         $msgBuffer->onData($data);
                         return;
                     }
 
-                    // Buffer until we have the full HTTP request headers
+                    // Buffer until we have the full HTTP headers
                     $httpBuffer .= $data;
                     if (strpos($httpBuffer, "\r\n\r\n") === false) {
                         return;
                     }
 
-                    // Parse the HTTP upgrade request
-                    try {
-                        $request = Message::parseRequest($httpBuffer);
-                    } catch (\Throwable $e) {
-                        $tcpConn->write("HTTP/1.1 400 Bad Request\r\n\r\n");
+                    // Parse headers manually (avoids ratchet version differences)
+                    $lines   = explode("\r\n", $httpBuffer);
+                    $headers = [];
+                    foreach (array_slice($lines, 1) as $line) {
+                        if (str_contains($line, ':')) {
+                            [$name, $value] = explode(':', $line, 2);
+                            $headers[strtolower(trim($name))] = trim($value);
+                        }
+                    }
+
+                    $upgrade    = strtolower($headers['upgrade'] ?? '');
+                    $connection = strtolower($headers['connection'] ?? '');
+                    $key        = $headers['sec-websocket-key'] ?? '';
+
+                    if ($upgrade !== 'websocket' || !str_contains($connection, 'upgrade') || empty($key)) {
+                        $tcpConn->write("HTTP/1.1 400 Bad Request\r\nContent-Length: 11\r\n\r\nBad Request");
                         $tcpConn->close();
                         return;
                     }
 
-                    // Perform RFC6455 WebSocket handshake
-                    $response = $negotiator->handshake($request);
+                    // RFC6455 handshake — compute Accept header
+                    $accept = base64_encode(sha1($key . '258EAFA5-E914-47DA-95CA-C5AB0DC85B11', true));
 
-                    if ($response->getStatusCode() !== 101) {
-                        $tcpConn->write(Message::toString($response));
-                        $tcpConn->close();
-                        return;
-                    }
+                    // Extract request path+query
+                    preg_match('/^[A-Z]+\s+(\S+)\s+HTTP/i', $lines[0] ?? '', $m);
+                    $requestUri = $m[1] ?? '/';
+                    $request    = new Request('GET', $requestUri, $headers);
 
-                    // Register the connection in the business-logic server
+                    // Register connection before sending 101
                     $wsServer->registerConnection((string) $connId, $tcpConn, $request);
 
-                    // Send the 101 Switching Protocols response
-                    $tcpConn->write(Message::toString($response));
+                    // Send 101 Switching Protocols
+                    $tcpConn->write(
+                        "HTTP/1.1 101 Switching Protocols\r\n" .
+                        "Upgrade: websocket\r\n" .
+                        "Connection: Upgrade\r\n" .
+                        "Sec-WebSocket-Accept: {$accept}\r\n\r\n"
+                    );
 
                     // Wire up RFC6455 message buffer for ongoing framing
                     $msgBuffer = new MessageBuffer(
                         new CloseFrameChecker(),
-                        // Complete text/binary message received
                         function ($msg) use ($connId, $wsServer) {
                             $wsServer->handleMessage((string) $connId, $msg->getPayload());
                         },
-                        // Control frame received (ping / close)
-                        function (Frame $frame) use ($tcpConn, $connId, $wsServer) {
+                        function (Frame $frame) use ($tcpConn) {
                             if ($frame->getOpcode() === Frame::OP_PING) {
                                 $pong = new Frame($frame->getPayload(), true, Frame::OP_PONG);
                                 $tcpConn->write($pong->getContents());
@@ -104,8 +110,8 @@ class WebSocketServe extends Command
                                 $tcpConn->close();
                             }
                         },
-                        true,  // checkForMask — clients MUST mask frames
-                        null   // no outbound data callback needed
+                        true,
+                        null
                     );
 
                     // Feed any bytes that arrived after the HTTP headers
