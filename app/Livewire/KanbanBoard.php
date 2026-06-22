@@ -12,6 +12,7 @@ use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\TaskClaimedNotification;
 use App\Notifications\TaskStatusChangedNotification;
 use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class KanbanBoard extends Component
@@ -111,6 +112,13 @@ class KanbanBoard extends Component
         SlackNotificationHelper::notifyOnce(new TaskClaimedNotification($task, $user));
 
         $this->dispatch('task-claimed', taskId: $taskId);
+    }
+
+    #[On('taskStatusChanged')]
+    public function onTaskStatusChanged(int $taskId, string $status): void
+    {
+        // Refresh the board data to reflect the status change
+        // This will trigger a re-render of the component
     }
 
     public function render()
