@@ -297,6 +297,11 @@ class DaemonController extends Controller
 
         $queue->task()->update(['status' => 'in-progress']);
 
+        $task = $queue->task()->first();
+        $workspaceId = (string) AgentRuntime::find($queue->runtime_id)?->team_id;
+
+        \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
+
         return response()->json(['status' => 'ok']);
     }
 
@@ -454,6 +459,11 @@ class DaemonController extends Controller
 
         $queue->task()->update(['status' => 'in-review']);
 
+        $task = $queue->task()->first();
+        $workspaceId = (string) AgentRuntime::find($queue->runtime_id)?->team_id;
+
+        \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
+
         TaskToken::query()->where('task_id', $queue->id)->delete();
 
         return response()->json(['status' => 'ok']);
@@ -477,6 +487,11 @@ class DaemonController extends Controller
         ])->save();
 
         $queue->task()->update(['status' => 'open']);
+
+        $task = $queue->task()->first();
+        $workspaceId = (string) AgentRuntime::find($queue->runtime_id)?->team_id;
+
+        \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
 
         TaskComment::create([
             'task_id' => $queue->task_id,
@@ -514,11 +529,24 @@ class DaemonController extends Controller
     {
         $queue = AgentTaskQueue::with('task.project')->find($queueId);
 
-        if (! $queue || ! $queue->task || (int) $queue->task->assigned_to !== (int) $request->user()->id) {
+        if (! $queue) {
             return null;
         }
 
-        return $queue;
+        if ($this->hasValidMatTokenForTask($request, $queueId)) {
+            return $queue;
+        }
+
+        $runtime = AgentRuntime::query()
+            ->where('id', $queue->runtime_id)
+            ->where('user_id', $request->user()->id)
+            ->first();
+
+        if ($runtime) {
+            return $queue;
+        }
+
+        return null;
     }
 
     private function isTeamMember($user, Team $team): bool

@@ -111,6 +111,10 @@ class IssueController extends Controller
             'body'    => $data['content'],
         ]);
 
+        $workspaceId = (string) $task->project?->teams()?->first()?->id;
+
+        \App\WebSocket\WebSocketBroadcaster::broadcastCommentCreated($comment, $workspaceId);
+
         return response()->json($this->commentPayload($comment), 201);
     }
 
