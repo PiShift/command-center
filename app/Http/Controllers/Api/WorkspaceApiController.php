@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Team;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class WorkspaceApiController extends Controller
 {
@@ -26,5 +28,23 @@ class WorkspaceApiController extends Controller
         })->values();
 
         return response()->json($workspaces);
+    }
+
+    public function show(string $id): JsonResponse
+    {
+        $team = Team::find($id);
+
+        if (! $team) {
+            return response()->json(['error' => 'not found'], 404);
+        }
+
+        return response()->json([
+            'id'          => (string) $team->id,
+            'name'        => $team->name,
+            'slug'        => Str::slug($team->name),
+            'description' => $team->description,
+            'created_at'  => $team->created_at->toIso8601String(),
+            'updated_at'  => $team->updated_at->toIso8601String(),
+        ]);
     }
 }
