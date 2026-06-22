@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\AgentCommentPosted;
 use App\Models\Task;
 use App\Models\TaskComment;
 use App\Notifications\Helpers\SlackNotificationHelper;
@@ -31,6 +32,13 @@ class TaskCommentController extends Controller
         if ($workspaceId) {
             \App\WebSocket\WebSocketBroadcaster::broadcastCommentCreated($comment, (string) $workspaceId);
         }
+
+        // Broadcast real-time event via Reverb/Echo
+        broadcast(new AgentCommentPosted(
+            taskId: (int) $task->id,
+            body: $comment->body,
+            authorName: auth()->user()->name,
+        ));
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');

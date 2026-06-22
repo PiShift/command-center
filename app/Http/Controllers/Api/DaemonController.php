@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\AgentTaskStarted;
+use App\Events\AgentTaskCompleted;
+use App\Events\AgentTaskFailed;
+use App\Events\TaskStatusChanged;
 use App\Http\Controllers\Controller;
 use App\Models\AgentTaskMessage;
 use App\Models\AgentRuntime;
@@ -303,6 +307,19 @@ class DaemonController extends Controller
             \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
         }
 
+        // Broadcast real-time events via Reverb/Echo
+        broadcast(new AgentTaskStarted(
+            taskId: $task->id,
+            queueId: $queue->id,
+            agentName: $task->agent?->name ?? 'Agent',
+            provider: $queue->runtime?->provider ?? 'unknown',
+        ));
+        broadcast(new TaskStatusChanged(
+            taskId: $task->id,
+            status: 'in-progress',
+            projectId: (string) $task->project_id,
+        ));
+
         return response()->json(['status' => 'ok']);
     }
 
@@ -466,6 +483,17 @@ class DaemonController extends Controller
             \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
         }
 
+        // Broadcast real-time events via Reverb/Echo
+        broadcast(new AgentTaskCompleted(
+            taskId: $task->id,
+            newStatus: 'in-review',
+        ));
+        broadcast(new TaskStatusChanged(
+            taskId: $task->id,
+            status: 'in-review',
+            projectId: (string) $task->project_id,
+        ));
+
         TaskToken::query()->where('task_id', $queue->id)->delete();
 
         return response()->json(['status' => 'ok']);
@@ -495,6 +523,17 @@ class DaemonController extends Controller
         if ($workspaceId) {
             \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
         }
+
+        // Broadcast real-time events via Reverb/Echo
+        broadcast(new AgentTaskFailed(
+            taskId: $task->id,
+            error: $data['error'] ?? 'Unknown error',
+        ));
+        broadcast(new TaskStatusChanged(
+            taskId: $task->id,
+            status: 'open',
+            projectId: (string) $task->project_id,
+        ));
 
         TaskComment::create([
             'task_id' => $queue->task_id,

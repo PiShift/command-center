@@ -360,10 +360,11 @@
             $canDeleteComment = auth()->user()->hasPermission('tasks.comments.delete');
         @endphp
         <div class="mt-5 border-t border-hairline pt-4">
+            <div id="agent-status-badge" class="mb-3"></div>
             <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-4">Comments</p>
 
             @if($comments->isNotEmpty())
-            <div class="space-y-4 mb-5">
+            <div id="comments-list" class="space-y-4 mb-5">
                 @foreach($comments as $comment)
                 <div class="flex gap-3">
                     <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
@@ -461,5 +462,73 @@
         </div>
     </div>
 </div>
+
+<script>
+window.addEventListener('load', function () {
+    if (!window.Echo) return;
+
+    const taskId = {{ $task->id }};
+
+    // Agent working indicator
+    const agentBadge = document.getElementById('agent-status-badge');
+    const commentsList = document.getElementById('comments-list');
+
+    window.Echo.channel('tasks.' + taskId)
+        .listen('.agent.started', (e) => {
+            // Show animated loader on task
+            if (agentBadge) {
+                agentBadge.innerHTML = `
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 animate-pulse">
+                        <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        ${e.agentName} working...
+                    </span>`;
+            }
+        })
+        .listen('.agent.completed', (e) => {
+            // Update status badge and reload status section
+            if (agentBadge) {
+                agentBadge.innerHTML = `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        ✅ Agent completed
+                    </span>`;
+            }
+            // Auto-reload the page after 1 second to show new status
+            setTimeout(() => window.location.reload(), 1000);
+        })
+        .listen('.agent.failed', (e) => {
+            if (agentBadge) {
+                agentBadge.innerHTML = `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        ❌ Agent failed: ${e.error}
+                    </span>`;
+            }
+        })
+        .listen('.agent.comment', (e) => {
+            // Append new comment without page reload
+            if (commentsList) {
+                const div = document.createElement('div');
+                div.className = 'border rounded p-3 bg-gray-50 animate-pulse-once flex gap-3';
+                div.innerHTML = `
+                    <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
+                         style="background: #D97757">
+                        ${e.authorName.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="font-medium text-sm">${e.authorName}</span>
+                            <span class="text-xs text-gray-400">just now</span>
+                        </div>
+                        <div class="text-sm text-gray-700 prose max-w-none">${e.body}</div>
+                    </div>`;
+                commentsList.prepend(div);
+                // Remove pulse after animation
+                setTimeout(() => div.classList.remove('animate-pulse-once'), 2000);
+            }
+        });
+});
+</script>
 
 </x-layouts.app>
