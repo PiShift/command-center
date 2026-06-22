@@ -95,6 +95,50 @@
 @endphp
 
 @if($open)
+<style>
+    .task-modal-shell {
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+    }
+
+    .task-modal-left {
+        width: 100%;
+        flex: none;
+        min-width: 0;
+        min-height: 0;
+    }
+
+    .task-modal-right {
+        width: 100%;
+        flex-shrink: 0;
+    }
+
+    @media (min-width: 900px) {
+        .task-modal-shell {
+            flex-direction: row;
+            overflow-y: hidden;
+        }
+
+        .task-modal-left {
+            width: 0;
+            flex: 1 1 0%;
+            overflow-y: auto;
+        }
+
+        .task-modal-right {
+            width: 320px;
+            border-top-width: 0;
+            border-left-width: 1px;
+            position: sticky;
+            top: 0;
+            align-self: flex-start;
+            max-height: 100vh;
+            overflow-y: auto;
+        }
+    }
+</style>
+
 {{-- Overlay --}}
 <div class="fixed inset-0 flex items-stretch justify-end overflow-hidden"
      style="z-index:40;background: rgba(0,0,0,0.45)"
@@ -112,7 +156,7 @@
     x-on:keydown.escape.window="requestClose()">
 
     {{-- Modal shell: Surface outer + white left panel --}}
-        <div class="h-full w-full max-w-[960px] bg-surface overflow-y-auto shadow-modal flex flex-col md:items-start"
+        <div class="task-modal-shell h-full w-full max-w-[960px] bg-surface shadow-modal"
             style="background:#F5F4EF; box-shadow: 0 20px 60px rgba(0,0,0,0.18)"
            x-show="panelOpen"
            x-transition:enter="transform transition duration-250 ease-out"
@@ -124,7 +168,7 @@
             wire:click.stop>
 
         {{-- ── LEFT: Content panel ───────────────────────────────────────── --}}
-        <div class="flex-1 flex flex-col min-w-0 bg-white pb-28 sm:pb-0">
+        <div class="task-modal-left flex flex-col bg-white pb-28 sm:pb-0">
 
             {{-- Title area --}}
             <div class="sticky top-0 z-20 bg-white px-4 sm:px-7 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-hairline">
@@ -493,7 +537,7 @@
         </div>
 
         {{-- ── RIGHT: Meta sidebar ───────────────────────────────────────── --}}
-        <div class="w-full md:w-[320px] shrink-0 flex flex-col border-t md:border-t-0 md:border-l border-hairline bg-surface pb-28 sm:pb-0 md:sticky md:top-0 md:self-start md:max-h-screen md:overflow-y-auto">
+        <div class="task-modal-right flex flex-col border-t border-hairline bg-surface pb-28 sm:pb-0">
 
             <div class="px-4 sm:px-5 pt-4 sm:pt-0 pb-6 space-y-0 divide-y divide-hairline">
 
