@@ -17,6 +17,8 @@ class PiShiftWebSocketServer
     protected array $workspaceSubscriptions = [];
     // runtime_id => connId
     protected array $daemonConnections = [];
+    // Buffer for RESP protocol parsing
+    protected string $redisBuffer = '';
 
     /**
      * Register a newly upgraded WebSocket connection.
@@ -246,51 +248,95 @@ class PiShiftWebSocketServer
     }
 
     /**
-     * Subscribe to Redis pub/sub channels and forward messages
-     * to connected WebSocket clients.
+     * Subscribe to Redis pub/sub channels asynchronously using ReactPHP.
      * Called once from the artisan command after the server starts.
      */
     public function subscribeToRedis(\React\EventLoop\LoopInterface $loop): void
     {
-        // Use a separate Redis connection for blocking subscribe
-        $redisUrl = config('database.redis.default.url') 
-            ?? ('redis://' . config('database.redis.default.host', '127.0.0.1') 
-                . ':' . config('database.redis.default.port', 6379));
+        $host = config('database.redis.default.host', '127.0.0.1');
+        $port = (int) config('database.redis.default.port', 6379);
 
-        $client = new \Predis\Client($redisUrl);
-        $pubsub = $client->pubSubLoop();
+        $connector = new \React\Socket\Connector($loop);
+        $connector->connect("tcp://{$host}:{$port}")->then(
+            function (\React\Socket\ConnectionInterface $conn) {
+                // Subscribe to both channels using RESP protocol
+                $conn->write("*2\r\n\$9\r\nSUBSCRIBE\r\n\$16\r\npishift:ws:events\r\n");
+                $conn->write("*2\r\n\$9\r\nSUBSCRIBE\r\n\$15\r\npishift:ws:daemon\r\n");
 
-        // Subscribe to both channels
-        $pubsub->subscribe('pishift:ws:events', 'pishift:ws:daemon');
+                $conn->on('data', function (string $chunk) {
+                    $this->redisBuffer .= $chunk;
+                    $this->processRedisBuffer();
+                });
 
-        // Run subscriber in a periodic timer so it doesn't block the event loop
-        $loop->addPeriodicTimer(0.01, function () use ($pubsub) {
-            foreach ($pubsub as $message) {
-                if ($message->kind !== 'message') continue;
+                $conn->on('error', function (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Redis subscriber error: ' . $e->getMessage());
+                });
 
-                $data = json_decode($message->payload, true);
-                if (!$data) continue;
-
-                if ($message->channel === 'pishift:ws:events') {
-                    $workspaceId = $data['workspace_id'] ?? null;
-                    $payload = $data['payload'] ?? null;
-                    if ($workspaceId && $payload) {
-                        $this->broadcastToWorkspace($workspaceId, $payload);
-                    }
-                }
-
-                if ($message->channel === 'pishift:ws:daemon') {
-                    $runtimeId = $data['runtime_id'] ?? null;
-                    $taskId    = $data['task_id'] ?? null;
-                    if ($runtimeId && $taskId) {
-                        $this->wakeupDaemon($runtimeId, $taskId);
-                    }
-                }
-
-                // Only process one message per timer tick to avoid blocking
-                break;
+                $conn->on('close', function () {
+                    \Illuminate\Support\Facades\Log::warning('Redis subscriber connection closed');
+                });
+            },
+            function (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Redis subscriber connect failed: ' . $e->getMessage());
             }
-        });
+        );
+    }
+
+    /**
+     * Process incoming Redis RESP protocol buffer and dispatch events.
+     */
+    private function processRedisBuffer(): void
+    {
+        // Parse Redis RESP protocol messages
+        // A pub/sub message looks like:
+        // *3\r\n$7\r\nmessage\r\n$<channel_len>\r\n<channel>\r\n$<payload_len>\r\n<payload>\r\n
+        while (true) {
+            // Must start with array marker
+            if (!str_starts_with($this->redisBuffer, '*3')) break;
+
+            $parts = [];
+            $remaining = $this->redisBuffer;
+
+            // Parse array header
+            if (!preg_match('/^\*3\r\n/', $remaining)) break;
+            $remaining = substr($remaining, 4);
+
+            // Try to extract 3 bulk strings
+            for ($i = 0; $i < 3; $i++) {
+                if (!preg_match('/^\$(\d+)\r\n/', $remaining, $m)) return; // incomplete
+                $len = (int) $m[1];
+                $remaining = substr($remaining, strlen($m[0]));
+                if (strlen($remaining) < $len + 2) return; // incomplete
+                $parts[] = substr($remaining, 0, $len);
+                $remaining = substr($remaining, $len + 2);
+            }
+
+            // Consumed a full message
+            $this->redisBuffer = $remaining;
+
+            [$type, $channel, $payload] = $parts;
+
+            if ($type !== 'message') continue;
+
+            $data = json_decode($payload, true);
+            if (!$data) continue;
+
+            if ($channel === 'pishift:ws:events') {
+                $workspaceId = $data['workspace_id'] ?? null;
+                $wsPayload   = $data['payload'] ?? null;
+                if ($workspaceId && $wsPayload) {
+                    $this->broadcastToWorkspace($workspaceId, $wsPayload);
+                }
+            }
+
+            if ($channel === 'pishift:ws:daemon') {
+                $runtimeId = $data['runtime_id'] ?? null;
+                $taskId    = $data['task_id'] ?? null;
+                if ($runtimeId && $taskId) {
+                    $this->wakeupDaemon($runtimeId, $taskId);
+                }
+            }
+        }
     }
 
     /**
