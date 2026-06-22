@@ -297,10 +297,11 @@ class DaemonController extends Controller
 
         $queue->task()->update(['status' => 'in-progress']);
 
-        $task = $queue->task()->first();
-        $workspaceId = (string) AgentRuntime::find($queue->runtime_id)?->team_id;
-
-        \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
+        $task = $queue->task()->with('project.teams')->first();
+        $workspaceId = (string) ($task->project?->teams?->first()?->id ?? '');
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
+        }
 
         return response()->json(['status' => 'ok']);
     }
@@ -459,10 +460,11 @@ class DaemonController extends Controller
 
         $queue->task()->update(['status' => 'in-review']);
 
-        $task = $queue->task()->first();
-        $workspaceId = (string) AgentRuntime::find($queue->runtime_id)?->team_id;
-
-        \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
+        $task = $queue->task()->with('project.teams')->first();
+        $workspaceId = (string) ($task->project?->teams?->first()?->id ?? '');
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
+        }
 
         TaskToken::query()->where('task_id', $queue->id)->delete();
 
@@ -488,10 +490,11 @@ class DaemonController extends Controller
 
         $queue->task()->update(['status' => 'open']);
 
-        $task = $queue->task()->first();
-        $workspaceId = (string) AgentRuntime::find($queue->runtime_id)?->team_id;
-
-        \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
+        $task = $queue->task()->with('project.teams')->first();
+        $workspaceId = (string) ($task->project?->teams?->first()?->id ?? '');
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
+        }
 
         TaskComment::create([
             'task_id' => $queue->task_id,

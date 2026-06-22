@@ -40,12 +40,9 @@ class KanbanBoard extends Component
         $workspaceId = $this->resolveWorkspaceId($task);
 
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
-                'type'       => 'issue:updated',
-                'payload'    => ['issue' => $this->issuePayload($task)],
-                'actor_id'   => (string) auth()->id(),
-                'actor_type' => 'user',
-            ]);
+            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated(
+                $task, $workspaceId, (string) auth()->id()
+            );
         }
 
         // Track completion timestamp
@@ -93,12 +90,9 @@ class KanbanBoard extends Component
         $workspaceId = $this->resolveWorkspaceId($task);
 
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
-                'type'       => 'issue:updated',
-                'payload'    => ['issue' => $this->issuePayload($task)],
-                'actor_id'   => (string) $user->id,
-                'actor_type' => 'user',
-            ]);
+            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated(
+                $task, $workspaceId, (string) $user->id
+            );
         }
 
         activity()

@@ -78,12 +78,9 @@ class TaskController extends Controller
         $workspaceId = $this->resolveWorkspaceId($task);
 
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
-                'type'       => 'issue:created',
-                'payload'    => ['issue' => $this->issuePayload($task)],
-                'actor_id'   => (string) auth()->id(),
-                'actor_type' => 'user',
-            ]);
+            \App\WebSocket\WebSocketBroadcaster::broadcastIssueCreated(
+                $task, $workspaceId, (string) auth()->id()
+            );
         }
 
         if (! empty($data['assigned_to'])) {
@@ -142,12 +139,9 @@ class TaskController extends Controller
         $workspaceId = $this->resolveWorkspaceId($task);
 
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
-                'type'       => 'issue:updated',
-                'payload'    => ['issue' => $this->issuePayload($task)],
-                'actor_id'   => (string) auth()->id(),
-                'actor_type' => 'user',
-            ]);
+            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated(
+                $task, $workspaceId, (string) auth()->id()
+            );
         }
 
         if (array_key_exists('agent_id', $data)) {
@@ -208,12 +202,9 @@ class TaskController extends Controller
         $task->delete();
 
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
-                'type'       => 'issue:deleted',
-                'payload'    => ['issue_id' => $taskId],
-                'actor_id'   => (string) auth()->id(),
-                'actor_type' => 'user',
-            ]);
+            \App\WebSocket\WebSocketBroadcaster::broadcastIssueDeleted(
+                $taskId, $workspaceId, (string) auth()->id()
+            );
         }
 
         return redirect()->route('tasks.index')->with('success', 'Task deleted.');
@@ -237,12 +228,9 @@ class TaskController extends Controller
         $workspaceId = $this->resolveWorkspaceId($task);
 
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
-                'type'       => 'issue:updated',
-                'payload'    => ['issue' => $this->issuePayload($task)],
-                'actor_id'   => (string) auth()->id(),
-                'actor_type' => 'user',
-            ]);
+            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated(
+                $task, $workspaceId, (string) auth()->id()
+            );
         }
 
         return back()->with('success', 'Task status updated.');
@@ -264,12 +252,9 @@ class TaskController extends Controller
         $workspaceId = $this->resolveWorkspaceId($task);
 
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
-                'type'       => 'issue:updated',
-                'payload'    => ['issue' => $this->issuePayload($task)],
-                'actor_id'   => (string) $user->id,
-                'actor_type' => 'user',
-            ]);
+            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated(
+                $task, $workspaceId, (string) $user->id
+            );
         }
 
         activity()
