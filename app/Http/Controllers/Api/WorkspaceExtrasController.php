@@ -29,7 +29,7 @@ class WorkspaceExtrasController
     public function removeMember(string $id, string $memberId): JsonResponse { return response()->json(['status' => 'ok']); }
     public function invitations(string $id): JsonResponse { return response()->json([]); }
     public function deleteInvitation(string $id, string $invId): JsonResponse { return response()->json(['status' => 'ok']); }
-    public function runtimeProfiles(string $id): JsonResponse { return response()->json([]); }
+    public function runtimeProfiles(string $id): JsonResponse { return response()->json(['profiles' => []]); }
     public function createRuntimeProfile(string $id): JsonResponse { return response()->json(['status' => 'ok']); }
     public function updateRuntimeProfile(string $id, string $profileId): JsonResponse { return response()->json(['status' => 'ok']); }
     public function deleteRuntimeProfile(string $id, string $profileId): JsonResponse { return response()->json(['status' => 'ok']); }
