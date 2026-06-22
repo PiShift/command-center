@@ -48,6 +48,7 @@ class MeContractTest extends TestCase
             $table->foreignId('role_id')->nullable();
             $table->string('color')->nullable();
             $table->string('initials')->nullable();
+            $table->timestamp('onboarded_at')->nullable();
             $table->json('notification_preferences')->nullable();
             $table->rememberToken();
             $table->timestamps();
@@ -95,8 +96,15 @@ class MeContractTest extends TestCase
 
         $this->assertSame((string) $user->id, $payload['id']);
         $this->assertNull($payload['avatar_url']);
-        $this->assertNull($payload['onboarded_at']);
+        $this->assertNotNull($payload['onboarded_at']);
         $this->assertSame('', $payload['profile_description']);
+
+        $firstOnboardedAt = $payload['onboarded_at'];
+
+        $second = $this->actingAs($user)->postJson('/api/me/onboarding/complete');
+        $second->assertOk();
+
+        $this->assertSame($firstOnboardedAt, $second->json('onboarded_at'));
     }
 
     public function test_get_me_and_onboarding_complete_return_identical_schema_shape(): void
