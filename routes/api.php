@@ -74,6 +74,7 @@ Route::middleware([
     Route::post('/feedback', [\App\Http\Controllers\Api\FeedbackController::class, 'store']);
 
     Route::get('/workspaces', [WorkspaceApiController::class, 'index']);
+    Route::get('/workspaces/{id}', [\App\Http\Controllers\Api\WorkspaceApiController::class, 'show']);
     Route::get('/runtimes', [\App\Http\Controllers\Api\RuntimeController::class, 'index']);
     Route::get('/agent-task-snapshot', [\App\Http\Controllers\Api\AgentTaskSnapshotController::class, 'index']);
     Route::get('/squads', [\App\Http\Controllers\Api\SquadController::class, 'index']);
