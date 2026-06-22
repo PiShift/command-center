@@ -7,6 +7,41 @@ use Illuminate\Http\JsonResponse;
 
 class RuntimeExtrasController
 {
+
+    public function usage(string $runtimeId): JsonResponse
+    {
+        $runtime = AgentRuntime::query()->whereKey($runtimeId)->first();
+        if (!$runtime) {
+            return response()->json([]);
+        }
+
+        $days = (int) request()->query('days', 14);
+
+        $usageData = \App\Models\AgentTaskUsage::query()
+            ->join('agent_task_queue', 'agent_task_usage.task_queue_id', '=', 'agent_task_queue.id')
+            ->where('agent_task_queue.runtime_id', $runtimeId)
+            ->where('agent_task_usage.created_at', '>=', now()->subDays($days))
+            ->selectRaw('
+                DATE(agent_task_usage.created_at) as date,
+                COALESCE(agent_task_usage.model, "unknown") as model,
+                SUM(agent_task_usage.input_tokens) as input_tokens,
+                SUM(agent_task_usage.output_tokens) as output_tokens
+            ')
+            ->groupBy('date', 'model')
+            ->orderBy('date', 'asc')
+            ->get();
+
+        return response()->json($usageData->map(fn($row) => [
+            'runtime_id'         => $runtimeId,
+            'date'               => $row->date,
+            'provider'           => $runtime->provider,
+            'model'              => $row->model,
+            'input_tokens'       => (int) $row->input_tokens,
+            'output_tokens'      => (int) $row->output_tokens,
+            'cache_read_tokens'  => 0,
+            'cache_write_tokens' => 0,
+        ]));
+    }
     public function destroy(string $runtimeId): JsonResponse
     {
         AgentRuntime::query()->whereKey($runtimeId)->delete();
