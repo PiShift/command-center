@@ -19,9 +19,14 @@ class MeController extends Controller
 
     public function completeOnboarding(Request $request): JsonResponse
     {
-        // When an onboarded_at column is added, mark it here:
-        // $user->forceFill(['onboarded_at' => now()])->save();
-        return response()->json($this->userPayload($request->user()));
+        $user = $request->user();
+
+        if (! $user->onboarded_at) {
+            $user->onboarded_at = now();
+            $user->save();
+        }
+
+        return response()->json($this->userPayload($user));
     }
 
     public function update(Request $request): JsonResponse
@@ -63,7 +68,7 @@ class MeController extends Controller
             'email'                    => (string) $user->email,
             'avatar_url'               => $user->getAttribute('avatar_url') ?? null,
             'onboarded_at'             => optional($user->getAttribute('onboarded_at'))?->toIso8601String() ?? null,
-            'onboarding_questionnaire' => (object) [],
+            'onboarding_questionnaire' => (object) ($user->getAttribute('onboarding_questionnaire') ?? []),
             'starter_content_state'    => $user->getAttribute('starter_content_state') ?? null,
             'language'                 => $user->getAttribute('language') ?? null,
             'profile_description'      => (string) ($user->getAttribute('profile_description') ?? ''),
