@@ -22,27 +22,26 @@ class AgentController extends Controller
             'instructions'         => ['nullable', 'string'],
             'runtime_id'           => ['required', 'uuid'],
             'visibility'           => ['nullable', 'in:workspace,private'],
-            'team_id'              => ['required', 'integer', 'exists:teams,id'],
             'max_concurrent_tasks' => ['nullable', 'integer', 'min:1', 'max:50'],
             'model'                => ['nullable', 'string', 'max:255'],
             'custom_env'           => ['nullable', 'array'],
             'custom_args'          => ['nullable', 'array'],
         ]);
 
-        $team = Team::findOrFail((int) $data['team_id']);
-
-        if (! $team->members()->where('users.id', $request->user()->id)->exists()) {
-            return response()->json(['error' => 'forbidden'], 403);
-        }
-
+        // Resolve runtime — must belong to authenticated user
         $runtime = AgentRuntime::query()
             ->where('id', $data['runtime_id'])
             ->where('user_id', $request->user()->id)
-            ->where('team_id', $team->id)
             ->first();
 
-        if (! $runtime) {
+        if (!$runtime) {
             return response()->json(['error' => 'runtime not found'], 404);
+        }
+
+        // Resolve team from runtime
+        $team = Team::find($runtime->team_id);
+        if (!$team) {
+            return response()->json(['error' => 'workspace not found'], 404);
         }
 
         $agent = Agent::create([
