@@ -213,6 +213,7 @@ Route::middleware([
     Route::delete('/runtimes/{runtimeId}', [\App\Http\Controllers\Api\RuntimeExtrasController::class, 'destroy']);
     Route::patch('/runtimes/{runtimeId}', [\App\Http\Controllers\Api\RuntimeExtrasController::class, 'update']);
     Route::get('/runtimes/{runtimeId}/activity', [\App\Http\Controllers\Api\RuntimeExtrasController::class, 'activity']);
+    Route::get('/runtimes/{runtimeId}/usage', [\App\Http\Controllers\Api\RuntimeExtrasController::class, 'usage']);
     Route::get('/runtimes/{runtimeId}/usage/by-agent', [\App\Http\Controllers\Api\RuntimeExtrasController::class, 'usageByAgent']);
     Route::get('/runtimes/{runtimeId}/usage/by-hour', [\App\Http\Controllers\Api\RuntimeExtrasController::class, 'usageByHour']);
     Route::post('/runtimes/{runtimeId}/archive-agents-and-delete', [\App\Http\Controllers\Api\RuntimeExtrasController::class, 'archiveAndDelete']);
@@ -266,23 +267,17 @@ Route::middleware([
     Route::post('/invitations/{invitationId}/decline', [\App\Http\Controllers\Api\InvitationController::class, 'decline']);
 
     Route::get('/agent-tasks/{queueId}/messages', [AgentTaskController::class, 'messages']);
+    Route::post('/me/onboarding/complete', [MeController::class, 'completeOnboarding']);
 
     // Placeholder for future invitation implementation
     Route::get('/invitations', function() {
         return response()->json([]);
     });
-    Route::post('/me/onboarding/complete', [MeController::class, 'completeOnboarding']);
     Route::get('/agent-activity-30d', function() {
         return response()->json([]);
     });
     Route::get('/agent-run-counts', function() {
         return response()->json([]);
-    });
-    Route::get('/runtimes/{runtimeId}/usage', function() {
-        return response()->json([
-            'days'  => [],
-            'total' => 0,
-        ]);
     });
 });
 
