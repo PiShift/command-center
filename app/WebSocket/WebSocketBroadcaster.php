@@ -107,4 +107,15 @@ class WebSocketBroadcaster
             'attachments'     => [],
         ];
     }
+
+    public static function broadcastToWorkspace(string $workspaceId, array $payload): void
+    {
+        try {
+            $server = app(\App\WebSocket\PiShiftWebSocketServer::class);
+            if (!$server) return;
+            $server->broadcastToWorkspace($workspaceId, $payload);
+        } catch (\Throwable) {
+            // WebSocket server may not be running
+        }
+    }
 }
