@@ -246,6 +246,54 @@ class PiShiftWebSocketServer
     }
 
     /**
+     * Subscribe to Redis pub/sub channels and forward messages
+     * to connected WebSocket clients.
+     * Called once from the artisan command after the server starts.
+     */
+    public function subscribeToRedis(\React\EventLoop\LoopInterface $loop): void
+    {
+        // Use a separate Redis connection for blocking subscribe
+        $redisUrl = config('database.redis.default.url') 
+            ?? ('redis://' . config('database.redis.default.host', '127.0.0.1') 
+                . ':' . config('database.redis.default.port', 6379));
+
+        $client = new \Predis\Client($redisUrl);
+        $pubsub = $client->pubSubLoop();
+
+        // Subscribe to both channels
+        $pubsub->subscribe('pishift:ws:events', 'pishift:ws:daemon');
+
+        // Run subscriber in a periodic timer so it doesn't block the event loop
+        $loop->addPeriodicTimer(0.01, function () use ($pubsub) {
+            foreach ($pubsub as $message) {
+                if ($message->kind !== 'message') continue;
+
+                $data = json_decode($message->payload, true);
+                if (!$data) continue;
+
+                if ($message->channel === 'pishift:ws:events') {
+                    $workspaceId = $data['workspace_id'] ?? null;
+                    $payload = $data['payload'] ?? null;
+                    if ($workspaceId && $payload) {
+                        $this->broadcastToWorkspace($workspaceId, $payload);
+                    }
+                }
+
+                if ($message->channel === 'pishift:ws:daemon') {
+                    $runtimeId = $data['runtime_id'] ?? null;
+                    $taskId    = $data['task_id'] ?? null;
+                    if ($runtimeId && $taskId) {
+                        $this->wakeupDaemon($runtimeId, $taskId);
+                    }
+                }
+
+                // Only process one message per timer tick to avoid blocking
+                break;
+            }
+        });
+    }
+
+    /**
      * Resolve token and return user
      */
     private function resolveToken(string $token): ?User

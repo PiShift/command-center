@@ -2,20 +2,35 @@
 
 namespace App\WebSocket;
 
+use App\Models\Task;
+use App\Models\TaskComment;
+use Illuminate\Support\Facades\Redis;
+
 class WebSocketBroadcaster
 {
-    /**
-     * Broadcast task/issue updated event
-     */
-    public static function broadcastIssueUpdated(
-        \App\Models\Task $task,
-        string $workspaceId,
-        string $actorId = '1'
-    ): void {
-        $server = app(PiShiftWebSocketServer::class, [], true);
-        if (!$server) return;
+    private const CHANNEL = 'pishift:ws:events';
 
-        $server->broadcastToWorkspace($workspaceId, [
+    /**
+     * Publish an event to Redis — the WebSocket server subscribes
+     * and forwards to connected clients.
+     */
+    public static function broadcastToWorkspace(string $workspaceId, array $payload): void
+    {
+        try {
+            Redis::publish(self::CHANNEL, json_encode([
+                'workspace_id' => $workspaceId,
+                'payload'      => $payload,
+            ]));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('WebSocket broadcast failed', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public static function broadcastIssueUpdated(Task $task, string $workspaceId, string $actorId = '1'): void
+    {
+        self::broadcastToWorkspace($workspaceId, [
             'type'       => 'issue:updated',
             'payload'    => ['issue' => self::issuePayload($task)],
             'actor_id'   => $actorId,
@@ -23,17 +38,29 @@ class WebSocketBroadcaster
         ]);
     }
 
-    /**
-     * Broadcast comment created event
-     */
-    public static function broadcastCommentCreated(
-        \App\Models\TaskComment $comment,
-        string $workspaceId
-    ): void {
-        $server = app(PiShiftWebSocketServer::class, [], true);
-        if (!$server) return;
+    public static function broadcastIssueCreated(Task $task, string $workspaceId, string $actorId = '1'): void
+    {
+        self::broadcastToWorkspace($workspaceId, [
+            'type'       => 'issue:created',
+            'payload'    => ['issue' => self::issuePayload($task)],
+            'actor_id'   => $actorId,
+            'actor_type' => 'user',
+        ]);
+    }
 
-        $server->broadcastToWorkspace($workspaceId, [
+    public static function broadcastIssueDeleted(string $taskId, string $workspaceId, string $actorId = '1'): void
+    {
+        self::broadcastToWorkspace($workspaceId, [
+            'type'       => 'issue:deleted',
+            'payload'    => ['issue_id' => $taskId],
+            'actor_id'   => $actorId,
+            'actor_type' => 'user',
+        ]);
+    }
+
+    public static function broadcastCommentCreated(TaskComment $comment, string $workspaceId): void
+    {
+        self::broadcastToWorkspace($workspaceId, [
             'type'       => 'comment:created',
             'payload'    => ['comment' => self::commentPayload($comment)],
             'actor_id'   => (string) $comment->user_id,
@@ -41,25 +68,25 @@ class WebSocketBroadcaster
         ]);
     }
 
-    /**
-     * Wake up daemon for available task
-     */
     public static function wakeupDaemon(string $runtimeId, string $taskId): void
     {
-        $server = app(PiShiftWebSocketServer::class, [], true);
-        if (!$server) return;
-
-        $server->wakeupDaemon($runtimeId, $taskId);
+        try {
+            Redis::publish('pishift:ws:daemon', json_encode([
+                'type'       => 'daemon:task_available',
+                'runtime_id' => $runtimeId,
+                'task_id'    => $taskId,
+            ]));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Daemon wakeup failed', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
-    /**
-     * Format task/issue payload for Multica protocol
-     */
-    private static function issuePayload(\App\Models\Task $task): array
+    public static function issuePayload(Task $task): array
     {
-        $task->loadMissing(['project.teams:id']);
+        $task->loadMissing('project.teams');
         $workspaceId = $task->project?->teams?->first()?->id;
-        
         return [
             'id'             => (string) $task->id,
             'workspace_id'   => $workspaceId ? (string) $workspaceId : '',
@@ -85,37 +112,23 @@ class WebSocketBroadcaster
         ];
     }
 
-    /**
-     * Format comment payload for Multica protocol
-     */
-    private static function commentPayload(\App\Models\TaskComment $comment): array
+    private static function commentPayload(TaskComment $comment): array
     {
         return [
-            'id'              => (string) $comment->id,
-            'issue_id'        => (string) $comment->task_id,
-            'author_type'     => 'user',
-            'author_id'       => (string) $comment->user_id,
-            'content'         => $comment->body,
-            'type'            => 'comment',
-            'parent_id'       => null,
-            'created_at'      => $comment->created_at->toIso8601String(),
-            'updated_at'      => $comment->updated_at->toIso8601String(),
-            'resolved_at'     => null,
-            'resolved_by_type'=> null,
-            'resolved_by_id'  => null,
-            'reactions'       => [],
-            'attachments'     => [],
+            'id'               => (string) $comment->id,
+            'issue_id'         => (string) $comment->task_id,
+            'author_type'      => 'user',
+            'author_id'        => (string) $comment->user_id,
+            'content'          => $comment->body,
+            'type'             => 'comment',
+            'parent_id'        => null,
+            'created_at'       => $comment->created_at->toIso8601String(),
+            'updated_at'       => $comment->updated_at->toIso8601String(),
+            'resolved_at'      => null,
+            'resolved_by_type' => null,
+            'resolved_by_id'   => null,
+            'reactions'        => [],
+            'attachments'      => [],
         ];
-    }
-
-    public static function broadcastToWorkspace(string $workspaceId, array $payload): void
-    {
-        try {
-            $server = app(\App\WebSocket\PiShiftWebSocketServer::class);
-            if (!$server) return;
-            $server->broadcastToWorkspace($workspaceId, $payload);
-        } catch (\Throwable) {
-            // WebSocket server may not be running
-        }
     }
 }
