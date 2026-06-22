@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\Broadcasts\IssueBroadcastPayload;
 use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\TaskAssignedNotification;
 use App\Notifications\TaskClaimedNotification;
@@ -17,6 +18,8 @@ use Illuminate\Http\Request;
 
 class TaskController extends Controller
 {
+    use IssueBroadcastPayload;
+
     public function index(Request $request)
     {
         abort_unless(auth()->user()->hasPermission('tasks.view'), 403);
@@ -72,6 +75,17 @@ class TaskController extends Controller
         $task = Task::create($data);
         $this->syncAgentQueue($task, $data['agent_id'] ?? null, null);
 
+        $workspaceId = $this->resolveWorkspaceId($task);
+
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
+                'type'       => 'issue:created',
+                'payload'    => ['issue' => $this->issuePayload($task)],
+                'actor_id'   => (string) auth()->id(),
+                'actor_type' => 'user',
+            ]);
+        }
+
         if (! empty($data['assigned_to'])) {
             $assignee = User::find($data['assigned_to']);
             if ($assignee) {
@@ -124,6 +138,17 @@ class TaskController extends Controller
         $data          = $this->validated($request);
 
         $task->update($data);
+
+        $workspaceId = $this->resolveWorkspaceId($task);
+
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
+                'type'       => 'issue:updated',
+                'payload'    => ['issue' => $this->issuePayload($task)],
+                'actor_id'   => (string) auth()->id(),
+                'actor_type' => 'user',
+            ]);
+        }
 
         if (array_key_exists('agent_id', $data)) {
             $task->refresh();
@@ -178,7 +203,19 @@ class TaskController extends Controller
     public function destroy(Task $task)
     {
         abort_unless(auth()->user()->hasPermission('tasks.delete'), 403);
+        $workspaceId = $this->resolveWorkspaceId($task);
+        $taskId = (string) $task->id;
         $task->delete();
+
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
+                'type'       => 'issue:deleted',
+                'payload'    => ['issue_id' => $taskId],
+                'actor_id'   => (string) auth()->id(),
+                'actor_type' => 'user',
+            ]);
+        }
+
         return redirect()->route('tasks.index')->with('success', 'Task deleted.');
     }
 
@@ -197,6 +234,17 @@ class TaskController extends Controller
             'completed_at' => $next === 'done' ? now() : null,
         ]);
 
+        $workspaceId = $this->resolveWorkspaceId($task);
+
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
+                'type'       => 'issue:updated',
+                'payload'    => ['issue' => $this->issuePayload($task)],
+                'actor_id'   => (string) auth()->id(),
+                'actor_type' => 'user',
+            ]);
+        }
+
         return back()->with('success', 'Task status updated.');
     }
 
@@ -212,6 +260,17 @@ class TaskController extends Controller
         $task->assigned_to = $user->id;
         $task->status      = 'todo';
         $task->save();
+
+        $workspaceId = $this->resolveWorkspaceId($task);
+
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
+                'type'       => 'issue:updated',
+                'payload'    => ['issue' => $this->issuePayload($task)],
+                'actor_id'   => (string) $user->id,
+                'actor_type' => 'user',
+            ]);
+        }
 
         activity()
             ->performedOn($task)
@@ -284,4 +343,5 @@ class TaskController extends Controller
             'prompt'     => AgentTaskQueue::buildPrompt($task),
         ]);
     }
+
 }

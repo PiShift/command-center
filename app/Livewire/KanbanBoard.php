@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\Broadcasts\IssueBroadcastPayload;
 use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\TaskClaimedNotification;
 use App\Notifications\TaskStatusChangedNotification;
@@ -15,6 +16,8 @@ use Livewire\Component;
 
 class KanbanBoard extends Component
 {
+    use IssueBroadcastPayload;
+
     public string $activeTab = 'board';
     public ?int $filterProject = null;
     public ?int $filterAssignee = null;
@@ -33,6 +36,17 @@ class KanbanBoard extends Component
         }
 
         $task->update(['status' => $newStatus]);
+
+        $workspaceId = $this->resolveWorkspaceId($task);
+
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
+                'type'       => 'issue:updated',
+                'payload'    => ['issue' => $this->issuePayload($task)],
+                'actor_id'   => (string) auth()->id(),
+                'actor_type' => 'user',
+            ]);
+        }
 
         // Track completion timestamp
         if ($newStatus === 'done') {
@@ -75,6 +89,17 @@ class KanbanBoard extends Component
         $task->assigned_to = $user->id;
         $task->status      = 'todo';
         $task->save();
+
+        $workspaceId = $this->resolveWorkspaceId($task);
+
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastToWorkspace($workspaceId, [
+                'type'       => 'issue:updated',
+                'payload'    => ['issue' => $this->issuePayload($task)],
+                'actor_id'   => (string) $user->id,
+                'actor_type' => 'user',
+            ]);
+        }
 
         activity()
             ->performedOn($task)
