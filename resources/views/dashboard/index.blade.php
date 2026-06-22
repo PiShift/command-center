@@ -468,7 +468,7 @@
             @foreach($overdueTasksList as $t)
             <div class="px-5 py-3 flex items-center justify-between hover:bg-canvas transition-colors">
                 <div class="min-w-0 flex-1">
-                    <a href="{{ route('tasks.show', $t['id']) }}" class="text-[13px] font-medium text-ink hover:text-accent transition-colors block truncate">
+                    <a href="#" onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $t['id'] }} } }))" class="text-[13px] font-medium text-ink hover:text-accent transition-colors block truncate cursor-pointer">
                         {{ $t['title'] }}
                     </a>
                     <div class="flex items-center gap-2 mt-0.5">
@@ -817,5 +817,7 @@
     }
 </script>
 @endpush
+
+<livewire:task-modal />
 
 </x-layouts.app>

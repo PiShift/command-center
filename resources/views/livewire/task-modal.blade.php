@@ -141,7 +141,7 @@
 
 {{-- Overlay --}}
 <div class="fixed inset-0 flex items-stretch justify-end overflow-hidden"
-     style="z-index:40;background: rgba(0,0,0,0.45)"
+     style="z-index:9999;background: rgba(0,0,0,0.45)"
     x-cloak
     x-show="panelOpen"
     x-transition:enter="transition-opacity duration-200 ease-out"
@@ -727,7 +727,7 @@
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
          @click="guideOpen = false"
-         class="fixed inset-0 bg-black/20" style="z-index:60"></div>
+         class="fixed inset-0 bg-black/20" style="z-index:10000"></div>
 
     {{-- Drawer panel --}}
     <div x-show="guideOpen"
@@ -738,7 +738,7 @@
          x-transition:leave="transition-transform duration-200 ease-in"
          x-transition:leave-start="translate-x-0"
          x-transition:leave-end="translate-x-full"
-         class="fixed inset-y-0 right-0 flex flex-col bg-white border-l border-line shadow-[0_0_60px_rgba(0,0,0,0.18)]" style="z-index:61;width:480px">
+         class="fixed inset-y-0 right-0 flex flex-col bg-white border-l border-line shadow-[0_0_60px_rgba(0,0,0,0.18)]" style="z-index:10001;width:480px">
 
         {{-- Drawer header --}}
         <div class="flex items-center justify-between px-5 py-4 border-b border-hairline shrink-0">

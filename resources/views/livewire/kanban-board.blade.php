@@ -327,7 +327,7 @@
                         $dotColors = ['critical'=>'#b94040','high'=>'#D97757','medium'=>'#4a90d9','low'=>'#8c8c8a'];
                     @endphp
                     <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:{{ $dotColors[$t->priority] ?? '#8c8c8a' }}"></span>
-                    <a href="{{ route('tasks.show', $t) }}" class="text-[12px] text-ink hover:underline truncate flex-1">{{ $t->title }}</a>
+                    <a href="#" onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $t->id }} } }))" class="text-[12px] text-ink hover:underline truncate flex-1 cursor-pointer">{{ $t->title }}</a>
                     @if($project->is_team_project && $t->assignee)
                     <span class="text-[11px] text-muted shrink-0">{{ $t->assignee->name }}</span>
                     @endif
@@ -470,7 +470,7 @@
                 @forelse($myTasks->take(5) as $t)
                 <div class="flex items-center gap-2">
                     <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background: {{ $t->project->color ?? '#e5e4df' }}"></span>
-                    <a href="{{ route('tasks.show', $t) }}" class="text-[13px] text-ink hover:underline truncate flex-1">{{ $t->title }}</a>
+                    <a href="#" onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $t->id }} } }))" class="text-[13px] text-ink hover:underline truncate flex-1 cursor-pointer">{{ $t->title }}</a>
                     @include('components.badge', ['type' => 'priority', 'value' => $t->priority])
                 </div>
                 @empty

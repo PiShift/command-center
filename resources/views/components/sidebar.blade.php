@@ -10,7 +10,6 @@
     ];
     if ($user->hasPermission('tasks.view')) {
         $nav[] = ['route' => 'board', 'label' => 'Board', 'icon' => 'columns', 'badge' => \App\Models\Task::where('status','!=','done')->count()];
-        $nav[] = ['route' => 'tasks.index', 'label' => 'Tasks', 'icon' => 'clipboard', 'badge' => \App\Models\Task::where('status','!=','done')->where(fn($q)=>$q->where('priority','high')->orWhere(fn($q2)=>$q2->whereNotNull('due_date')->whereDate('due_date','<',now())))->count()];
     }
     if ($user->hasPermission('projects.view')) {
         $nav[] = ['route' => 'projects.index', 'label' => 'Projects', 'icon' => 'folder', 'badge' => \App\Models\Project::count()];
