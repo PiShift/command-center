@@ -25,6 +25,13 @@ class TaskCommentController extends Controller
             'body'    => $data['body'],
         ]);
 
+        $task = Task::with('project.teams')->find($comment->task_id);
+        $workspaceId = $task?->project?->teams?->first()?->id;
+
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastCommentCreated($comment, (string) $workspaceId);
+        }
+
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
             $comment->addMedia($file)
