@@ -59,7 +59,7 @@ class AgentController extends Controller
             'custom_args'           => $data['custom_args'] ?? null,
         ]);
 
-        return response()->json($agent->load('runtime'), 201);
+        return response()->json($this->agentPayload($agent->load('runtime')), 201);
     }
 
     public function index(Request $request): JsonResponse
@@ -67,16 +67,18 @@ class AgentController extends Controller
         $agents = Agent::query()
             ->where('owner_id', $request->user()->id)
             ->whereNull('archived_at')
-            ->with(['runtime:id,name,provider,status'])
+            ->with('runtime')
             ->orderBy('name')
             ->get();
 
-        return response()->json($agents);
+        return response()->json(
+            $agents->map(fn (Agent $agent): array => $this->agentPayload($agent))->values()
+        );
     }
 
     public function show(Request $request, string $id): JsonResponse
     {
-        $agent = Agent::with(['runtime:id,name,provider,status'])->find($id);
+        $agent = Agent::with('runtime')->find($id);
 
         if (! $agent || $agent->archived_at) {
             return response()->json(['error' => 'not found'], 404);
@@ -86,7 +88,7 @@ class AgentController extends Controller
             return response()->json(['error' => 'forbidden'], 403);
         }
 
-        return response()->json($agent);
+        return response()->json($this->agentPayload($agent));
     }
 
     public function update(Request $request, string $id): JsonResponse
@@ -128,7 +130,7 @@ class AgentController extends Controller
 
         $agent->update($data);
 
-        return response()->json($agent->load('runtime:id,name,provider,status'));
+        return response()->json($this->agentPayload($agent->load('runtime')));
     }
 
     public function destroy(Request $request, string $id): JsonResponse
@@ -162,5 +164,53 @@ class AgentController extends Controller
         }
 
         return $request->user()->teams()->where('teams.id', $agent->team_id)->exists();
+    }
+
+    private function agentPayload(Agent $agent): array
+    {
+        return [
+            'id'                   => $agent->id,
+            'workspace_id'         => (string) $agent->team_id,
+            'runtime_id'           => $agent->runtime_id,
+            'name'                 => $agent->name,
+            'description'          => $agent->description ?? '',
+            'instructions'         => $agent->instructions ?? '',
+            'avatar_url'           => null,
+            'runtime_mode'         => 'local',
+            'runtime_config'       => (object) [],
+            'custom_args'          => $agent->custom_args ?? [],
+            'custom_env'           => null,
+            'has_custom_env'       => false,
+            'custom_env_key_count' => 0,
+            'visibility'           => $agent->visibility,
+            'status'               => $agent->status,
+            'max_concurrent_tasks' => $agent->max_concurrent_tasks,
+            'model'                => $agent->model ?? '',
+            'thinking_level'       => '',
+            'owner_id'             => (string) $agent->owner_id,
+            'skills'               => [],
+            'created_at'           => $agent->created_at->toIso8601String(),
+            'updated_at'           => $agent->updated_at->toIso8601String(),
+            'archived_at'          => $agent->archived_at?->toIso8601String(),
+            'archived_by'          => null,
+            'runtime'              => $agent->runtime ? [
+                'id'           => $agent->runtime->id,
+                'workspace_id' => (string) $agent->runtime->team_id,
+                'daemon_id'    => $agent->runtime->daemon_id,
+                'name'         => $agent->runtime->name,
+                'runtime_mode' => 'local',
+                'provider'     => $agent->runtime->provider,
+                'launch_header'=> $agent->runtime->provider,
+                'status'       => $agent->runtime->status,
+                'device_info'  => $agent->runtime->device_info,
+                'metadata'     => $agent->runtime->metadata ?? (object) [],
+                'owner_id'     => (string) $agent->runtime->user_id,
+                'visibility'   => 'private',
+                'profile_id'   => null,
+                'last_seen_at' => $agent->runtime->last_seen_at?->toIso8601String(),
+                'created_at'   => $agent->runtime->created_at->toIso8601String(),
+                'updated_at'   => $agent->runtime->updated_at->toIso8601String(),
+            ] : null,
+        ];
     }
 }
