@@ -127,7 +127,11 @@ class TaskController extends Controller
 
         if (array_key_exists('agent_id', $data)) {
             $task->refresh();
-            $this->syncAgentQueue($task, $data['agent_id'] ?? null, $oldAgentId);
+            $queueEntry = $this->syncAgentQueue($task, $data['agent_id'] ?? null, $oldAgentId);
+
+            if ($queueEntry) {
+                \App\WebSocket\WebSocketBroadcaster::wakeupDaemon($queueEntry->runtime_id, $queueEntry->id);
+            }
         }
 
         // Set/clear completed_at based on status transition
@@ -245,10 +249,10 @@ class TaskController extends Controller
         ]);
     }
 
-    private function syncAgentQueue(Task $task, ?string $newAgentId, ?string $oldAgentId): void
+    private function syncAgentQueue(Task $task, ?string $newAgentId, ?string $oldAgentId): ?AgentTaskQueue
     {
         if ((string) ($newAgentId ?? '') === (string) ($oldAgentId ?? '')) {
-            return;
+            return null;
         }
 
         AgentTaskQueue::query()
@@ -257,7 +261,7 @@ class TaskController extends Controller
             ->update(['status' => 'cancelled']);
 
         if (! $newAgentId) {
-            return;
+            return null;
         }
 
         $agent = Agent::query()
@@ -266,12 +270,12 @@ class TaskController extends Controller
             ->first();
 
         if (! $agent) {
-            return;
+            return null;
         }
 
         $task->loadMissing('checklists');
 
-        AgentTaskQueue::create([
+        return AgentTaskQueue::create([
             'task_id'    => $task->id,
             'agent_id'   => $agent->id,
             'runtime_id' => $agent->runtime_id,
