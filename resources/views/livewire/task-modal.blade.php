@@ -476,7 +476,7 @@
                                         class="text-[11px] text-muted hover:text-[#b94040] ml-auto transition-colors cursor-pointer">Delete</button>
                                 @endif
                             </div>
-                            <p class="text-[13px] text-dim leading-relaxed">{{ $comment->body }}</p>
+                            <div class="prose prose-sm max-w-none text-dim leading-relaxed">{!! Str::markdown($comment->body, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
                             {{-- Comment attachment --}}
                             @php $comAtt = $comment->getFirstMedia('attachment'); @endphp
                             @if($comAtt)
@@ -876,4 +876,53 @@
         <img :src="lightboxSrc" class="max-w-full max-h-full rounded-xl object-contain" style="box-shadow: 0 20px 60px rgba(0,0,0,0.5)">
     </div>
 </template>
+
+@if($open && $taskId)
+<script>
+    (() => {
+        const taskId = {{ $taskId }};
+        const channelName = `tasks.${taskId}`;
+        const events = ['.agent.started', '.agent.completed', '.agent.failed', '.agent.comment'];
+
+        const refreshTask = () => {
+            try {
+                const livewireRoot = document.currentScript?.closest('[wire\\:id]');
+                const componentId = livewireRoot?.getAttribute('wire:id');
+                if (!componentId || !window.Livewire?.find) return;
+                window.Livewire.find(componentId)?.call('openTask', taskId);
+            } catch (_) {}
+        };
+
+        const cleanupKey = '__taskModalEchoCleanup';
+        if (typeof window[cleanupKey] === 'function') {
+            window[cleanupKey]();
+        }
+
+        if (!window.Echo?.private) {
+            window[cleanupKey] = () => {};
+            return;
+        }
+
+        const channel = window.Echo.private(channelName);
+        events.forEach((eventName) => channel.listen(eventName, refreshTask));
+
+        const teardown = () => {
+            window.Echo?.leave(channelName);
+            window.removeEventListener('task-modal-closed', onModalClosed);
+            window.removeEventListener('beforeunload', teardown);
+            if (window[cleanupKey] === teardown) {
+                window[cleanupKey] = null;
+            }
+        };
+
+        const onModalClosed = () => {
+            teardown();
+        };
+
+        window.addEventListener('task-modal-closed', onModalClosed);
+        window.addEventListener('beforeunload', teardown);
+        window[cleanupKey] = teardown;
+    })();
+</script>
+@endif
 </div>{{-- /Livewire root --}}
