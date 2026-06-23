@@ -30,6 +30,8 @@ class AgentTaskQueue extends Model
         'claimed_at',
         'started_at',
         'completed_at',
+        'trigger_comment_id',
+        'trigger_comment_content',
     ];
 
     protected $casts = [

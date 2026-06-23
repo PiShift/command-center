@@ -266,6 +266,23 @@ class DaemonController extends Controller
             'team_id'    => $runtime->team_id,
         ]);
 
+        // Calculate new comment count since last completed task
+        $newCommentCount = 0;
+        if ($task && $queue->agent_id) {
+            $lastCompleted = AgentTaskQueue::query()
+                ->where('task_id', $task->id)
+                ->where('agent_id', $queue->agent_id)
+                ->where('status', 'completed')
+                ->orderByDesc('completed_at')
+                ->first();
+
+            $commentsSince = $task->comments()
+                ->where('agent_id', null)
+                ->when($lastCompleted, fn ($q) => $q->where('created_at', '>', $lastCompleted->completed_at));
+
+            $newCommentCount = $commentsSince->count();
+        }
+
         return response()->json([
             'task' => [
                 'id'              => $queue->id,
@@ -283,6 +300,9 @@ class DaemonController extends Controller
                 'repos'           => $this->deduplicateRepos($repos),
                 'project_resources' => $projectResources,
                 'local_directory' => $this->resolveLocalDirectory($projectResources, $runtime->provider),
+                'trigger_comment_id' => (string) ($queue->trigger_comment_id ?? ''),
+                'trigger_comment_content' => $queue->trigger_comment_content ?? '',
+                'new_comment_count' => $newCommentCount,
                 'agent'           => $agent ? [
                     'id'          => (string) $agent->id,
                     'name'        => $agent->name,
