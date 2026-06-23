@@ -19,6 +19,18 @@ window.addEventListener('load', function () {
             window.Livewire.dispatch('taskStatusChanged', { taskId: e.taskId, status: e.status });
         });
     @endforeach
+
+    // Listen for agent activity on all tasks currently visible
+    window.Echo.channel('agent-activity')
+        .listen('.agent.started', (e) => {
+            window.Livewire.dispatch('taskAgentStarted', { taskId: e.taskId });
+        })
+        .listen('.agent.completed', (e) => {
+            window.Livewire.dispatch('taskAgentCompleted', { taskId: e.taskId });
+        })
+        .listen('.agent.failed', (e) => {
+            window.Livewire.dispatch('taskAgentFailed', { taskId: e.taskId });
+        });
 });
 </script>
 

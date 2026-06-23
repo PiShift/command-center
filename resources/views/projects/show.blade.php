@@ -162,13 +162,6 @@
                 <div class="bg-white border border-line rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
                     <div class="flex items-center justify-between px-6 py-4 border-b border-hairline">
                         <h2 class="text-[14px] font-semibold text-ink">Recent Tasks</h2>
-                        @if(auth()->user()->hasPermission('tasks.create'))
-                        <a href="{{ route('tasks.create') . '?project_id=' . $project->id }}"
-                           class="inline-flex items-center gap-1 text-[12px] font-medium text-accent hover:underline">
-                            @include('components.icon', ['name' => 'plus'])
-                            Add task
-                        </a>
-                        @endif
                     </div>
                     @if($recentTasks->isEmpty())
                     <div class="px-6 py-10 flex flex-col items-center text-center">
@@ -183,8 +176,8 @@
                         @foreach($recentTasks as $task)
                         <li class="flex items-center gap-4 px-6 py-3 hover:bg-canvas transition-colors">
                             <div class="flex-1 min-w-0">
-                                <a href="{{ route('tasks.show', $task) }}"
-                                   class="text-[13.5px] font-medium text-ink hover:text-accent transition-colors truncate block">{{ $task->title }}</a>
+                                <a href="#" onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $task->id }} } }))"
+                                   class="text-[13.5px] font-medium text-ink hover:text-accent transition-colors truncate block cursor-pointer">{{ $task->title }}</a>
                                 @if($task->due_date)
                                 <p class="text-[12px] {{ $task->isOverdue() ? 'text-[#b94040] font-medium' : 'text-muted' }} mt-0.5">
                                     Due {{ $task->due_date->format('M d, Y') }}
@@ -206,10 +199,9 @@
                     </ul>
                     @if($project->tasks->count() > 8)
                     <div class="px-6 py-3 border-t border-hairline">
-                        <a href="{{ route('tasks.index', ['project' => $project->id]) }}"
-                           class="text-[12px] font-medium text-accent hover:underline">
-                            View all {{ $project->tasks->count() }} tasks &rarr;
-                        </a>
+                        <p class="text-[12px] font-medium text-muted">
+                            Showing 8 of {{ $project->tasks->count() }} tasks
+                        </p>
                     </div>
                     @endif
                     @endif
@@ -289,8 +281,8 @@
                         @foreach($myTasks as $task)
                         <li class="flex items-center gap-4 px-6 py-3 hover:bg-canvas transition-colors">
                             <div class="flex-1 min-w-0">
-                                <a href="{{ route('tasks.show', $task) }}"
-                                   class="text-[13.5px] font-medium text-ink hover:text-accent transition-colors truncate block">{{ $task->title }}</a>
+                                <a href="#" onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $task->id }} } }))"
+                                   class="text-[13.5px] font-medium text-ink hover:text-accent transition-colors truncate block cursor-pointer">{{ $task->title }}</a>
                                 @if($task->due_date)
                                 <p class="text-[12px] {{ $task->isOverdue() ? 'text-[#b94040] font-medium' : 'text-muted' }} mt-0.5">
                                     Due {{ $task->due_date->format('M d, Y') }}

@@ -22,49 +22,12 @@ class TaskController extends Controller
 
     public function index(Request $request)
     {
-        abort_unless(auth()->user()->hasPermission('tasks.view'), 403);
-
-        $sortable  = ['title', 'priority', 'status', 'due_date', 'created_at'];
-        $sort      = in_array($request->sort, $sortable) ? $request->sort : 'due_date';
-        $direction = $request->direction === 'desc' ? 'desc' : 'asc';
-
-        $query = Task::with(['project', 'assignee'])->orderBy($sort, $direction);
-
-        if ($request->filled('status'))   $query->where('status', $request->status);
-        if ($request->filled('type'))     $query->where('type', $request->type);
-        if ($request->filled('priority')) $query->where('priority', $request->priority);
-        if ($request->filled('project'))  $query->where('project_id', $request->project);
-        if ($request->filled('assignee')) $query->where('assigned_to', $request->assignee);
-        if ($request->boolean('overdue')) {
-            $query->whereNotNull('due_date')->whereDate('due_date', '<', now())->where('status', '!=', 'done');
-        }
-        if ($request->boolean('high_priority')) {
-            $query->where('priority', 'high');
-        }
-
-        $tasks    = $query->paginate(30)->withQueryString();
-        $columns  = KanbanColumn::orderBy('position')->get();
-        $projects = Project::orderBy('name')->get(['id', 'name']);
-        $users    = User::orderBy('name')->get(['id', 'name']);
-
-        return view('tasks.index', compact('tasks', 'columns', 'projects', 'users', 'sort', 'direction'));
+        abort(404);
     }
 
     public function create()
     {
-        abort_unless(auth()->user()->hasPermission('tasks.create'), 403);
-
-        $projects = Project::orderBy('name')->get(['id', 'name']);
-        $users    = User::orderBy('name')->get(['id', 'name']);
-        $columns  = KanbanColumn::orderBy('position')->get(['slug', 'name']);
-        $agents   = Agent::query()
-            ->where('owner_id', auth()->id())
-            ->whereNull('archived_at')
-            ->with('runtime:id,name,provider')
-            ->orderBy('name')
-            ->get();
-
-        return view('tasks.form', ['task' => null, 'projects' => $projects, 'users' => $users, 'columns' => $columns, 'agents' => $agents]);
+        abort(404);
     }
 
     public function store(Request $request)

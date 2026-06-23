@@ -117,8 +117,25 @@ class KanbanBoard extends Component
     #[On('taskStatusChanged')]
     public function onTaskStatusChanged(int $taskId, string $status): void
     {
-        // Refresh the board data to reflect the status change
-        // This will trigger a re-render of the component
+        $this->loadTasks();
+    }
+
+    #[On('taskAgentStarted')]
+    public function onTaskAgentStarted(int $taskId): void
+    {
+        $this->loadTasks();
+    }
+
+    #[On('taskAgentCompleted')]
+    public function onTaskAgentCompleted(int $taskId): void
+    {
+        $this->loadTasks();
+    }
+
+    #[On('taskAgentFailed')]
+    public function onTaskAgentFailed(int $taskId): void
+    {
+        $this->loadTasks();
     }
 
     public function render()
@@ -140,7 +157,7 @@ class KanbanBoard extends Component
                 return null;
             }
 
-            $query = $col->tasks()->with(['project', 'assignee', 'checklists'])->withCount('comments');
+            $query = $col->tasks()->with(['project', 'assignee', 'agent', 'latestQueue', 'checklists'])->withCount('comments');
 
             // Developers: only their own assigned tasks (not team-wide unclaimed tasks)
             if ($scopedToUser) {

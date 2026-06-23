@@ -95,9 +95,53 @@
 @endphp
 
 @if($open)
+<style>
+    .task-modal-shell {
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+    }
+
+    .task-modal-left {
+        width: 100%;
+        flex: none;
+        min-width: 0;
+        min-height: 0;
+    }
+
+    .task-modal-right {
+        width: 100%;
+        flex-shrink: 0;
+    }
+
+    @media (min-width: 900px) {
+        .task-modal-shell {
+            flex-direction: row;
+            overflow-y: hidden;
+        }
+
+        .task-modal-left {
+            width: 0;
+            flex: 1 1 0%;
+            overflow-y: auto;
+        }
+
+        .task-modal-right {
+            width: 320px;
+            border-top-width: 0;
+            border-left-width: 1px;
+            position: sticky;
+            top: 0;
+            align-self: flex-start;
+            max-height: 100vh;
+            overflow-y: auto;
+        }
+    }
+</style>
+
 {{-- Overlay --}}
 <div class="fixed inset-0 flex items-stretch justify-end overflow-hidden"
-     style="z-index:40;background: rgba(0,0,0,0.45)"
+     style="z-index:9999;background: rgba(0,0,0,0.45)"
     x-cloak
     x-show="panelOpen"
     x-transition:enter="transition-opacity duration-200 ease-out"
@@ -112,7 +156,7 @@
     x-on:keydown.escape.window="requestClose()">
 
     {{-- Modal shell: Surface outer + white left panel --}}
-        <div class="h-full w-full max-w-[960px] bg-surface overflow-y-auto shadow-modal flex flex-col md:items-start"
+        <div class="task-modal-shell h-full w-full max-w-[960px] bg-surface shadow-modal"
             style="background:#F5F4EF; box-shadow: 0 20px 60px rgba(0,0,0,0.18)"
            x-show="panelOpen"
            x-transition:enter="transform transition duration-250 ease-out"
@@ -124,7 +168,7 @@
             wire:click.stop>
 
         {{-- ── LEFT: Content panel ───────────────────────────────────────── --}}
-        <div class="flex-1 flex flex-col min-w-0 bg-white pb-28 sm:pb-0">
+        <div class="task-modal-left flex flex-col bg-white pb-28 sm:pb-0">
 
             {{-- Title area --}}
             <div class="sticky top-0 z-20 bg-white px-4 sm:px-7 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-hairline">
@@ -493,7 +537,7 @@
         </div>
 
         {{-- ── RIGHT: Meta sidebar ───────────────────────────────────────── --}}
-        <div class="w-full md:w-[320px] shrink-0 flex flex-col border-t md:border-t-0 md:border-l border-hairline bg-surface pb-28 sm:pb-0 md:sticky md:top-0 md:self-start md:max-h-screen md:overflow-y-auto">
+        <div class="task-modal-right flex flex-col border-t border-hairline bg-surface pb-28 sm:pb-0">
 
             <div class="px-4 sm:px-5 pt-4 sm:pt-0 pb-6 space-y-0 divide-y divide-hairline">
 
@@ -683,7 +727,7 @@
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
          @click="guideOpen = false"
-         class="fixed inset-0 bg-black/20" style="z-index:60"></div>
+         class="fixed inset-0 bg-black/20" style="z-index:10000"></div>
 
     {{-- Drawer panel --}}
     <div x-show="guideOpen"
@@ -694,7 +738,7 @@
          x-transition:leave="transition-transform duration-200 ease-in"
          x-transition:leave-start="translate-x-0"
          x-transition:leave-end="translate-x-full"
-         class="fixed inset-y-0 right-0 flex flex-col bg-white border-l border-line shadow-[0_0_60px_rgba(0,0,0,0.18)]" style="z-index:61;width:480px">
+         class="fixed inset-y-0 right-0 flex flex-col bg-white border-l border-line shadow-[0_0_60px_rgba(0,0,0,0.18)]" style="z-index:10001;width:480px">
 
         {{-- Drawer header --}}
         <div class="flex items-center justify-between px-5 py-4 border-b border-hairline shrink-0">
