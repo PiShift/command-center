@@ -20,6 +20,9 @@ use App\Http\Controllers\SprintController;
 use App\Http\Controllers\BacklogItemController;
 use App\Http\Controllers\TaskChecklistController;
 use App\Http\Controllers\DaemonTokenController;
+use App\Http\Controllers\AgentController;
+use App\Http\Controllers\SkillController;
+use App\Http\Controllers\AgentSkillController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\AiConversationController;
 use App\Http\Controllers\TaskAttachmentController;
@@ -86,6 +89,25 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
 
     // Board (Kanban) — Livewire component mounted in a Blade view
     Route::get('/board', fn () => view('board.index'))->name('board');
+
+    // Agents
+    Route::get('/agents', [AgentController::class, 'index'])->name('agents.index');
+    Route::get('/agents/{agent}', [AgentController::class, 'show'])->name('agents.show');
+    Route::post('/agents', [AgentController::class, 'store'])->name('agents.store');
+    Route::put('/agents/{agent}', [AgentController::class, 'update'])->name('agents.update');
+    Route::delete('/agents/{agent}', [AgentController::class, 'destroy'])->name('agents.destroy');
+    Route::post('/agents/{agent}/archive', [AgentController::class, 'archive'])->name('agents.archive');
+    Route::post('/agents/{agent}/restore', [AgentController::class, 'restore'])->name('agents.restore');
+
+    // Skills
+    Route::get('/skills', [SkillController::class, 'index'])->name('skills.index');
+    Route::get('/skills/create', [SkillController::class, 'create'])->name('skills.create');
+    Route::post('/skills', [SkillController::class, 'store'])->name('skills.store');
+    Route::get('/skills/{skill}', [SkillController::class, 'show'])->name('skills.show');
+    Route::put('/skills/{skill}', [SkillController::class, 'update'])->name('skills.update');
+    Route::delete('/skills/{skill}', [SkillController::class, 'destroy'])->name('skills.destroy');
+    Route::post('/agents/{agent}/skills', [AgentSkillController::class, 'attach'])->name('agent-skills.attach');
+    Route::delete('/agents/{agent}/skills/{skill}', [AgentSkillController::class, 'detach'])->name('agent-skills.detach');
 
     // Profile
     Route::get('/profile',               [ProfileController::class, 'show'])->name('profile.show');

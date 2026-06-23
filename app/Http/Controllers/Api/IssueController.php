@@ -105,11 +105,22 @@ class IssueController extends Controller
             'content' => ['required', 'string'],
         ]);
 
-        $comment = TaskComment::create([
+        // Detect if this is a daemon call (mat_ token auth)
+        $authHeader = $request->header('Authorization', '');
+        $isDaemonCall = str_starts_with($authHeader, 'Bearer mat_');
+        
+        $commentData = [
             'task_id' => $task->id,
             'user_id' => $request->user()->id,
             'body'    => $data['content'],
-        ]);
+        ];
+
+        // If daemon call, also set agent_id from the task's agent
+        if ($isDaemonCall && $task->agent_id) {
+            $commentData['agent_id'] = $task->agent_id;
+        }
+
+        $comment = TaskComment::create($commentData);
 
         $workspaceId = (string) $task->project?->teams()?->first()?->id;
 
@@ -155,11 +166,13 @@ class IssueController extends Controller
 
     private function commentPayload(TaskComment $comment): array
     {
+        $isAgentComment = ! is_null($comment->agent_id);
+
         return [
             'id'               => (string) $comment->id,
             'issue_id'         => (string) $comment->task_id,
-            'author_type'      => 'user',
-            'author_id'        => (string) $comment->user_id,
+            'author_type'      => $isAgentComment ? 'agent' : 'user',
+            'author_id'        => $isAgentComment ? (string) $comment->agent_id : (string) $comment->user_id,
             'content'          => (string) $comment->body,
             'type'             => 'comment',
             'parent_id'        => null,
@@ -170,6 +183,7 @@ class IssueController extends Controller
             'resolved_by_id'   => null,
             'reactions'        => [],
             'attachments'      => [],
+            'agent_id'         => $comment->agent_id ? (string) $comment->agent_id : null,
         ];
     }
 

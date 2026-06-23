@@ -66,6 +66,7 @@
                 <img src="/images/logo.svg" alt="{{ config('app.name') }}" class="h-[20px] object-contain">
             </div>
             <a href="{{ route('board') }}" class="ml-4 text-[11px] font-bold uppercase tracking-widest text-muted hover:text-ink transition-colors">My Board</a>
+            <a href="{{ route('agents.index') }}" class="ml-3 text-[11px] font-bold uppercase tracking-widest text-muted hover:text-ink transition-colors">Agents</a>
             <div class="ml-auto flex items-center gap-3">
                 <button
                     type="button"
