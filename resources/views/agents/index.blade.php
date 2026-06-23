@@ -65,9 +65,7 @@
                     onclick="window.location='{{ route('agents.show', $agent) }}'">
                     <td class="px-5 py-3.5">
                         <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-accent text-white">
-                                @include('components.icon', ['name' => 'play'])
-                            </div>
+                            <x-agent-avatar :agent="$agent" size="8" />
                             <div class="min-w-0">
                                 <p class="text-[13px] font-medium text-ink truncate">{{ $agent->name }}</p>
                                 @if($agent->description)
@@ -106,7 +104,7 @@
     <div x-cloak x-show="createOpen" class="fixed inset-0 z-[9999] flex items-center justify-center px-4" @keydown.escape.window="createOpen = false">
         <div class="absolute inset-0 bg-black/45" @click="createOpen = false"></div>
         <div class="relative w-full max-w-lg bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.18)] max-h-[90vh] overflow-y-auto">
-            <form action="{{ route('agents.store') }}" method="POST">
+            <form action="{{ route('agents.store') }}" method="POST" enctype="multipart/form-data" x-data="{ preview: null }">
                 @csrf
                 <div class="px-6 pt-6 pb-4 border-b border-hairline flex items-start justify-between gap-4">
                     <div>
@@ -119,6 +117,25 @@
                 </div>
 
                 <div class="px-6 py-5 space-y-4">
+                    <div>
+                        <label class="block text-[11px] font-bold uppercase tracking-wider text-muted mb-1.5">Avatar</label>
+                        <input type="file" x-ref="avatarInput" name="avatar" accept="image/*" class="hidden"
+                               @change="preview = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null">
+                        <div @click="$refs.avatarInput.click()"
+                             class="w-16 h-16 rounded-full border border-line bg-surface hover:bg-hairline transition-colors cursor-pointer flex items-center justify-center overflow-hidden">
+                            <template x-if="preview">
+                                <img :src="preview" alt="Agent avatar preview" class="w-full h-full object-cover">
+                            </template>
+                            <template x-if="!preview">
+                                <div class="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center bg-gradient-to-br from-violet-700 to-purple-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                        <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zM9 14a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm6 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
+                                    </svg>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
                     <div>
                         <label class="block text-[11px] font-bold uppercase tracking-wider text-muted mb-1.5">Name</label>
                         <input name="name" type="text" required placeholder="e.g. Laravel Dev Agent" class="w-full text-[13px] text-ink bg-surface border border-line rounded-lg px-3 py-2.5 outline-none focus:border-accent focus:bg-white transition-colors placeholder:text-muted">

@@ -22,8 +22,18 @@
     <div class="flex gap-6 items-start">
         <div class="w-[280px] shrink-0 space-y-4">
             <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-                <div class="w-14 h-14 rounded-xl flex items-center justify-center mb-4 bg-accent text-white">
-                    @include('components.icon', ['name' => 'play'])
+                <div class="mb-4" x-data>
+                    <form action="{{ route('agents.update', $agent) }}" method="POST" enctype="multipart/form-data" class="relative w-14 h-14 group">
+                        @csrf
+                        @method('PUT')
+                        <input type="file" name="avatar" accept="image/*" class="hidden" x-ref="agentAvatarInput" onchange="this.form.submit()">
+                        <button type="button" @click="$refs.agentAvatarInput.click()" class="relative w-14 h-14 cursor-pointer rounded-xl overflow-hidden">
+                            <x-agent-avatar :agent="$agent" size="14" />
+                            <span class="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-center text-white">
+                                @include('components.icon', ['name' => 'pencil'])
+                            </span>
+                        </button>
+                    </form>
                 </div>
 
                 <h1 class="text-[17px] font-bold text-ink leading-tight">{{ $agent->name }}</h1>
@@ -229,7 +239,7 @@
 
             <div x-show="tab === 'instructions'" class="space-y-4">
                 <div class="bg-white border border-line rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-                    <form action="{{ route('agents.update', $agent) }}" method="POST">
+                    <form action="{{ route('agents.update', $agent) }}" method="POST" enctype="multipart/form-data">
                         @csrf
                         @method('PUT')
                         <div class="px-5 py-4 border-b border-hairline">

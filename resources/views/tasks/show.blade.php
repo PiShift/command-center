@@ -72,7 +72,13 @@
             <div>
                 <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-0.5">Agent</p>
                 @if($task->agent)
-                    <p class="text-ink">{{ $task->agent->name }} · {{ strtoupper($task->agent->runtime?->provider ?? 'n/a') }}</p>
+                    <div class="flex items-center gap-2">
+                        <x-agent-avatar :agent="$task->agent" size="6" />
+                        <div class="flex items-center gap-1.5">
+                            <p class="text-ink">{{ $task->agent->name }}</p>
+                            <x-provider-icon :provider="$task->agent->runtime?->provider ?? 'default'" size="4" />
+                        </div>
+                    </div>
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-hairline text-dim mt-1">{{ $task->agent->status }}</span>
                     @if($task->latestQueue)
                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface text-dim mt-1">Queue: {{ $task->latestQueue->status }}</span>

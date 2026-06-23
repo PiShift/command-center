@@ -66,7 +66,29 @@
                 <img src="/images/logo.svg" alt="{{ config('app.name') }}" class="h-[20px] object-contain">
             </div>
             <a href="{{ route('board') }}" class="ml-4 text-[11px] font-bold uppercase tracking-widest text-muted hover:text-ink transition-colors">My Board</a>
-            <a href="{{ route('agents.index') }}" class="ml-3 text-[11px] font-bold uppercase tracking-widest text-muted hover:text-ink transition-colors">Agents</a>
+
+            <span class="ml-4 text-[10px] font-bold uppercase tracking-widest text-muted">Configure</span>
+            <a href="{{ route('agents.index') }}"
+               class="ml-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-bold uppercase tracking-widest transition-colors {{ request()->routeIs('agents.*') ? 'bg-accent-light text-accent' : 'text-muted hover:text-ink hover:bg-hairline' }}">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M5 7h14M5 12h14M5 17h14"/>
+                    <circle cx="8" cy="7" r="1" fill="currentColor"/>
+                </svg>
+                Agents
+            </a>
+            <a href="{{ route('runtimes.index') }}"
+               class="ml-1 inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-bold uppercase tracking-widest transition-colors {{ request()->routeIs('runtimes.*') ? 'bg-accent-light text-accent' : 'text-muted hover:text-ink hover:bg-hairline' }}">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="12" rx="2"/>
+                    <path d="M8 20h8"/>
+                </svg>
+                Runtimes
+            </a>
+            <a href="{{ route('skills.index') }}"
+               class="ml-1 inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-bold uppercase tracking-widest transition-colors {{ request()->routeIs('skills.*') ? 'bg-accent-light text-accent' : 'text-muted hover:text-ink hover:bg-hairline' }}">
+                @include('components.icon', ['name' => 'book'])
+                Skills
+            </a>
             <div class="ml-auto flex items-center gap-3">
                 <button
                     type="button"

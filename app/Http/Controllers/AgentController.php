@@ -149,6 +149,7 @@ class AgentController extends Controller
             'max_concurrent_tasks' => ['nullable', 'integer', 'min:1', 'max:50'],
             'model'                => ['nullable', 'string', 'max:255'],
             'skills'               => ['nullable', 'string'],
+            'avatar'               => ['nullable', 'image', 'mimes:jpeg,png,gif,webp', 'max:5120'],
         ]);
 
         $runtime = AgentRuntime::query()
@@ -173,6 +174,10 @@ class AgentController extends Controller
             'custom_args'          => $customArgs,
         ]);
 
+        if ($request->hasFile('avatar')) {
+            $agent->addMediaFromRequest('avatar')->toMediaCollection('avatar');
+        }
+
         return redirect()->route('agents.show', $agent)->with('success', 'Agent created.');
     }
 
@@ -189,6 +194,7 @@ class AgentController extends Controller
             'max_concurrent_tasks' => ['nullable', 'integer', 'min:1', 'max:50'],
             'model'                => ['nullable', 'string', 'max:255'],
             'skills'               => ['nullable', 'string'],
+            'avatar'               => ['nullable', 'image', 'mimes:jpeg,png,gif,webp', 'max:5120'],
         ]);
 
         $updates = [];
@@ -218,6 +224,11 @@ class AgentController extends Controller
         }
 
         $agent->update($updates);
+
+        if ($request->hasFile('avatar')) {
+            $agent->clearMediaCollection('avatar');
+            $agent->addMediaFromRequest('avatar')->toMediaCollection('avatar');
+        }
 
         return back()->with('success', 'Agent updated.');
     }
