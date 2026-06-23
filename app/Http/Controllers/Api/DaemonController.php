@@ -383,6 +383,25 @@ class DaemonController extends Controller
         return response()->json(['status' => 'ok']);
     }
 
+    public function waitLocalDirectory(Request $request, string $taskId): JsonResponse
+    {
+        $queue = $this->ownedQueue($request, $taskId);
+
+        if ($queue) {
+            $data = $request->validate([
+                'status' => ['nullable', 'string', 'max:50'],
+            ]);
+
+            $status = isset($data['status']) ? trim((string) $data['status']) : '';
+
+            if ($status !== '') {
+                $queue->forceFill(['status' => $status])->save();
+            }
+        }
+
+        return response()->json(['status' => 'ok']);
+    }
+
     public function messages(Request $request, string $taskId): JsonResponse
     {
         $queue = AgentTaskQueue::query()

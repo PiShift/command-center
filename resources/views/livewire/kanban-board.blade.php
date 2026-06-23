@@ -107,15 +107,20 @@
                      x-on:mouseleave="$el.style.borderColor='#eeeee9'"
                      x-on:click="$wire.dispatch('open-task', { id: {{ $task->id }} })">
                     <div class="p-3.5">
+                        @php
+                            $isQueueActive = $task->agent && $task->latestQueue && in_array($task->latestQueue->status, $activeQueueStatuses, true);
+                            $isWaitingLocalDirectory = $isQueueActive && $task->latestQueue->status === 'waiting_local_directory';
+                        @endphp
+
                         {{-- Title --}}
                         <p class="text-[13.5px] font-medium text-ink leading-snug mb-1 line-clamp-2">{{ $task->title }}</p>
 
                         {{-- Agent working banner --}}
-                        @if($task->agent && $task->latestQueue && in_array($task->latestQueue->status, ['queued', 'dispatched', 'running']))
+                        @if($isQueueActive)
                         <div class="flex items-center gap-1.5 mt-1.5 mb-1 px-2 py-1 rounded-[6px] text-[11px] font-medium"
                              style="background: rgba(124,58,237,0.08); color: #7c3aed; border: 1px solid rgba(124,58,237,0.15)">
                             <span class="w-1.5 h-1.5 rounded-full animate-pulse shrink-0" style="background:#7c3aed"></span>
-                            {{ $task->agent->name }} is working...
+                            {{ $task->agent->name }} is {{ $isWaitingLocalDirectory ? 'Waiting...' : 'working...' }}
                         </div>
                         @endif
 
@@ -219,8 +224,8 @@
                             @endif
 
                             {{-- Agent working indicator --}}
-                            @if($task->agent && $task->latestQueue && in_array($task->latestQueue->status, ['queued', 'dispatched', 'running']))
-                            <x-tooltip :text="$task->agent->name . ' is working...'" position="top">
+                            @if($isQueueActive)
+                            <x-tooltip :text="$task->agent->name . ' is ' . ($isWaitingLocalDirectory ? 'Waiting...' : 'working...')" position="top">
                                 <div class="relative w-6 h-6 shrink-0">
                                     {{-- Pulsing ring --}}
                                     <span class="absolute inset-0 rounded-full animate-ping opacity-60"
