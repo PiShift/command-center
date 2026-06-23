@@ -51,26 +51,6 @@ class TaskCommentController extends Controller
                 ->toMediaCollection('attachment');
         }
 
-        if ($request->expectsJson()) {
-            $comment->load('author');
-            $attachment = $comment->getFirstMedia('attachment');
-            return response()->json([
-                'id'         => $comment->id,
-                'body'       => $comment->body,
-                'author'     => $comment->author->name,
-                'color'      => $comment->author->color,
-                'initials'   => $comment->author->initials ?? strtoupper(substr($comment->author->name, 0, 2)),
-                'created_at' => $comment->created_at->diffForHumans(),
-                'attachment' => $attachment ? [
-                    'id'        => $attachment->id,
-                    'file_name' => $attachment->file_name,
-                    'mime_type' => $attachment->mime_type,
-                    'size'      => $attachment->size,
-                    'url'       => route('comment-attachments.destroy', ['task' => $task->id, 'comment' => $comment->id]),
-                ] : null,
-            ]);
-        }
-
         // Trigger agent if comment not by agent and task has agent assigned
         $this->triggerAgentIfNeeded($task, $comment);
 
@@ -97,6 +77,26 @@ class TaskCommentController extends Controller
         }
 
         SlackNotificationHelper::notifyOnce(new TaskCommentNotification($task->load('project'), $comment, $commenter));
+
+        if ($request->expectsJson()) {
+            $comment->load('author');
+            $attachment = $comment->getFirstMedia('attachment');
+            return response()->json([
+                'id'         => $comment->id,
+                'body'       => $comment->body,
+                'author'     => $comment->author->name,
+                'color'      => $comment->author->color,
+                'initials'   => $comment->author->initials ?? strtoupper(substr($comment->author->name, 0, 2)),
+                'created_at' => $comment->created_at->diffForHumans(),
+                'attachment' => $attachment ? [
+                    'id'        => $attachment->id,
+                    'file_name' => $attachment->file_name,
+                    'mime_type' => $attachment->mime_type,
+                    'size'      => $attachment->size,
+                    'url'       => route('comment-attachments.destroy', ['task' => $task->id, 'comment' => $comment->id]),
+                ] : null,
+            ]);
+        }
 
         return back()->with('success', 'Comment added.');
     }
