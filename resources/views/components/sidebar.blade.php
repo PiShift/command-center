@@ -59,6 +59,7 @@
     if ($user->hasPermission('settings.manage')) {
         $nav[] = ['_group' => 'Admin'];
         $nav[] = ['route' => 'skills.index', 'label' => 'Skills', 'icon' => 'book'];
+        $nav[] = ['route' => 'runtimes.index', 'label' => 'Runtimes', 'icon' => 'play'];
         $nav[] = ['route' => 'settings.notifications', 'label' => 'Settings', 'icon' => 'shield'];
     }
     $projects = \App\Models\Project::orderBy('name')->get(['id', 'name', 'color']);

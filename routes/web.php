@@ -23,6 +23,7 @@ use App\Http\Controllers\DaemonTokenController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\SkillController;
 use App\Http\Controllers\AgentSkillController;
+use App\Http\Controllers\RuntimeController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\AiConversationController;
 use App\Http\Controllers\TaskAttachmentController;
@@ -108,6 +109,9 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::delete('/skills/{skill}', [SkillController::class, 'destroy'])->name('skills.destroy');
     Route::post('/agents/{agent}/skills', [AgentSkillController::class, 'attach'])->name('agent-skills.attach');
     Route::delete('/agents/{agent}/skills/{skill}', [AgentSkillController::class, 'detach'])->name('agent-skills.detach');
+
+    // Runtimes
+    Route::get('/runtimes', [RuntimeController::class, 'index'])->name('runtimes.index');
 
     // Profile
     Route::get('/profile',               [ProfileController::class, 'show'])->name('profile.show');
