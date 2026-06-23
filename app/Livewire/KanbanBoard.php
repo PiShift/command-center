@@ -19,6 +19,8 @@ class KanbanBoard extends Component
 {
     use IssueBroadcastPayload;
 
+    public array $activeQueueStatuses = ['queued', 'dispatched', 'running', 'waiting_local_directory'];
+
     public string $activeTab = 'board';
     public ?int $filterProject = null;
     public ?int $filterAssignee = null;
@@ -158,7 +160,15 @@ class KanbanBoard extends Component
                 return null;
             }
 
-            $query = $col->tasks()->with(['project', 'assignee', 'agent', 'latestQueue', 'checklists'])->withCount('comments');
+            $query = $col->tasks()
+                ->with([
+                    'project',
+                    'assignee',
+                    'agent',
+                    'checklists',
+                    'latestQueue' => fn ($q) => $q->whereIn('status', $this->activeQueueStatuses),
+                ])
+                ->withCount('comments');
 
             // Developers: only their own assigned tasks (not team-wide unclaimed tasks)
             if ($scopedToUser) {

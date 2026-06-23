@@ -292,6 +292,7 @@ Route::prefix('daemon')->middleware(DaemonTokenMiddleware::class)->group(functio
     Route::post('tasks/{taskId}/session', function() {
         return response()->json(['status' => 'ok']);
     });
+    Route::post('tasks/{taskId}/wait-local-directory', [DaemonController::class, 'waitLocalDirectory']);
     Route::post('tasks/{taskId}/messages', [DaemonController::class, 'messages']);
     Route::post('tasks/{taskId}/usage', [DaemonController::class, 'usage']);
 
