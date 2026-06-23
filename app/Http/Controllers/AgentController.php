@@ -8,6 +8,7 @@ use App\Models\AgentTaskQueue;
 use App\Models\Task;
 use App\Models\Skill;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AgentController extends Controller
 {
@@ -78,6 +79,11 @@ class AgentController extends Controller
 
         $agent->load(['runtime', 'owner']);
 
+        $driver = DB::connection()->getDriverName();
+        $avgSecondsExpr = $driver === 'mysql'
+            ? 'avg(timestampdiff(second, started_at, completed_at))'
+            : 'avg(extract(epoch from completed_at - started_at))';
+
         $stats = AgentTaskQueue::query()
             ->where('agent_id', $agent->id)
             ->where('created_at', '>=', now()->subDays(30))
@@ -86,7 +92,7 @@ class AgentController extends Controller
                 "count(*) as total_runs,
                 sum(case when status = 'completed' then 1 else 0 end) as completed,
                 sum(case when status = 'failed' then 1 else 0 end) as failed,
-                avg(extract(epoch from completed_at - started_at)) as avg_seconds"
+                {$avgSecondsExpr} as avg_seconds"
             )
             ->first();
 
