@@ -221,26 +221,17 @@
                             {{-- Agent working indicator --}}
                             @if($task->agent && $task->latestQueue && in_array($task->latestQueue->status, ['queued', 'dispatched', 'running']))
                             <x-tooltip :text="$task->agent->name . ' is working...'" position="top">
-                                <div class="relative flex items-center justify-center w-6 h-6 rounded-full shrink-0"
-                                     style="background: linear-gradient(135deg, #7c3aed, #a855f7)">
+                                <div class="relative w-6 h-6 shrink-0">
                                     {{-- Pulsing ring --}}
                                     <span class="absolute inset-0 rounded-full animate-ping opacity-60"
                                           style="background: rgba(124,58,237,0.3)"></span>
-                                    {{-- Agent icon --}}
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white relative z-10" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zM9 14a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm6 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
-                                    </svg>
+                                    <x-agent-avatar :agent="$task->agent" size="6" />
                                 </div>
                             </x-tooltip>
                             {{-- Agent avatar (idle) --}}
                             @elseif($task->agent)
                             <x-tooltip :text="$task->agent->name . ' (agent)'" position="top">
-                                <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[9px] font-bold text-white"
-                                     style="background: linear-gradient(135deg, #6d28d9, #8b5cf6)">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zM9 14a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm6 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
-                                    </svg>
-                                </div>
+                                <x-agent-avatar :agent="$task->agent" size="6" />
                             </x-tooltip>
                             {{-- Human assignee avatar --}}
                             @elseif($task->assignee)

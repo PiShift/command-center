@@ -704,7 +704,16 @@
                     </select>
                     @endif
                     @if($task?->agent)
-                    <p class="text-[12px] text-dim mt-2">{{ $task->agent->name }} · {{ strtoupper($task->agent->runtime?->provider ?? 'n/a') }}</p>
+                    <div class="mt-2 flex items-center gap-2">
+                        <x-agent-avatar :agent="$task->agent" size="6" />
+                        <div class="min-w-0">
+                            <p class="text-[12px] text-dim truncate">{{ $task->agent->name }}</p>
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <x-provider-icon :provider="$task->agent->runtime?->provider ?? 'default'" size="4" />
+                                <span class="text-[11px] text-muted uppercase tracking-wide">{{ strtoupper($task->agent->runtime?->provider ?? 'n/a') }}</span>
+                            </div>
+                        </div>
+                    </div>
                     @else
                     <p class="text-[12px] text-muted">No agent assigned</p>
                     @endif

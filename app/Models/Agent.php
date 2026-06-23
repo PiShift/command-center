@@ -7,9 +7,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
-class Agent extends Model
+class Agent extends Model implements HasMedia
 {
+    use InteractsWithMedia;
+
     public $incrementing = false;
 
     protected $keyType = 'string';
@@ -80,5 +85,21 @@ class Agent extends Model
     {
         return $this->belongsToMany(Skill::class, 'agent_skills')
             ->withTimestamps();
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('avatar')
+            ->singleFile()
+            ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+    }
+
+    public function registerMediaConversions(?Media $media = null): void
+    {
+        $this->addMediaConversion('thumb')
+            ->width(200)
+            ->height(200)
+            ->nonQueued()
+            ->performOnCollections('avatar');
     }
 }
