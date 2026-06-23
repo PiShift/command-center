@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\AgentTaskQueue;
 use App\Models\KanbanColumn;
 use App\Models\Task;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +15,7 @@ class IssuePayloadTransformer
 
     public function transform(Task $task, ?int $fallbackUserId = null): array
     {
-        $task->loadMissing(['project.teams:id,lead_user_id', 'assignee:id', 'agent:id']);
+        $task->loadMissing(['project.teams:id,lead_user_id', 'assignee:id', 'agent:id', 'checklists']);
 
         $workspaceId = $task->project?->teams?->sortBy('id')->first()?->id;
         [$assigneeType, $assigneeId] = $this->outgoingAssignee($task);
@@ -26,7 +27,7 @@ class IssuePayloadTransformer
             'number'          => (int) $task->id,
             'identifier'      => 'task-' . $task->id,
             'title'           => (string) $task->title,
-            'description'     => (string) ($task->description ?? ''),
+            'description'     => AgentTaskQueue::buildPrompt($task),
             'status'          => $this->normalizeOutgoingStatus((string) $task->status),
             'priority'        => $this->normalizeOutgoingPriority((string) $task->priority),
             'assignee_type'   => $assigneeType,
