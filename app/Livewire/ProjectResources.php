@@ -72,7 +72,7 @@ class ProjectResources extends Component
         $this->resourceType = 'github_repo';
     }
 
-    public function deleteResource(int $id): void
+    public function deleteResource(string $id): void
     {
         ProjectResource::where('project_id', $this->project->id)
             ->where('id', $id)

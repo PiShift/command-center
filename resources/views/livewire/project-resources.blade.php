@@ -151,7 +151,7 @@
             </span>
 
             {{-- Delete --}}
-            <button wire:click="deleteResource({{ $resource->id }})"
+            <button wire:click="deleteResource('{{ $resource->id }}')"
                     wire:confirm="Remove this resource?"
                     class="w-7 h-7 rounded-full flex items-center justify-center text-muted hover:text-[#b94040] transition-colors cursor-pointer shrink-0"
                     style="background: rgba(0,0,0,0.05)">
