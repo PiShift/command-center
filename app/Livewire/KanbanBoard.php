@@ -138,6 +138,12 @@ class KanbanBoard extends Component
         $this->loadTasks();
     }
 
+    public function loadTasks(): void
+    {
+        // Intentionally left blank: Livewire re-renders after the calling action,
+        // so this method serves as a stable refresh hook for realtime events.
+    }
+
     public function render()
     {
         $user         = auth()->user();
