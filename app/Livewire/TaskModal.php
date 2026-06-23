@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Events\AgentCommentPosted;
 use App\Models\Agent;
 use App\Models\AgentTaskQueue;
 use App\Models\KanbanColumn;
@@ -10,6 +11,8 @@ use App\Models\Task;
 use App\Models\TaskChecklist;
 use App\Models\TaskComment;
 use App\Models\User;
+use App\Notifications\TaskCommentNotification;
+use App\Services\AgentTriggerService;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 
@@ -189,13 +192,60 @@ class TaskModal extends Component
     public function addComment(): void
     {
         $this->validate(['commentBody' => 'required|string|max:2000']);
-        TaskComment::create([
+
+        $comment = TaskComment::create([
             'task_id' => $this->taskId,
             'user_id' => auth()->id(),
             'body'    => $this->commentBody,
         ]);
+
+        $task = Task::with('project.teams')->find($this->taskId);
+        if (!$task) {
+            $this->commentBody = '';
+            return;
+        }
+
+        // Broadcast via WebSocket
+        $workspaceId = $task?->project?->teams?->first()?->id;
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastCommentCreated($comment, (string) $workspaceId);
+        }
+
+        // Broadcast real-time event via Reverb/Echo
+        broadcast(new AgentCommentPosted(
+            taskId: (int) $task->id,
+            body: $comment->body,
+            authorName: auth()->user()->name,
+        ));
+
+        // Trigger agent if task has agent assigned
+        $task->load('agent.runtime');
+        AgentTriggerService::triggerOnComment($task, $comment);
+
+        // Send notifications
+        $commenter = auth()->user();
+        $recipients = collect();
+
+        if ($task->assigned_to && $task->assigned_to !== $commenter->id) {
+            $recipients->push($task->assignee);
+        }
+
+        $prevCommenters = $task->comments()
+            ->where('user_id', '!=', $commenter->id)
+            ->where('id', '!=', $comment->id)
+            ->pluck('user_id')
+            ->unique()
+            ->map(fn($id) => User::find($id))
+            ->filter();
+
+        $recipients = $recipients->merge($prevCommenters)->unique('id');
+
+        foreach ($recipients as $recipient) {
+            $recipient->notify(new TaskCommentNotification($task->load('project'), $comment, $commenter));
+        }
+
         $this->commentBody = '';
-        // Refresh comments via re-render
+        // Trigger re-render to show new comment
     }
 
     public function deleteComment(int $id): void
