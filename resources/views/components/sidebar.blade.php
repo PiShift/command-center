@@ -8,8 +8,9 @@
     $nav = [
         ['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'grid'],
     ];
-    if ($user->hasPermission('tasks.view')) {
+    if ($user->hasPermission('tasks.view') || $user->hasPermission('projects.view')) {
         $nav[] = ['route' => 'board', 'label' => 'Board', 'icon' => 'columns', 'badge' => \App\Models\Task::where('status','!=','done')->count()];
+        $nav[] = ['route' => 'agents.index', 'label' => 'Agents', 'icon' => 'play'];
     }
     if ($user->hasPermission('projects.view')) {
         $nav[] = ['route' => 'projects.index', 'label' => 'Projects', 'icon' => 'folder', 'badge' => \App\Models\Project::count()];
@@ -57,6 +58,7 @@
     }
     if ($user->hasPermission('settings.manage')) {
         $nav[] = ['_group' => 'Admin'];
+        $nav[] = ['route' => 'skills.index', 'label' => 'Skills', 'icon' => 'book'];
         $nav[] = ['route' => 'settings.notifications', 'label' => 'Settings', 'icon' => 'shield'];
     }
     $projects = \App\Models\Project::orderBy('name')->get(['id', 'name', 'color']);

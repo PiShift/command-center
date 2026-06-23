@@ -230,6 +230,7 @@ class DaemonController extends Controller
         $rawTaskToken = $claimed['auth_token'];
 
         $queue->loadMissing('task.project');
+        $agent = $queue->agent()->with('skills')->first();
         $task = $queue->task;
         $project = $task?->project;
         $projectResources = [];
@@ -282,6 +283,18 @@ class DaemonController extends Controller
                 'repos'           => $this->deduplicateRepos($repos),
                 'project_resources' => $projectResources,
                 'local_directory' => $this->resolveLocalDirectory($projectResources, $runtime->provider),
+                'agent'           => $agent ? [
+                    'id'          => (string) $agent->id,
+                    'name'        => $agent->name,
+                    'instructions' => $agent->instructions ?? '',
+                    'skills'      => $agent->skills->map(fn ($skill) => [
+                        'id'          => (string) $skill->id,
+                        'name'        => $skill->name,
+                        'description' => $skill->description ?? '',
+                        'content'     => $skill->content ?? '',
+                        'files'       => [],
+                    ])->values()->toArray(),
+                ] : null,
             ],
         ]);
     }
@@ -516,6 +529,7 @@ class DaemonController extends Controller
             'error_message' => $data['error'] ?? null,
         ])->save();
 
+        $queue->loadMissing('runtime');
         $queue->task()->update(['status' => 'open']);
 
         $task = $queue->task()->with('project.teams')->first();
@@ -537,7 +551,8 @@ class DaemonController extends Controller
 
         TaskComment::create([
             'task_id' => $queue->task_id,
-            'user_id' => $request->user()->id,
+            'agent_id' => $queue->agent_id,
+            'user_id' => $queue->runtime->user_id,
             'body'    => '❌ Agent failed: ' . ($data['error'] ?? 'Unknown error'),
         ]);
 
@@ -556,9 +571,12 @@ class DaemonController extends Controller
 
         $queue->update(['status' => 'cancelled']);
 
+        $queue->loadMissing('runtime');
+
         TaskComment::create([
             'task_id' => $queue->task_id,
-            'user_id' => $request->user()->id,
+            'agent_id' => $queue->agent_id,
+            'user_id' => $queue->runtime->user_id,
             'body'    => '⚠️ Task cancelled.',
         ]);
 

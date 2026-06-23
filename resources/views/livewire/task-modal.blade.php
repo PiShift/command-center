@@ -443,13 +443,32 @@
                     @forelse($task->comments as $comment)
                     <div class="flex gap-3" wire:key="comment-{{ $comment->id }}">
                         {{-- Avatar --}}
-                        <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
-                             style="background: {{ $comment->author->color ?? '#D97757' }}">
-                            {{ $comment->author->initials ?? strtoupper(substr($comment->author->name, 0, 2)) }}
-                        </div>
+                        @if($comment->agent_id)
+                            {{-- Agent comment --}}
+                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5 bg-[#7c3aed]">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+                                </svg>
+                            </div>
+                        @else
+                            {{-- User comment --}}
+                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
+                                 style="background: {{ $comment->author->color ?? '#D97757' }}">
+                                {{ $comment->author->initials ?? strtoupper(substr($comment->author->name, 0, 2)) }}
+                            </div>
+                        @endif
                         <div class="flex-1 min-w-0">
                             <div class="flex items-baseline gap-2 mb-1">
-                                <span class="text-[13px] font-semibold text-ink">{{ $comment->author->name }}</span>
+                                <span class="text-[13px] font-semibold text-ink">
+                                    @if($comment->agent_id)
+                                        {{ $comment->agent->name ?? 'Agent' }}
+                                    @else
+                                        {{ $comment->author->name }}
+                                    @endif
+                                </span>
+                                @if($comment->agent_id)
+                                    <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#ede9fe] text-[#7c3aed]">Agent</span>
+                                @endif
                                 <span class="text-[11px] text-muted">{{ $comment->created_at->diffForHumans() }}</span>
                                 @if($canEdit['deleteComment'])
                                 <button wire:click="deleteComment({{ $comment->id }})"
