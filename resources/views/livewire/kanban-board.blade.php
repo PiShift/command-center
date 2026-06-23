@@ -110,6 +110,15 @@
                         {{-- Title --}}
                         <p class="text-[13.5px] font-medium text-ink leading-snug mb-1 line-clamp-2">{{ $task->title }}</p>
 
+                        {{-- Agent working banner --}}
+                        @if($task->agent && $task->latestQueue && in_array($task->latestQueue->status, ['queued', 'dispatched', 'running']))
+                        <div class="flex items-center gap-1.5 mt-1.5 mb-1 px-2 py-1 rounded-[6px] text-[11px] font-medium"
+                             style="background: rgba(124,58,237,0.08); color: #7c3aed; border: 1px solid rgba(124,58,237,0.15)">
+                            <span class="w-1.5 h-1.5 rounded-full animate-pulse shrink-0" style="background:#7c3aed"></span>
+                            {{ $task->agent->name }} is working...
+                        </div>
+                        @endif
+
                         {{-- "View & Claim" button — unassigned tasks only; opens modal so dev reads before claiming --}}
                         @if(! $task->assigned_to && \Illuminate\Support\Facades\Gate::allows('claim', $task))
                         <div x-on:click.stop>
@@ -209,8 +218,32 @@
                             </x-tooltip>
                             @endif
 
-                            {{-- Assignee avatar --}}
-                            @if($task->assignee)
+                            {{-- Agent working indicator --}}
+                            @if($task->agent && $task->latestQueue && in_array($task->latestQueue->status, ['queued', 'dispatched', 'running']))
+                            <x-tooltip :text="$task->agent->name . ' is working...'" position="top">
+                                <div class="relative flex items-center justify-center w-6 h-6 rounded-full shrink-0"
+                                     style="background: linear-gradient(135deg, #7c3aed, #a855f7)">
+                                    {{-- Pulsing ring --}}
+                                    <span class="absolute inset-0 rounded-full animate-ping opacity-60"
+                                          style="background: rgba(124,58,237,0.3)"></span>
+                                    {{-- Agent icon --}}
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white relative z-10" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zM9 14a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm6 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
+                                    </svg>
+                                </div>
+                            </x-tooltip>
+                            {{-- Agent avatar (idle) --}}
+                            @elseif($task->agent)
+                            <x-tooltip :text="$task->agent->name . ' (agent)'" position="top">
+                                <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[9px] font-bold text-white"
+                                     style="background: linear-gradient(135deg, #6d28d9, #8b5cf6)">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zM9 14a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm6 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
+                                    </svg>
+                                </div>
+                            </x-tooltip>
+                            {{-- Human assignee avatar --}}
+                            @elseif($task->assignee)
                             <x-tooltip :text="$task->assignee->name" position="top">
                                 <span class="w-5 h-5 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
                                       style="background:{{ $task->assignee->color ?? '#D97757' }}">

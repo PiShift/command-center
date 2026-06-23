@@ -18,7 +18,10 @@ class AgentTaskFailed implements ShouldBroadcast
 
     public function broadcastOn(): array
     {
-        return [new Channel('tasks.' . $this->taskId)];
+        return [
+            new Channel('tasks.' . $this->taskId),
+            new Channel('agent-activity'),
+        ];
     }
 
     public function broadcastAs(): string

@@ -68,7 +68,7 @@ class Task extends Model implements HasMedia
 
     public function latestQueue(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
-        return $this->hasOne(AgentTaskQueue::class, 'task_id')->latestOfMany();
+        return $this->hasOne(AgentTaskQueue::class, 'task_id')->latest('created_at');
     }
 
     public function isOverdue(): bool
