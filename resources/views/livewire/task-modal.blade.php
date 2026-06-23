@@ -441,65 +441,109 @@
                 @if($task)
                 <div class="space-y-4 mb-5 max-h-[34vh] overflow-y-auto pr-1 sm:max-h-none sm:overflow-visible">
                     @forelse($task->comments as $comment)
-                    <div class="flex gap-3" wire:key="comment-{{ $comment->id }}">
-                        {{-- Avatar --}}
-                        @if($comment->agent_id)
-                            {{-- Agent comment --}}
-                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5 bg-[#7c3aed]">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
-                                </svg>
-                            </div>
-                        @else
-                            {{-- User comment --}}
-                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
-                                 style="background: {{ $comment->author->color ?? '#D97757' }}">
-                                {{ $comment->author->initials ?? strtoupper(substr($comment->author->name, 0, 2)) }}
-                            </div>
-                        @endif
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-baseline gap-2 mb-1">
-                                <span class="text-[13px] font-semibold text-ink">
-                                    @if($comment->agent_id)
-                                        {{ $comment->agent->name ?? 'Agent' }}
-                                    @else
-                                        {{ $comment->author->name }}
-                                    @endif
-                                </span>
-                                @if($comment->agent_id)
-                                    <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#ede9fe] text-[#7c3aed]">Agent</span>
-                                @endif
-                                <span class="text-[11px] text-muted">{{ $comment->created_at->diffForHumans() }}</span>
-                                @if($canEdit['deleteComment'])
-                                <button wire:click="deleteComment({{ $comment->id }})"
-                                        wire:confirm="Delete this comment?"
-                                        class="text-[11px] text-muted hover:text-[#b94040] ml-auto transition-colors cursor-pointer">Delete</button>
-                                @endif
-                            </div>
-                            <div class="prose prose-sm max-w-none text-dim leading-relaxed">{!! Str::markdown($comment->body, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
-                            {{-- Comment attachment --}}
-                            @php $comAtt = $comment->getFirstMedia('attachment'); @endphp
-                            @if($comAtt)
-                            @php
-                                $comIsImg = str_starts_with($comAtt->mime_type, 'image/');
-                                $comDlUrl = route('comment-attachments.download', ['task' => $task->id, 'comment' => $comment->id]);
-                                $comSize  = $comAtt->size >= 1048576 ? round($comAtt->size/1048576, 1).'MB' : round($comAtt->size/1024, 1).'KB';
-                            @endphp
-                            <div class="mt-1.5 inline-flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-surface border border-hairline max-w-xs">
-                                @if($comIsImg)
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
-                                </svg>
-                                @else
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"/>
-                                </svg>
-                                @endif
-                                <a href="{{ $comDlUrl }}" download="{{ $comAtt->file_name }}"
-                                   class="text-[11px] font-medium text-accent hover:underline truncate max-w-[160px]">{{ $comAtt->file_name }}</a>
-                                <span class="text-[11px] text-muted shrink-0">{{ $comSize }}</span>
-                            </div>
+                    @php
+                        $commentPreview = (string) Str::of($comment->body)->before("\n")->squish()->limit(80);
+                    @endphp
+                    <div class="group rounded-xl border border-hairline"
+                         style="background: {{ $comment->agent_id ? 'rgba(124,58,237,0.03)' : '#ffffff' }}"
+                         wire:key="comment-{{ $comment->id }}"
+                         x-data="{ open: {{ $loop->first ? 'true' : 'false' }} }">
+                        <div class="flex gap-3 px-3 py-2.5 cursor-pointer"
+                             @click="open = !open"
+                             @keydown.enter.prevent="open = !open"
+                             @keydown.space.prevent="open = !open"
+                             role="button"
+                             tabindex="0"
+                             :aria-expanded="open.toString()">
+                            {{-- Avatar --}}
+                            @if($comment->agent_id)
+                                {{-- Agent comment --}}
+                                <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5 bg-[#7c3aed]">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+                                    </svg>
+                                </div>
+                            @else
+                                {{-- User comment --}}
+                                <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
+                                     style="background: {{ $comment->author->color ?? '#D97757' }}">
+                                    {{ $comment->author->initials ?? strtoupper(substr($comment->author->name, 0, 2)) }}
+                                </div>
                             @endif
+
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-start gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            <span class="text-[13px] font-semibold text-ink truncate">
+                                                @if($comment->agent_id)
+                                                    {{ $comment->agent->name ?? 'Agent' }}
+                                                @else
+                                                    {{ $comment->author->name }}
+                                                @endif
+                                            </span>
+                                            @if($comment->agent_id)
+                                                <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#ede9fe] text-[#7c3aed] shrink-0">Agent</span>
+                                            @endif
+                                            <span class="text-[11px] text-muted shrink-0">{{ $comment->created_at->diffForHumans() }}</span>
+                                        </div>
+                                        <p x-show="!open" x-cloak class="text-[12px] text-muted mt-0.5 truncate">{{ $commentPreview }}</p>
+                                    </div>
+
+                                    @if($canEdit['deleteComment'])
+                                    <button @click.stop
+                                            wire:click="deleteComment({{ $comment->id }})"
+                                            wire:confirm="Delete this comment?"
+                                            class="text-[11px] text-muted hover:text-[#b94040] transition-colors cursor-pointer"
+                                            :class="open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'">Delete</button>
+                                    @endif
+
+                                    <svg xmlns="http://www.w3.org/2000/svg"
+                                         class="w-4 h-4 text-muted shrink-0 mt-0.5 transition-transform duration-200"
+                                         :class="open ? 'rotate-180' : ''"
+                                         fill="none"
+                                         viewBox="0 0 24 24"
+                                         stroke-width="2"
+                                         stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+                                    </svg>
+                                </div>
+
+                                <div x-show="open"
+                                     x-cloak
+                                     x-transition:enter="transition ease-out duration-200"
+                                     x-transition:enter-start="opacity-0 -translate-y-1"
+                                     x-transition:enter-end="opacity-100 translate-y-0"
+                                     x-transition:leave="transition ease-in duration-150"
+                                     x-transition:leave-start="opacity-100 translate-y-0"
+                                     x-transition:leave-end="opacity-0 -translate-y-1"
+                                     class="mt-2">
+                                    <div class="prose prose-sm max-w-none text-dim leading-relaxed">{!! Str::markdown($comment->body, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
+                                    {{-- Comment attachment --}}
+                                    @php $comAtt = $comment->getFirstMedia('attachment'); @endphp
+                                    @if($comAtt)
+                                    @php
+                                        $comIsImg = str_starts_with($comAtt->mime_type, 'image/');
+                                        $comDlUrl = route('comment-attachments.download', ['task' => $task->id, 'comment' => $comment->id]);
+                                        $comSize  = $comAtt->size >= 1048576 ? round($comAtt->size/1048576, 1).'MB' : round($comAtt->size/1024, 1).'KB';
+                                    @endphp
+                                    <div class="mt-1.5 inline-flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-surface border border-hairline max-w-xs">
+                                        @if($comIsImg)
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
+                                        </svg>
+                                        @else
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"/>
+                                        </svg>
+                                        @endif
+                                        <a href="{{ $comDlUrl }}" download="{{ $comAtt->file_name }}"
+                                           class="text-[11px] font-medium text-accent hover:underline truncate max-w-[160px]">{{ $comAtt->file_name }}</a>
+                                        <span class="text-[11px] text-muted shrink-0">{{ $comSize }}</span>
+                                    </div>
+                                    @endif
+                                </div>
+                            </div>
                         </div>
                     </div>
                     @empty
