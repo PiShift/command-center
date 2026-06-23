@@ -117,32 +117,27 @@ class KanbanBoard extends Component
     #[On('taskStatusChanged')]
     public function onTaskStatusChanged(int $taskId, string $status): void
     {
-        $this->loadTasks();
+        $this->dispatch('$refresh');
     }
 
     #[On('taskAgentStarted')]
     public function onTaskAgentStarted(int $taskId): void
     {
-        $this->loadTasks();
+        $this->dispatch('$refresh');
     }
 
     #[On('taskAgentCompleted')]
     public function onTaskAgentCompleted(int $taskId): void
     {
-        $this->loadTasks();
+        $this->dispatch('$refresh');
     }
 
     #[On('taskAgentFailed')]
     public function onTaskAgentFailed(int $taskId): void
     {
-        $this->loadTasks();
+        $this->dispatch('$refresh');
     }
 
-    public function loadTasks(): void
-    {
-        // Intentionally left blank: Livewire re-renders after the calling action,
-        // so this method serves as a stable refresh hook for realtime events.
-    }
 
     public function render()
     {
