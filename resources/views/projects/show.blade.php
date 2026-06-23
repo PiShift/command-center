@@ -4,7 +4,7 @@
      x-data="{
          tab: (() => {
              const h = window.location.hash.replace('#', '');
-             return ['overview','sprints','backlog','guide'].includes(h) ? h : 'overview';
+             return ['overview','sprints','backlog','guide','resources'].includes(h) ? h : 'overview';
          })(),
          setTab(t) {
              this.tab = t;
@@ -93,6 +93,13 @@
                 class="px-4 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-150 cursor-pointer">
             Documents
         </button>
+        @if($canManage)
+        <button @click="setTab('resources')"
+                :class="tab === 'resources' ? 'bg-white text-ink shadow-[0_1px_3px_rgba(20,20,19,0.08)]' : 'text-muted hover:text-dim'"
+                class="px-4 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-150 cursor-pointer">
+            Resources
+        </button>
+        @endif
     </div>
 
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
@@ -727,6 +734,15 @@
             </div>
         </div>
     </div>
+
+    {{-- ══════════════════════════════════════════════════════════════════════ --}}
+    {{-- Resources tab                                                          --}}
+    {{-- ══════════════════════════════════════════════════════════════════════ --}}
+    @if($canManage)
+    <div x-show="tab === 'resources'" class="space-y-6">
+        <livewire:project-resources :project="$project" />
+    </div>
+    @endif
 
 </div>
 
