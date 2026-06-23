@@ -68,7 +68,7 @@ class TaskModal extends Component
 
     public function openTask(int $id): void
     {
-        $task = Task::with(['project', 'assignee', 'agent', 'comments.author', 'comments.media', 'media'])->findOrFail($id);
+        $task = Task::with(['project', 'assignee', 'agent', 'comments.author', 'comments.media', 'comments.agent', 'media'])->findOrFail($id);
 
         $this->taskId          = $task->id;
         $this->title           = $task->title;
@@ -298,7 +298,7 @@ class TaskModal extends Component
     public function render()
     {
         $task = $this->taskId
-            ? Task::with(['project', 'assignee', 'agent.runtime', 'comments.author', 'comments.media', 'checklists', 'media'])->find($this->taskId)
+            ? Task::with(['project', 'assignee', 'agent.runtime', 'comments.author', 'comments.media', 'comments.agent', 'checklists', 'media'])->find($this->taskId)
             : null;
 
         $canEdit = [
