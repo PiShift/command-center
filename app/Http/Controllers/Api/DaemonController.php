@@ -422,7 +422,12 @@ class DaemonController extends Controller
 
         $hasTaskScopedMat = $this->hasValidMatTokenForTask($request, $queue->id);
 
-        if (! $hasTeamAccess && ! $hasTaskScopedMat) {
+        $hasRuntimeAccess = AgentRuntime::query()
+            ->where('id', $queue->runtime_id)
+            ->where('user_id', $userId)
+            ->exists();
+
+        if (! $hasTeamAccess && ! $hasTaskScopedMat && ! $hasRuntimeAccess) {
             return response()->json(['error' => 'forbidden'], 403);
         }
 

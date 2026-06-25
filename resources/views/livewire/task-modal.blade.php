@@ -218,7 +218,7 @@
                     <div class="min-h-[44px] {{ $canEdit['meta'] ? 'cursor-text group' : '' }}"
                          @if($canEdit['meta']) wire:click="$set('editingDescription', true)" @endif>
                         @if($description)
-                            <p class="text-[13px] text-dim leading-relaxed {{ $canEdit['meta'] ? 'group-hover:bg-surface rounded-lg px-2 py-1.5 -mx-2 transition-colors' : '' }}">{{ $description }}</p>
+                            <div class="prose prose-sm max-w-none text-[13px] text-dim leading-relaxed {{ $canEdit['meta'] ? 'group-hover:bg-surface rounded-lg px-2 py-1.5 -mx-2 transition-colors' : '' }}">{!! Str::markdown($task->description ?? '', ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
                         @else
                             <p class="text-[13px] text-muted italic {{ $canEdit['meta'] ? 'group-hover:bg-surface rounded-lg px-2 py-1.5 -mx-2 transition-colors' : '' }}">{{ $canEdit['meta'] ? 'Click to add a description…' : 'No description.' }}</p>
                         @endif
