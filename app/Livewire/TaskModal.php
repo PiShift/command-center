@@ -337,6 +337,24 @@ class TaskModal extends Component
         $media->delete();
     }
 
+    public function deleteTask(): void
+    {
+        if (! $this->taskId) {
+            return;
+        }
+
+        $task = Task::findOrFail($this->taskId);
+        Gate::authorize('delete', $task);
+
+        $deletedTaskId = $task->id;
+        $task->delete();
+
+        $this->open = false;
+        $this->taskId = null;
+        $this->dispatch('task-deleted', taskId: $deletedTaskId);
+        session()->flash('success', 'Task deleted.');
+    }
+
     // ───────────────────────────────────────────────────────────────────────────
 
     public function close(): void
@@ -358,6 +376,7 @@ class TaskModal extends Component
             'project'       => ! $task || Gate::allows('editProject', $task),
             'assignee'      => ! $task || Gate::allows('editAssignee', $task),
             'dates'         => ! $task || Gate::allows('editDates', $task),
+            'deleteTask'    => $task && Gate::allows('delete', $task),
             'deleteComment' => $task && Gate::allows('deleteComment', $task),
             'attachments'   => $task && (auth()->user()->hasPermission('tasks.edit_own') || auth()->user()->hasPermission('tasks.edit_any')),
         ];

@@ -761,6 +761,20 @@
                     <p class="text-[11px] text-muted">{{ $task->created_at->diffForHumans() }}</p>
                 </div>
                 @endif
+
+                {{-- Delete task --}}
+                @if($task && $canEdit['deleteTask'])
+                <div class="py-3.5">
+                    <button wire:click="deleteTask"
+                            wire:confirm="Delete this task? This cannot be undone."
+                            class="w-full text-center px-3 py-2 text-[12px] font-medium rounded-lg border transition-colors cursor-pointer"
+                            style="background:transparent;border-color:#ffd0d0;color:#b94040"
+                            onmouseover="this.style.background='#fff0f0'"
+                            onmouseout="this.style.background='transparent'">
+                        Delete task
+                    </button>
+                </div>
+                @endif
             </div>
 
             {{-- Save button for new tasks --}}
