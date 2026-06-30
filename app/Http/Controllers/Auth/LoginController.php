@@ -203,7 +203,12 @@ class LoginController extends Controller
         }
 
         if ($user->isTwoFactorEnabled()) {
-            return view('auth.verify', ['mode' => 'totp']);
+            $panel = $request->query('panel') === 'recovery' ? 'recovery' : 'totp';
+
+            return view('auth.verify', [
+                'mode' => 'totp',
+                'panel' => $panel,
+            ]);
         }
 
         // OTP flow — generate and send
@@ -243,6 +248,7 @@ class LoginController extends Controller
         // Reject empty submissions before any DB/decryption work
         if ($mode === 'recovery' && ! $recoveryCode) {
             RateLimiter::hit($key, 600);
+
             return back()->withErrors(['code' => 'Please enter a recovery code.']);
         }
 
