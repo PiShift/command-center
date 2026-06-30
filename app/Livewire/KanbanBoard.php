@@ -140,6 +140,12 @@ class KanbanBoard extends Component
         $this->dispatch('$refresh');
     }
 
+    #[On('task-deleted')]
+    public function onTaskDeleted(int $taskId): void
+    {
+        $this->dispatch('$refresh');
+    }
+
 
     public function render()
     {

@@ -98,6 +98,14 @@ class TaskPolicy
         return false;
     }
 
+    // ── Delete Task ───────────────────────────────────────────────────────────
+    public function delete(User $user, Task $task): bool
+    {
+        if ($this->isSuperAdmin($user))            return true;
+        if ($user->hasPermission('tasks.delete'))  return true;
+        return false;
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private function isSuperAdmin(User $user): bool
