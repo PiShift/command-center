@@ -81,7 +81,7 @@
 
                 {{-- Recovery code link (TOTP only) --}}
                 @if($mode === 'totp')
-                    <button @click="useRecovery = true" style="background:none;border:none;width:100%;text-align:center;margin-top:16px;font-size:13px;color:#D97757;cursor:pointer">
+                    <button type="button" @click="useRecovery = true" style="background:none;border:none;width:100%;text-align:center;margin-top:16px;font-size:13px;color:#D97757;cursor:pointer">
                         Use a recovery code instead →
                     </button>
                 @endif
@@ -125,7 +125,7 @@
                     </button>
                 </form>
 
-                <button @click="useRecovery = false" style="background:none;border:none;width:100%;text-align:center;margin-top:16px;font-size:13px;color:#D97757;cursor:pointer">
+                <button type="button" @click="useRecovery = false" style="background:none;border:none;width:100%;text-align:center;margin-top:16px;font-size:13px;color:#D97757;cursor:pointer">
                     ← Use authenticator app
                 </button>
             </div>
