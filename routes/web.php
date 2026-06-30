@@ -159,7 +159,7 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::post('projects/{project}/backlog/{backlogItem}/promote', [BacklogItemController::class, 'promote'])->name('backlog.promote');
 
     // Tasks
-    Route::resource('tasks', TaskController::class)->names('tasks')->except(['index', 'create']);
+    Route::resource('tasks', TaskController::class)->names('tasks')->except(['create']);
     Route::patch('/tasks/{task}/advance', [TaskController::class, 'advance'])->name('tasks.advance');
     Route::post('/tasks/{task}/claim', [TaskController::class, 'claim'])->name('tasks.claim');
     // Checklists
