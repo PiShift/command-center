@@ -10,6 +10,7 @@ use App\Models\UserDevice;
 use App\Models\UserLoginHistory;
 use App\Models\UserPendingVerification;
 use App\Services\TokenService;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,6 +18,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use RobThree\Auth\Providers\Qr\BaconQrCodeProvider;
+use RobThree\Auth\TwoFactorAuth;
 
 class LoginController extends Controller
 {
@@ -28,18 +31,30 @@ class LoginController extends Controller
         $platform = 'Unknown';
 
         // Platform
-        if (str_contains($ua, 'Windows')) $platform = 'Windows';
-        elseif (str_contains($ua, 'Mac')) $platform = 'macOS';
-        elseif (str_contains($ua, 'Linux')) $platform = 'Linux';
-        elseif (str_contains($ua, 'iPhone') || str_contains($ua, 'iPad')) $platform = 'iOS';
-        elseif (str_contains($ua, 'Android')) $platform = 'Android';
+        if (str_contains($ua, 'Windows')) {
+            $platform = 'Windows';
+        } elseif (str_contains($ua, 'Mac')) {
+            $platform = 'macOS';
+        } elseif (str_contains($ua, 'Linux')) {
+            $platform = 'Linux';
+        } elseif (str_contains($ua, 'iPhone') || str_contains($ua, 'iPad')) {
+            $platform = 'iOS';
+        } elseif (str_contains($ua, 'Android')) {
+            $platform = 'Android';
+        }
 
         // Browser
-        if (str_contains($ua, 'Edg/')) $browser = 'Edge';
-        elseif (str_contains($ua, 'OPR/') || str_contains($ua, 'Opera')) $browser = 'Opera';
-        elseif (str_contains($ua, 'Chrome')) $browser = 'Chrome';
-        elseif (str_contains($ua, 'Firefox')) $browser = 'Firefox';
-        elseif (str_contains($ua, 'Safari')) $browser = 'Safari';
+        if (str_contains($ua, 'Edg/')) {
+            $browser = 'Edge';
+        } elseif (str_contains($ua, 'OPR/') || str_contains($ua, 'Opera')) {
+            $browser = 'Opera';
+        } elseif (str_contains($ua, 'Chrome')) {
+            $browser = 'Chrome';
+        } elseif (str_contains($ua, 'Firefox')) {
+            $browser = 'Firefox';
+        } elseif (str_contains($ua, 'Safari')) {
+            $browser = 'Safari';
+        }
 
         return compact('browser', 'platform');
     }
@@ -47,12 +62,12 @@ class LoginController extends Controller
     private function recordLogin(int $userId, string $status, array $device, ?string $ip): void
     {
         UserLoginHistory::create([
-            'user_id'    => $userId,
+            'user_id' => $userId,
             'ip_address' => $ip,
-            'device'     => ($device['browser'] ?? 'Unknown') . ' on ' . ($device['platform'] ?? 'Unknown'),
-            'browser'    => $device['browser'] ?? null,
-            'platform'   => $device['platform'] ?? null,
-            'status'     => $status,
+            'device' => ($device['browser'] ?? 'Unknown').' on '.($device['platform'] ?? 'Unknown'),
+            'browser' => $device['browser'] ?? null,
+            'platform' => $device['platform'] ?? null,
+            'status' => $status,
         ]);
     }
 
@@ -89,7 +104,7 @@ class LoginController extends Controller
     public function login(Request $request, TokenService $tokenService)
     {
         $credentials = $request->validate([
-            'email'    => ['required', 'email'],
+            'email' => ['required', 'email'],
             'password' => ['required'],
             'cli_callback' => ['nullable', 'string', 'max:2048'],
             'cli_state' => ['nullable', 'string', 'max:255'],
@@ -110,10 +125,11 @@ class LoginController extends Controller
         $device = $this->parseUserAgent($ua);
         $ip = $request->ip();
 
-        if (!$user || !Hash::check($credentials['password'], $user->password)) {
+        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
             if ($user) {
                 $this->recordLogin($user->id, 'failed', $device, $ip);
             }
+
             return back()->withErrors(['email' => 'These credentials do not match our records.'])->onlyInput('email');
         }
 
@@ -148,7 +164,7 @@ class LoginController extends Controller
     public function showVerify(Request $request)
     {
         $userId = $request->session()->get('auth.pending_user_id');
-        abort_if(!$userId, 403);
+        abort_if(! $userId, 403);
 
         $user = User::with('twoFactor')->findOrFail($userId);
 
@@ -170,7 +186,7 @@ class LoginController extends Controller
 
         // Admin/manager with no 2FA set up — log them in and let the middleware
         // force them to /profile/2fa/setup. Don't block here or they can never set it up.
-        if ($user->requiresTwoFactor() && !$user->isTwoFactorEnabled()) {
+        if ($user->requiresTwoFactor() && ! $user->isTwoFactorEnabled()) {
             $pendingDevice = $request->session()->get('auth.pending_device', []);
             $this->recordLogin($user->id, 'success', $pendingDevice, $pendingDevice['ip'] ?? null);
             Auth::login($user);
@@ -194,9 +210,9 @@ class LoginController extends Controller
         $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         UserPendingVerification::where('user_id', $userId)->where('type', 'otp')->update(['used' => true]);
         UserPendingVerification::create([
-            'user_id'    => $userId,
-            'type'       => 'otp',
-            'code'       => hash('sha256', $code),
+            'user_id' => $userId,
+            'type' => 'otp',
+            'code' => hash('sha256', $code),
             'expires_at' => now()->addMinutes(10),
         ]);
         Mail::to($user->email)->send(new LoginOtpMail($code, $user->name));
@@ -209,48 +225,64 @@ class LoginController extends Controller
     public function verify(Request $request)
     {
         $userId = $request->session()->get('auth.pending_user_id');
-        abort_if(!$userId, 403);
+        abort_if(! $userId, 403);
 
-        $key = 'verify:' . $userId;
+        $key = 'verify:'.$userId;
         if (RateLimiter::tooManyAttempts($key, 5)) {
             $request->session()->forget(['auth.pending_user_id', 'auth.pending_device']);
+
             return redirect()->route('login')->withErrors(['email' => 'Too many attempts. Please sign in again.']);
         }
 
         $user = User::with('twoFactor')->findOrFail($userId);
         $mode = $request->input('mode', 'otp');
-        $code = $request->input('code', '');
-        $recoveryCode = $request->input('recovery_code', '');
+        $code = trim((string) $request->input('code', ''));
+        $recoveryCode = trim((string) $request->input('recovery_code', ''));
         $verified = false;
 
-        if ($mode === 'totp' && $user->isTwoFactorEnabled()) {
-            $tfa = new \RobThree\Auth\TwoFactorAuth(new \RobThree\Auth\Providers\Qr\BaconQrCodeProvider(4, '#ffffff', '#000000', 'svg'), config('app.name'));
-            $cleanCode = preg_replace('/\D/', '', $code);
-            $verified = $tfa->verifyCode($user->twoFactor->secret, $cleanCode, 8);
-        } elseif ($mode === 'recovery' && $user->isTwoFactorEnabled()) {
-            $hashed = hash('sha256', strtoupper($recoveryCode));
-            $codes = $user->twoFactor->recovery_codes ?? [];
-            if (in_array($hashed, $codes)) {
-                $user->twoFactor->update([
-                    'recovery_codes' => array_values(array_filter($codes, fn($c) => $c !== $hashed)),
-                ]);
-                $verified = true;
-            }
-        } else {
-            // OTP
-            $pending = UserPendingVerification::where('user_id', $userId)
-                ->where('type', 'otp')
-                ->valid()
-                ->latest()
-                ->first();
-            if ($pending && hash('sha256', $code) === $pending->code) {
-                $pending->update(['used' => true]);
-                $verified = true;
-            }
+        // Reject empty code submissions before any DB/decryption work
+        if ($mode !== 'recovery' && ! preg_match('/^\d{6}$/', $code)) {
+            RateLimiter::hit($key, 600);
+
+            return back()->withErrors(['code' => 'Please enter the 6-digit code.']);
         }
 
-        if (!$verified) {
+        try {
+            if ($mode === 'totp' && $user->isTwoFactorEnabled()) {
+                $tfa = new TwoFactorAuth(new BaconQrCodeProvider(4, '#ffffff', '#000000', 'svg'), config('app.name'));
+                $cleanCode = preg_replace('/\D/', '', $code);
+                $verified = $tfa->verifyCode($user->twoFactor->secret, $cleanCode, 8);
+            } elseif ($mode === 'recovery' && $user->isTwoFactorEnabled()) {
+                $hashed = hash('sha256', strtoupper($recoveryCode));
+                $codes = $user->twoFactor->recovery_codes ?? [];
+                if (in_array($hashed, $codes)) {
+                    $user->twoFactor->update([
+                        'recovery_codes' => array_values(array_filter($codes, fn ($c) => $c !== $hashed)),
+                    ]);
+                    $verified = true;
+                }
+            } else {
+                // OTP
+                $pending = UserPendingVerification::where('user_id', $userId)
+                    ->where('type', 'otp')
+                    ->valid()
+                    ->latest()
+                    ->first();
+                if ($pending && hash('sha256', $code) === $pending->code) {
+                    $pending->update(['used' => true]);
+                    $verified = true;
+                }
+            }
+        } catch (DecryptException) {
+            // APP_KEY mismatch or corrupted 2FA secret — treat as invalid code
             RateLimiter::hit($key, 600);
+
+            return back()->withErrors(['code' => 'Verification failed. Please contact support if this persists.']);
+        }
+
+        if (! $verified) {
+            RateLimiter::hit($key, 600);
+
             return back()->withErrors(['code' => 'Invalid code. Please try again.']);
         }
 
@@ -272,13 +304,13 @@ class LoginController extends Controller
         $plainToken = Str::random(64);
         $trusted = $request->boolean('trust_device');
         UserDevice::create([
-            'user_id'      => $user->id,
-            'name'         => ($pendingDevice['browser'] ?? 'Unknown') . ' on ' . ($pendingDevice['platform'] ?? 'Unknown'),
-            'browser'      => $pendingDevice['browser'] ?? null,
-            'platform'     => $pendingDevice['platform'] ?? null,
-            'ip_address'   => $pendingDevice['ip'] ?? null,
-            'token'        => hash('sha256', $plainToken),
-            'trusted'      => $trusted,
+            'user_id' => $user->id,
+            'name' => ($pendingDevice['browser'] ?? 'Unknown').' on '.($pendingDevice['platform'] ?? 'Unknown'),
+            'browser' => $pendingDevice['browser'] ?? null,
+            'platform' => $pendingDevice['platform'] ?? null,
+            'ip_address' => $pendingDevice['ip'] ?? null,
+            'token' => hash('sha256', $plainToken),
+            'trusted' => $trusted,
             'last_used_at' => now(),
         ]);
 
@@ -295,9 +327,9 @@ class LoginController extends Controller
     public function resendOtp(Request $request)
     {
         $userId = $request->session()->get('auth.pending_user_id');
-        abort_if(!$userId, 403);
+        abort_if(! $userId, 403);
 
-        $key = 'resend-otp:' . $userId;
+        $key = 'resend-otp:'.$userId;
         if (RateLimiter::tooManyAttempts($key, 1)) {
             return back()->withErrors(['code' => 'Please wait a minute before requesting a new code.']);
         }
@@ -307,9 +339,9 @@ class LoginController extends Controller
         $code = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         UserPendingVerification::where('user_id', $userId)->where('type', 'otp')->update(['used' => true]);
         UserPendingVerification::create([
-            'user_id'    => $userId,
-            'type'       => 'otp',
-            'code'       => hash('sha256', $code),
+            'user_id' => $userId,
+            'type' => 'otp',
+            'code' => hash('sha256', $code),
             'expires_at' => now()->addMinutes(10),
         ]);
         Mail::to($user->email)->send(new LoginOtpMail($code, $user->name));
@@ -324,6 +356,7 @@ class LoginController extends Controller
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
         return redirect()->route('login');
     }
 
@@ -341,18 +374,18 @@ class LoginController extends Controller
         $generated = $tokenService->generatePAT();
 
         PersonalAccessToken::create([
-            'user_id'      => $user->id,
-            'name'         => 'CLI (browser)',
-            'token_hash'   => $generated['hash'],
+            'user_id' => $user->id,
+            'name' => 'CLI (browser)',
+            'token_hash' => $generated['hash'],
             'token_prefix' => $generated['prefix'],
-            'expires_at'   => now()->addDays(90),
+            'expires_at' => now()->addDays(90),
         ]);
 
         $separator = str_contains($callback, '?') ? '&' : '?';
         $target = $callback
-            . $separator
-            . 'token=' . urlencode($generated['raw'])
-            . '&state=' . urlencode($state);
+            .$separator
+            .'token='.urlencode($generated['raw'])
+            .'&state='.urlencode($state);
 
         return redirect()->away($target);
     }

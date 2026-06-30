@@ -57,8 +57,11 @@
                             name="code"
                             inputmode="numeric"
                             autocomplete="one-time-code"
-                            maxlength="{{ $mode === 'totp' ? 6 : 6 }}"
+                            maxlength="6"
+                            minlength="6"
+                            pattern="\d{6}"
                             placeholder="000000"
+                            required
                             autofocus
                             style="width:100%;padding:14px 16px;font-size:28px;letter-spacing:0.25em;text-align:center;border:1px solid #e5e4df;border-radius:10px;background:#F5F4EF;color:#141413;outline:none;box-sizing:border-box"
                         >
