@@ -240,7 +240,12 @@ class LoginController extends Controller
         $recoveryCode = trim((string) $request->input('recovery_code', ''));
         $verified = false;
 
-        // Reject empty code submissions before any DB/decryption work
+        // Reject empty submissions before any DB/decryption work
+        if ($mode === 'recovery' && ! $recoveryCode) {
+            RateLimiter::hit($key, 600);
+            return back()->withErrors(['code' => 'Please enter a recovery code.']);
+        }
+
         if ($mode !== 'recovery' && ! preg_match('/^\d{6}$/', $code)) {
             RateLimiter::hit($key, 600);
 
