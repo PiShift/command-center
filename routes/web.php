@@ -1,84 +1,94 @@
 <?php
 
-use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\TwoFactorController;
-use App\Http\Controllers\ProjectController;
-use App\Http\Controllers\TaskController;
-use App\Http\Controllers\CustomerController;
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\RoleController;
-use App\Http\Controllers\InvoiceController;
-use App\Http\Controllers\InvoicePaymentController;
-use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\CreditController;
-use App\Http\Controllers\TeamController;
-use App\Http\Controllers\TeamMemberController;
-use App\Http\Controllers\ProjectTeamController;
-use App\Http\Controllers\SprintController;
-use App\Http\Controllers\BacklogItemController;
-use App\Http\Controllers\TaskChecklistController;
-use App\Http\Controllers\DaemonTokenController;
 use App\Http\Controllers\AgentController;
-use App\Http\Controllers\SkillController;
 use App\Http\Controllers\AgentSkillController;
-use App\Http\Controllers\RuntimeController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\AiConversationController;
-use App\Http\Controllers\TaskAttachmentController;
-use App\Http\Controllers\TaskCommentAttachmentController;
-use App\Http\Controllers\TaskCommentController;
-use App\Http\Controllers\ProjectDocumentController;
+use App\Http\Controllers\Api\AuthCodeController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\BacklogItemController;
+use App\Http\Controllers\BankAccountTransferController;
+use App\Http\Controllers\CompanyBankAccountController;
+use App\Http\Controllers\ContractTemplateController;
+use App\Http\Controllers\CreditController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DaemonTokenController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EmployeeAdvanceController;
+use App\Http\Controllers\EmployeeBankAccountController;
+use App\Http\Controllers\EmployeeContractController;
+use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeDocumentController;
+use App\Http\Controllers\EmployeeLeaveController;
+use App\Http\Controllers\EmployeeLoanController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
-use App\Http\Controllers\MonthlyBudgetController;
 use App\Http\Controllers\GlobalSearchController;
-use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoicePaymentController;
 use App\Http\Controllers\InvoiceReminderController;
-use App\Http\Controllers\SettingsNotificationController;
-use App\Http\Controllers\EmployeeController;
-use App\Http\Controllers\EmployeeContractController;
-use App\Http\Controllers\EmployeeDocumentController;
-use App\Http\Controllers\EmployeeBankAccountController;
-use App\Http\Controllers\EmployeeAdvanceController;
-use App\Http\Controllers\EmployeeLoanController;
-use App\Http\Controllers\EmployeeLeaveController;
-use App\Http\Controllers\PayrollController;
-use App\Http\Controllers\ContractTemplateController;
-use App\Http\Controllers\CompanyBankAccountController;
-use App\Http\Controllers\BankAccountTransferController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LeaveTypeController;
+use App\Http\Controllers\MonthlyBudgetController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OAuthController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectDocumentController;
+use App\Http\Controllers\ProjectTeamController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\RuntimeController;
+use App\Http\Controllers\SettingsNotificationController;
+use App\Http\Controllers\SkillController;
+use App\Http\Controllers\SprintController;
+use App\Http\Controllers\TaskAttachmentController;
+use App\Http\Controllers\TaskChecklistController;
+use App\Http\Controllers\TaskCommentAttachmentController;
+use App\Http\Controllers\TaskCommentController;
+use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TeamController;
+use App\Http\Controllers\TeamMemberController;
+use App\Http\Controllers\TwoFactorController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/health', function() {
+Route::get('/health', function () {
     return response()->json(['status' => 'ok']);
 });
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-Route::get('/login',  [LoginController::class, 'showLogin'])->name('login');
+Route::get('/login', [LoginController::class, 'showLogin'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
 // Multi-step verification
-Route::get('/login/verify',  [LoginController::class, 'showVerify'])->name('login.verify');
+Route::get('/login/verify', [LoginController::class, 'showVerify'])->name('login.verify');
 Route::post('/login/verify', [LoginController::class, 'verify'])->name('login.verify.submit');
 Route::post('/login/resend-otp', [LoginController::class, 'resendOtp'])->name('login.resend-otp');
 
-Route::post('/auth/send-code', [\App\Http\Controllers\Api\AuthCodeController::class, 'sendCode']);
-Route::post('/auth/verify-code', [\App\Http\Controllers\Api\AuthCodeController::class, 'verifyCode']);
+Route::post('/auth/send-code', [AuthCodeController::class, 'sendCode']);
+Route::post('/auth/verify-code', [AuthCodeController::class, 'verifyCode']);
 Route::post('/auth/logout', function () {
     Auth::logout();
+
     return response()->json(['status' => 'ok']);
 });
+
+Route::get('/.well-known/oauth-authorization-server', [OAuthController::class, 'authorizationServer'])
+    ->name('oauth.authorization-server');
+Route::get('/oauth/authorize', [OAuthController::class, 'authorize'])->name('oauth.authorize');
+Route::post('/oauth/authorize', [OAuthController::class, 'handleAuthorize'])->name('oauth.authorize.handle');
+Route::post('/oauth/token', [OAuthController::class, 'token'])->name('oauth.token');
 
 // ── Authenticated app ─────────────────────────────────────────────────────────
 Route::middleware(['auth', 'require-2fa'])->group(function () {
 
     Route::get('/', function () {
         $role = auth()->user()?->roleModel?->slug;
+
         return $role === 'developer'
             ? redirect()->route('board')
             : redirect()->route('dashboard');
@@ -114,21 +124,21 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::get('/runtimes', [RuntimeController::class, 'index'])->name('runtimes.index');
 
     // Profile
-    Route::get('/profile',               [ProfileController::class, 'show'])->name('profile.show');
-    Route::patch('/profile',             [ProfileController::class, 'update'])->name('profile.update');
-    Route::patch('/profile/password',    [ProfileController::class, 'updatePassword'])->name('profile.password');
+    Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
     Route::patch('/profile/notifications', [ProfileController::class, 'updateNotifications'])->name('profile.notifications');
     Route::delete('/profile/devices/{device}', [ProfileController::class, 'revokeDevice'])->name('profile.devices.revoke');
-    Route::delete('/profile/devices',    [ProfileController::class, 'revokeAllDevices'])->name('profile.devices.revoke-all');
+    Route::delete('/profile/devices', [ProfileController::class, 'revokeAllDevices'])->name('profile.devices.revoke-all');
     Route::post('/profile/daemon-tokens', [DaemonTokenController::class, 'store'])->name('daemon-tokens.store');
     Route::delete('/profile/daemon-tokens/{token}', [DaemonTokenController::class, 'destroy'])->name('daemon-tokens.destroy');
 
     // Two-Factor Authentication
-    Route::get('/profile/2fa/setup',              [TwoFactorController::class, 'setup'])->name('2fa.setup');
-    Route::post('/profile/2fa/enable',            [TwoFactorController::class, 'enable'])->name('2fa.enable');
-    Route::post('/profile/2fa/disable',           [TwoFactorController::class, 'disable'])->name('2fa.disable');
-    Route::post('/profile/2fa/regenerate-codes',  [TwoFactorController::class, 'regenerateCodes'])->name('2fa.regenerate-codes');
-    Route::get('/profile/2fa/debug',              [TwoFactorController::class, 'debug'])->name('2fa.debug');
+    Route::get('/profile/2fa/setup', [TwoFactorController::class, 'setup'])->name('2fa.setup');
+    Route::post('/profile/2fa/enable', [TwoFactorController::class, 'enable'])->name('2fa.enable');
+    Route::post('/profile/2fa/disable', [TwoFactorController::class, 'disable'])->name('2fa.disable');
+    Route::post('/profile/2fa/regenerate-codes', [TwoFactorController::class, 'regenerateCodes'])->name('2fa.regenerate-codes');
+    Route::get('/profile/2fa/debug', [TwoFactorController::class, 'debug'])->name('2fa.debug');
 
     // Projects
     Route::resource('projects', ProjectController::class)->names('projects');
@@ -178,61 +188,61 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
 
     // Invoices
     Route::resource('invoices', InvoiceController::class)->names('invoices');
-    Route::post('invoices/{invoice}/publish',       [InvoiceController::class, 'publish'])->name('invoices.publish');
-    Route::post('invoices/{invoice}/resend',        [InvoiceController::class, 'resend'])->name('invoices.resend');
-    Route::patch('invoices/{invoice}/cancel',       [InvoiceController::class, 'cancel'])->name('invoices.cancel');
-    Route::patch('invoices/{invoice}/reset-draft',  [InvoiceController::class, 'resetToDraft'])->name('invoices.reset-draft');
-    Route::get('invoices/{invoice}/preview',        [InvoiceController::class, 'preview'])->name('invoices.preview');
-    Route::get('invoices/{invoice}/download',       [InvoiceController::class, 'download'])->name('invoices.download');
-    Route::post('invoices/bulk-action',             [InvoiceController::class, 'bulkAction'])->name('invoices.bulk-action');
+    Route::post('invoices/{invoice}/publish', [InvoiceController::class, 'publish'])->name('invoices.publish');
+    Route::post('invoices/{invoice}/resend', [InvoiceController::class, 'resend'])->name('invoices.resend');
+    Route::patch('invoices/{invoice}/cancel', [InvoiceController::class, 'cancel'])->name('invoices.cancel');
+    Route::patch('invoices/{invoice}/reset-draft', [InvoiceController::class, 'resetToDraft'])->name('invoices.reset-draft');
+    Route::get('invoices/{invoice}/preview', [InvoiceController::class, 'preview'])->name('invoices.preview');
+    Route::get('invoices/{invoice}/download', [InvoiceController::class, 'download'])->name('invoices.download');
+    Route::post('invoices/bulk-action', [InvoiceController::class, 'bulkAction'])->name('invoices.bulk-action');
 
     // Invoice payments
-    Route::post('invoices/{invoice}/payments',      [InvoicePaymentController::class, 'store'])->name('invoices.payments.store');
-    Route::get('payments',                          [PaymentController::class, 'index'])->name('payments.index');
+    Route::post('invoices/{invoice}/payments', [InvoicePaymentController::class, 'store'])->name('invoices.payments.store');
+    Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
 
     // Credits
-    Route::get('customers/{customer}/credits',      [CreditController::class, 'index'])->name('credits.index');
-    Route::post('invoices/{invoice}/apply-credit',  [CreditController::class, 'apply'])->name('invoices.apply-credit');
+    Route::get('customers/{customer}/credits', [CreditController::class, 'index'])->name('credits.index');
+    Route::post('invoices/{invoice}/apply-credit', [CreditController::class, 'apply'])->name('invoices.apply-credit');
 
     // Teams
     Route::resource('teams', TeamController::class)->names('teams');
-    Route::post('teams/{team}/members',             [TeamMemberController::class, 'store'])->name('teams.members.store');
-    Route::delete('teams/{team}/members/{user}',    [TeamMemberController::class, 'destroy'])->name('teams.members.destroy');
-    Route::post('projects/{project}/teams',         [ProjectTeamController::class, 'store'])->name('projects.teams.store');
-    Route::delete('projects/{project}/teams/{team}',[ProjectTeamController::class, 'destroy'])->name('projects.teams.destroy');
+    Route::post('teams/{team}/members', [TeamMemberController::class, 'store'])->name('teams.members.store');
+    Route::delete('teams/{team}/members/{user}', [TeamMemberController::class, 'destroy'])->name('teams.members.destroy');
+    Route::post('projects/{project}/teams', [ProjectTeamController::class, 'store'])->name('projects.teams.store');
+    Route::delete('projects/{project}/teams/{team}', [ProjectTeamController::class, 'destroy'])->name('projects.teams.destroy');
 
-    Route::get('/workspaces/new', function() {
+    Route::get('/workspaces/new', function () {
         return redirect('/teams/create');
     });
 
     // AI
-    Route::post('projects/{project}/ai/plan',         [AiController::class, 'plan'])->name('ai.plan');
+    Route::post('projects/{project}/ai/plan', [AiController::class, 'plan'])->name('ai.plan');
     Route::post('projects/{project}/ai/plan/confirm', [AiController::class, 'confirmPlan'])->name('ai.plan.confirm');
     Route::post('projects/{project}/ai/promote-suggestions', [AiController::class, 'promoteSuggestions'])->name('ai.promote-suggestions');
-    Route::post('tasks/{task}/ai/generate-guide',     [AiController::class, 'generateGuide'])->name('ai.generate-guide');
-    Route::post('ai/conversation/stream',             [AiConversationController::class, 'stream'])->name('ai.conversation.stream')->middleware('throttle:30,1');
+    Route::post('tasks/{task}/ai/generate-guide', [AiController::class, 'generateGuide'])->name('ai.generate-guide');
+    Route::post('ai/conversation/stream', [AiConversationController::class, 'stream'])->name('ai.conversation.stream')->middleware('throttle:30,1');
 
     // Attachments
-    Route::post('tasks/{task}/attachments',                     [TaskAttachmentController::class, 'store'])->name('attachments.store');
-    Route::delete('tasks/{task}/attachments/{media}',           [TaskAttachmentController::class, 'destroy'])->name('attachments.destroy');
-    Route::get('tasks/{task}/attachments/{media}/download',     [TaskAttachmentController::class, 'download'])->name('attachments.download');
+    Route::post('tasks/{task}/attachments', [TaskAttachmentController::class, 'store'])->name('attachments.store');
+    Route::delete('tasks/{task}/attachments/{media}', [TaskAttachmentController::class, 'destroy'])->name('attachments.destroy');
+    Route::get('tasks/{task}/attachments/{media}/download', [TaskAttachmentController::class, 'download'])->name('attachments.download');
 
     // Comment attachments
-    Route::post('tasks/{task}/comments/{comment}/attachment',    [TaskCommentAttachmentController::class, 'store'])->name('comment-attachments.store');
-    Route::delete('tasks/{task}/comments/{comment}/attachment',  [TaskCommentAttachmentController::class, 'destroy'])->name('comment-attachments.destroy');
-    Route::get('tasks/{task}/comments/{comment}/attachment',     [TaskCommentAttachmentController::class, 'download'])->name('comment-attachments.download');
+    Route::post('tasks/{task}/comments/{comment}/attachment', [TaskCommentAttachmentController::class, 'store'])->name('comment-attachments.store');
+    Route::delete('tasks/{task}/comments/{comment}/attachment', [TaskCommentAttachmentController::class, 'destroy'])->name('comment-attachments.destroy');
+    Route::get('tasks/{task}/comments/{comment}/attachment', [TaskCommentAttachmentController::class, 'download'])->name('comment-attachments.download');
 
     // Comments (show page + modal AJAX)
-    Route::post('tasks/{task}/comments',           [TaskCommentController::class, 'store'])->name('task-comments.store');
+    Route::post('tasks/{task}/comments', [TaskCommentController::class, 'store'])->name('task-comments.store');
     Route::delete('tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy'])->name('task-comments.destroy');
 
     // Expense Management
     Route::resource('expense-categories', ExpenseCategoryController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::post('/recurring-charges/{recurringCharge}/toggle', [ExpenseController::class, 'toggleRecurring'])->name('recurring-charges.toggle');
     // Named routes with conflicts must come before resource (monthlyOverview, bulk, generateDrafts)
-    Route::get('/expenses/monthly-overview',    [ExpenseController::class, 'monthlyOverview'])->name('expenses.monthly-overview');
-    Route::post('/expenses/bulk-confirm',       [ExpenseController::class, 'bulkConfirm'])->name('expenses.bulk-confirm');
-    Route::post('/expenses/generate-drafts',    [ExpenseController::class, 'generateDrafts'])->name('expenses.generate-drafts');
+    Route::get('/expenses/monthly-overview', [ExpenseController::class, 'monthlyOverview'])->name('expenses.monthly-overview');
+    Route::post('/expenses/bulk-confirm', [ExpenseController::class, 'bulkConfirm'])->name('expenses.bulk-confirm');
+    Route::post('/expenses/generate-drafts', [ExpenseController::class, 'generateDrafts'])->name('expenses.generate-drafts');
     Route::resource('expenses', ExpenseController::class);
     Route::patch('/expenses/{expense}/confirm', [ExpenseController::class, 'confirm'])->name('expenses.confirm');
 
@@ -250,38 +260,38 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     });
 
     // Monthly Budgets
-    Route::get('/monthly-budgets',              [MonthlyBudgetController::class, 'index'])->name('monthly-budgets.index');
-    Route::post('/monthly-budgets',             [MonthlyBudgetController::class, 'store'])->name('monthly-budgets.store');
-    Route::delete('/monthly-budgets/{budget}',  [MonthlyBudgetController::class, 'destroy'])->name('monthly-budgets.destroy');
+    Route::get('/monthly-budgets', [MonthlyBudgetController::class, 'index'])->name('monthly-budgets.index');
+    Route::post('/monthly-budgets', [MonthlyBudgetController::class, 'store'])->name('monthly-budgets.store');
+    Route::delete('/monthly-budgets/{budget}', [MonthlyBudgetController::class, 'destroy'])->name('monthly-budgets.destroy');
 
     // Invoice reminders
-    Route::post('/invoices/{invoice}/reminders',              [InvoiceReminderController::class, 'store'])->name('invoices.reminders.store');
+    Route::post('/invoices/{invoice}/reminders', [InvoiceReminderController::class, 'store'])->name('invoices.reminders.store');
     Route::delete('/invoices/{invoice}/reminders/{reminder}', [InvoiceReminderController::class, 'destroy'])->name('invoices.reminders.destroy');
 
     // In-app notifications
-    Route::get('/notifications',             [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
-    Route::post('/notifications/read-all',   [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
 
     // Admin notification settings
-    Route::get('/settings/notifications',              [SettingsNotificationController::class, 'show'])->name('settings.notifications');
-    Route::patch('/settings/notifications',            [SettingsNotificationController::class, 'update'])->name('settings.notifications.update');
-    Route::post('/settings/notifications/test-slack',  [SettingsNotificationController::class, 'testSlack'])->name('settings.notifications.test-slack');
+    Route::get('/settings/notifications', [SettingsNotificationController::class, 'show'])->name('settings.notifications');
+    Route::patch('/settings/notifications', [SettingsNotificationController::class, 'update'])->name('settings.notifications.update');
+    Route::post('/settings/notifications/test-slack', [SettingsNotificationController::class, 'testSlack'])->name('settings.notifications.test-slack');
 
     // ── HR Module ─────────────────────────────────────────────────────────────
     Route::resource('employees', EmployeeController::class)->names('employees');
-    Route::post('employees/{employee}/avatar',                                 [EmployeeController::class, 'uploadAvatar'])->name('employees.avatar');
-    Route::get('employees/{employee}/contracts/create',                        [EmployeeContractController::class, 'create'])->name('employees.contracts.create');
-    Route::post('employees/{employee}/contracts',                              [EmployeeContractController::class, 'store'])->name('employees.contracts.store');
-    Route::get('employees/{employee}/contracts/{contract}/edit',               [EmployeeContractController::class, 'edit'])->name('employees.contracts.edit');
-    Route::patch('employees/{employee}/contracts/{contract}',                  [EmployeeContractController::class, 'update'])->name('employees.contracts.update');
-    Route::get('employees/{employee}/contracts/{contract}/download',           [EmployeeContractController::class, 'download'])->name('employees.contracts.download');
-    Route::post('employees/{employee}/contracts/{contract}/activate',          [EmployeeContractController::class, 'activate'])->name('employees.contracts.activate');
-    Route::post('employees/{employee}/contracts/{contract}/upload-signed',     [EmployeeContractController::class, 'uploadSigned'])->name('employees.contracts.upload-signed');
-    Route::post('employees/{employee}/documents',                              [EmployeeDocumentController::class, 'store'])->name('employees.documents.store');
-    Route::delete('employees/{employee}/documents/{document}',                 [EmployeeDocumentController::class, 'destroy'])->name('employees.documents.destroy');
-    Route::post('employees/{employee}/leaves',                                  [EmployeeLeaveController::class, 'store'])->name('employees.leaves.store');
-    Route::delete('employees/{employee}/leaves/{leaveRequest}',                 [EmployeeLeaveController::class, 'cancel'])->name('employees.leaves.cancel');
+    Route::post('employees/{employee}/avatar', [EmployeeController::class, 'uploadAvatar'])->name('employees.avatar');
+    Route::get('employees/{employee}/contracts/create', [EmployeeContractController::class, 'create'])->name('employees.contracts.create');
+    Route::post('employees/{employee}/contracts', [EmployeeContractController::class, 'store'])->name('employees.contracts.store');
+    Route::get('employees/{employee}/contracts/{contract}/edit', [EmployeeContractController::class, 'edit'])->name('employees.contracts.edit');
+    Route::patch('employees/{employee}/contracts/{contract}', [EmployeeContractController::class, 'update'])->name('employees.contracts.update');
+    Route::get('employees/{employee}/contracts/{contract}/download', [EmployeeContractController::class, 'download'])->name('employees.contracts.download');
+    Route::post('employees/{employee}/contracts/{contract}/activate', [EmployeeContractController::class, 'activate'])->name('employees.contracts.activate');
+    Route::post('employees/{employee}/contracts/{contract}/upload-signed', [EmployeeContractController::class, 'uploadSigned'])->name('employees.contracts.upload-signed');
+    Route::post('employees/{employee}/documents', [EmployeeDocumentController::class, 'store'])->name('employees.documents.store');
+    Route::delete('employees/{employee}/documents/{document}', [EmployeeDocumentController::class, 'destroy'])->name('employees.documents.destroy');
+    Route::post('employees/{employee}/leaves', [EmployeeLeaveController::class, 'store'])->name('employees.leaves.store');
+    Route::delete('employees/{employee}/leaves/{leaveRequest}', [EmployeeLeaveController::class, 'cancel'])->name('employees.leaves.cancel');
 
     Route::middleware('permission:hr.view')->group(function () {
         Route::get('/hr/leaves', [LeaveController::class, 'index'])->name('leaves.index');
@@ -326,11 +336,11 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     });
 
     // Contract Templates
-    Route::get('hr/contract-templates',                                            [ContractTemplateController::class, 'index'])->name('contract-templates.index');
-    Route::get('hr/contract-templates/create',                                     [ContractTemplateController::class, 'create'])->name('contract-templates.create');
-    Route::post('hr/contract-templates',                                           [ContractTemplateController::class, 'store'])->name('contract-templates.store');
-    Route::get('hr/contract-templates/{contractTemplate}/edit',                    [ContractTemplateController::class, 'edit'])->name('contract-templates.edit');
-    Route::put('hr/contract-templates/{contractTemplate}',                         [ContractTemplateController::class, 'update'])->name('contract-templates.update');
-    Route::delete('hr/contract-templates/{contractTemplate}',                      [ContractTemplateController::class, 'destroy'])->name('contract-templates.destroy');
-    Route::post('hr/contract-templates/{contractTemplate}/preview',                [ContractTemplateController::class, 'preview'])->name('contract-templates.preview');
+    Route::get('hr/contract-templates', [ContractTemplateController::class, 'index'])->name('contract-templates.index');
+    Route::get('hr/contract-templates/create', [ContractTemplateController::class, 'create'])->name('contract-templates.create');
+    Route::post('hr/contract-templates', [ContractTemplateController::class, 'store'])->name('contract-templates.store');
+    Route::get('hr/contract-templates/{contractTemplate}/edit', [ContractTemplateController::class, 'edit'])->name('contract-templates.edit');
+    Route::put('hr/contract-templates/{contractTemplate}', [ContractTemplateController::class, 'update'])->name('contract-templates.update');
+    Route::delete('hr/contract-templates/{contractTemplate}', [ContractTemplateController::class, 'destroy'])->name('contract-templates.destroy');
+    Route::post('hr/contract-templates/{contractTemplate}/preview', [ContractTemplateController::class, 'preview'])->name('contract-templates.preview');
 });
