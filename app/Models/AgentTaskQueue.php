@@ -35,8 +35,8 @@ class AgentTaskQueue extends Model
     ];
 
     protected $casts = [
-        'claimed_at'   => 'datetime',
-        'started_at'   => 'datetime',
+        'claimed_at' => 'datetime',
+        'started_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
 
@@ -81,10 +81,10 @@ class AgentTaskQueue extends Model
 
     public static function buildPrompt(Task $task): string
     {
-        $task->loadMissing('checklists');
+        $task->loadMissing('checklists', 'project');
 
         $lines = [];
-        $lines[] = '# ' . trim((string) $task->title);
+        $lines[] = '# '.trim((string) $task->title);
         $lines[] = '';
         $lines[] = '## Description';
         $lines[] = trim((string) ($task->description ?? '')) !== '' ? trim((string) $task->description) : '_No description provided._';
@@ -102,8 +102,14 @@ class AgentTaskQueue extends Model
             $lines[] = '## Checklist';
 
             foreach ($checklistItems as $item) {
-                $lines[] = '- ' . $item;
+                $lines[] = '- '.$item;
             }
+        }
+
+        if (trim((string) ($task->project?->guide ?? '')) !== '') {
+            $lines[] = '';
+            $lines[] = '## Project Guide';
+            $lines[] = trim((string) $task->project->guide);
         }
 
         return implode("\n", $lines);

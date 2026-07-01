@@ -2,41 +2,42 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Events\AgentTaskStarted;
 use App\Events\AgentTaskCompleted;
 use App\Events\AgentTaskFailed;
+use App\Events\AgentTaskStarted;
 use App\Events\TaskStatusChanged;
 use App\Http\Controllers\Controller;
-use App\Models\AgentTaskMessage;
 use App\Models\AgentRuntime;
+use App\Models\AgentTaskMessage;
 use App\Models\AgentTaskQueue;
 use App\Models\AgentTaskUsage;
 use App\Models\ProjectResource;
+use App\Models\TaskComment;
 use App\Models\TaskToken;
 use App\Models\Team;
-use App\Models\TaskComment;
+use App\WebSocket\WebSocketBroadcaster;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class DaemonController extends Controller
 {
     public function register(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'workspace_id'          => ['nullable', 'string'],
-            'daemon_id'             => ['required', 'string', 'max:255'],
-            'device_name'           => ['nullable', 'string', 'max:255'],
-            'cli_version'           => ['nullable', 'string', 'max:255'],
-            'launched_by'           => ['nullable', 'string', 'max:255'],
-            'legacy_daemon_ids'     => ['nullable', 'array'],
-            'runtimes'              => ['required', 'array', 'min:1'],
-            'runtimes.*.name'       => ['required', 'string', 'max:255'],
-            'runtimes.*.type'       => ['required', 'string', 'max:255'],
-            'runtimes.*.version'    => ['nullable', 'string', 'max:255'],
-            'runtimes.*.status'     => ['nullable', 'string', 'max:20'],
+            'workspace_id' => ['nullable', 'string'],
+            'daemon_id' => ['required', 'string', 'max:255'],
+            'device_name' => ['nullable', 'string', 'max:255'],
+            'cli_version' => ['nullable', 'string', 'max:255'],
+            'launched_by' => ['nullable', 'string', 'max:255'],
+            'legacy_daemon_ids' => ['nullable', 'array'],
+            'runtimes' => ['required', 'array', 'min:1'],
+            'runtimes.*.name' => ['required', 'string', 'max:255'],
+            'runtimes.*.type' => ['required', 'string', 'max:255'],
+            'runtimes.*.version' => ['nullable', 'string', 'max:255'],
+            'runtimes.*.status' => ['nullable', 'string', 'max:20'],
             'runtimes.*.profile_id' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -70,31 +71,31 @@ class DaemonController extends Controller
 
             $agentRuntime = AgentRuntime::query()->updateOrCreate(
                 [
-                    'team_id'   => $team->id,
+                    'team_id' => $team->id,
                     'daemon_id' => $daemonId,
-                    'provider'  => $provider,
+                    'provider' => $provider,
                 ],
                 [
-                    'user_id'      => $userId,
-                    'name'         => trim((string) $runtime['name']),
-                    'status'       => $status,
-                    'device_info'  => $this->buildDeviceInfo($deviceName, $version),
-                    'cli_version'  => $cliVersion !== '' ? $cliVersion : null,
-                    'launched_by'  => $launchedBy !== '' ? $launchedBy : null,
+                    'user_id' => $userId,
+                    'name' => trim((string) $runtime['name']),
+                    'status' => $status,
+                    'device_info' => $this->buildDeviceInfo($deviceName, $version),
+                    'cli_version' => $cliVersion !== '' ? $cliVersion : null,
+                    'launched_by' => $launchedBy !== '' ? $launchedBy : null,
                     'last_seen_at' => $now,
-                    'metadata'     => [
-                        'version'      => $version !== '' ? $version : null,
-                        'cli_version'  => $cliVersion !== '' ? $cliVersion : null,
-                        'launched_by'  => $launchedBy !== '' ? $launchedBy : null,
+                    'metadata' => [
+                        'version' => $version !== '' ? $version : null,
+                        'cli_version' => $cliVersion !== '' ? $cliVersion : null,
+                        'launched_by' => $launchedBy !== '' ? $launchedBy : null,
                     ],
                 ]
             );
 
             $responseRuntimes[] = [
-                'id'          => $agentRuntime->id,
-                'name'        => $agentRuntime->name,
-                'provider'    => $agentRuntime->provider,
-                'status'      => $agentRuntime->status,
+                'id' => $agentRuntime->id,
+                'name' => $agentRuntime->name,
+                'provider' => $agentRuntime->provider,
+                'status' => $agentRuntime->status,
                 'device_info' => $agentRuntime->device_info,
             ];
         }
@@ -102,17 +103,17 @@ class DaemonController extends Controller
         $repos = $this->teamReposPayload($team);
 
         return response()->json([
-            'runtimes'      => $responseRuntimes,
-            'repos'         => $repos,
+            'runtimes' => $responseRuntimes,
+            'repos' => $repos,
             'repos_version' => $this->reposVersion($repos),
-            'settings'      => (object) [],
+            'settings' => (object) [],
         ]);
     }
 
     public function deregister(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'runtime_ids'   => ['required', 'array'],
+            'runtime_ids' => ['required', 'array'],
             'runtime_ids.*' => ['string'],
         ]);
 
@@ -120,7 +121,7 @@ class DaemonController extends Controller
             ->where('user_id', $request->user()->id)
             ->whereIn('id', $data['runtime_ids'])
             ->update([
-                'status'       => 'offline',
+                'status' => 'offline',
                 'last_seen_at' => now(),
             ]);
 
@@ -144,11 +145,11 @@ class DaemonController extends Controller
 
         $runtime->forceFill([
             'last_seen_at' => now(),
-            'status'       => 'online',
+            'status' => 'online',
         ])->save();
 
         return response()->json([
-            'status'     => 'ok',
+            'status' => 'ok',
             'runtime_id' => $runtime->id,
         ]);
     }
@@ -169,10 +170,10 @@ class DaemonController extends Controller
         $repos = $this->teamReposPayload($team);
 
         return response()->json([
-            'workspace_id'  => (string) $team->id,
-            'repos'         => $repos,
+            'workspace_id' => (string) $team->id,
+            'repos' => $repos,
             'repos_version' => $this->reposVersion($repos),
-            'settings'      => (object) [],
+            'settings' => (object) [],
         ]);
     }
 
@@ -203,19 +204,19 @@ class DaemonController extends Controller
 
             $queue->forceFill([
                 'runtime_id' => $runtime->id,
-                'status'     => 'dispatched',
+                'status' => 'dispatched',
                 'claimed_at' => now(),
             ])->save();
 
-            $rawTaskToken = 'mat_' . bin2hex(random_bytes(20));
+            $rawTaskToken = 'mat_'.bin2hex(random_bytes(20));
             $taskTokenHash = hash('sha256', $rawTaskToken);
 
             TaskToken::create([
                 'token_hash' => $taskTokenHash,
-                'task_id'    => $queue->id,
-                'agent_id'   => $queue->agent_id,
-                'team_id'    => $runtime->team_id,
-                'user_id'    => $runtime->user_id,
+                'task_id' => $queue->id,
+                'agent_id' => $queue->agent_id,
+                'team_id' => $runtime->team_id,
+                'user_id' => $runtime->user_id,
                 'expires_at' => now()->addHour(),
             ]);
 
@@ -241,15 +242,15 @@ class DaemonController extends Controller
 
             foreach ($resources as $resource) {
                 $projectResources[] = [
-                    'id'            => (string) $resource->id,
+                    'id' => (string) $resource->id,
                     'resource_type' => $resource->resource_type,
-                    'resource_ref'  => $resource->resource_ref ?? [],
-                    'label'         => $resource->label,
+                    'resource_ref' => $resource->resource_ref ?? [],
+                    'label' => $resource->label,
                 ];
 
                 if ($resource->resource_type === 'github_repo') {
                     $repos[] = [
-                        'url'         => (string) ($resource->resource_ref['url'] ?? ''),
+                        'url' => (string) ($resource->resource_ref['url'] ?? ''),
                         'description' => (string) ($resource->label ?? ''),
                     ];
                 }
@@ -262,8 +263,8 @@ class DaemonController extends Controller
 
         Log::info('claim response', [
             'runtime_id' => $runtime->id,
-            'provider'   => $runtime->provider,
-            'team_id'    => $runtime->team_id,
+            'provider' => $runtime->provider,
+            'team_id' => $runtime->team_id,
         ]);
 
         // Calculate new comment count since last completed task
@@ -285,38 +286,50 @@ class DaemonController extends Controller
 
         return response()->json([
             'task' => [
-                'id'              => $queue->id,
-                'task_id'         => (string) $queue->task_id,
-                'issue_id'        => 'task-' . $queue->task_id,
-                'title'           => (string) $task->title,
-                'description'     => $queue->prompt ?: AgentTaskQueue::buildPrompt($task),
-                'workspace_id'    => (string) $runtime->team_id,
-                'runtime_id'      => $runtime->id,
-                'agent_id'        => (string) $queue->agent_id,
-                'project_id'      => (string) ($project?->id ?? ''),
-                'project_title'   => $project?->name ?? '',
-                'provider'        => $runtime->provider,
-                'auth_token'      => $rawTaskToken,
-                'repos'           => $this->deduplicateRepos($repos),
+                'id' => $queue->id,
+                'task_id' => (string) $queue->task_id,
+                'issue_id' => 'task-'.$queue->task_id,
+                'title' => (string) $task->title,
+                'description' => $queue->prompt ?: AgentTaskQueue::buildPrompt($task),
+                'workspace_id' => (string) $runtime->team_id,
+                'runtime_id' => $runtime->id,
+                'agent_id' => (string) $queue->agent_id,
+                'project_id' => (string) ($project?->id ?? ''),
+                'project_title' => $project?->name ?? '',
+                'provider' => $runtime->provider,
+                'auth_token' => $rawTaskToken,
+                'repos' => $this->deduplicateRepos($repos),
                 'project_resources' => $projectResources,
                 'local_directory' => $this->resolveLocalDirectory($projectResources, $runtime->provider),
                 'trigger_comment_id' => (string) ($queue->trigger_comment_id ?? ''),
                 'trigger_comment_content' => $queue->trigger_comment_content ?? '',
                 'new_comment_count' => $newCommentCount,
-                'agent'           => $agent ? [
-                    'id'          => (string) $agent->id,
-                    'name'        => $agent->name,
+                'agent' => $agent ? [
+                    'id' => (string) $agent->id,
+                    'name' => $agent->name,
                     'instructions' => $agent->instructions ?? '',
-                    'skills'      => $agent->skills->map(fn ($skill) => [
-                        'id'          => (string) $skill->id,
-                        'name'        => $skill->name,
+                    'skills' => $agent->skills->map(fn ($skill) => [
+                        'id' => (string) $skill->id,
+                        'name' => $skill->name,
                         'description' => $skill->description ?? '',
-                        'content'     => $skill->content ?? '',
-                        'files'       => [],
+                        'content' => $skill->content ?? '',
+                        'files' => [],
                     ])->values()->toArray(),
                 ] : null,
             ],
         ]);
+    }
+
+    public function prepareLease(Request $request, string $runtimeId, string $taskId): JsonResponse
+    {
+        $queue = $this->ownedQueue($request, $taskId);
+
+        if (! $queue) {
+            return response()->json(['error' => 'task not found'], 404);
+        }
+
+        // Just acknowledge — lease renewal is a no-op on our side
+        return response()->json(['status' => 'ok']);
     }
 
     public function startTask(Request $request, string $taskId): JsonResponse
@@ -328,7 +341,7 @@ class DaemonController extends Controller
         }
 
         $queue->forceFill([
-            'status'     => 'running',
+            'status' => 'running',
             'started_at' => now(),
         ])->save();
 
@@ -337,7 +350,7 @@ class DaemonController extends Controller
         $task = $queue->task()->with('project.teams')->first();
         $workspaceId = (string) ($task->project?->teams?->first()?->id ?? '');
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
+            WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
         }
 
         // Broadcast real-time events via Reverb/Echo
@@ -366,16 +379,16 @@ class DaemonController extends Controller
 
         $data = $request->validate([
             'content' => ['nullable', 'string'],
-            'type'    => ['nullable', 'string', 'max:50'],
-            'tool'    => ['nullable', 'string', 'max:255'],
-            'seq'     => ['nullable', 'integer'],
+            'type' => ['nullable', 'string', 'max:50'],
+            'tool' => ['nullable', 'string', 'max:255'],
+            'seq' => ['nullable', 'integer'],
         ]);
 
         $content = trim((string) ($data['content'] ?? ''));
 
         if ($content !== '') {
             $existing = trim((string) ($queue->output ?? ''));
-            $queue->output = $existing !== '' ? $existing . "\n" . $content : $content;
+            $queue->output = $existing !== '' ? $existing."\n".$content : $content;
         }
 
         $queue->save();
@@ -432,13 +445,13 @@ class DaemonController extends Controller
         }
 
         $data = $request->validate([
-            'messages'           => ['required', 'array'],
-            'messages.*.seq'     => ['required', 'integer', 'min:0'],
-            'messages.*.type'    => ['required', 'string', 'max:50'],
-            'messages.*.tool'    => ['nullable', 'string', 'max:255'],
+            'messages' => ['required', 'array'],
+            'messages.*.seq' => ['required', 'integer', 'min:0'],
+            'messages.*.type' => ['required', 'string', 'max:50'],
+            'messages.*.tool' => ['nullable', 'string', 'max:255'],
             'messages.*.content' => ['nullable', 'string'],
-            'messages.*.input'   => ['nullable', 'array'],
-            'messages.*.output'  => ['nullable', 'string'],
+            'messages.*.input' => ['nullable', 'array'],
+            'messages.*.output' => ['nullable', 'string'],
         ]);
 
         $incoming = $data['messages'];
@@ -467,13 +480,13 @@ class DaemonController extends Controller
 
             AgentTaskMessage::create([
                 'task_queue_id' => $queue->id,
-                'seq'           => $seq,
-                'type'          => (string) $message['type'],
-                'tool'          => isset($message['tool']) ? (string) $message['tool'] : null,
-                'content'       => isset($message['content']) ? (string) $message['content'] : null,
-                'input'         => $message['input'] ?? null,
-                'output'        => isset($message['output']) ? (string) $message['output'] : null,
-                'created_at'    => now(),
+                'seq' => $seq,
+                'type' => (string) $message['type'],
+                'tool' => isset($message['tool']) ? (string) $message['tool'] : null,
+                'content' => isset($message['content']) ? (string) $message['content'] : null,
+                'input' => $message['input'] ?? null,
+                'output' => isset($message['output']) ? (string) $message['output'] : null,
+                'created_at' => now(),
             ]);
 
             $seen[$seq] = true;
@@ -482,7 +495,7 @@ class DaemonController extends Controller
 
         return response()->json([
             'status' => 'ok',
-            'count'  => $inserted,
+            'count' => $inserted,
         ]);
     }
 
@@ -495,19 +508,19 @@ class DaemonController extends Controller
         }
 
         $data = $request->validate([
-            'input_tokens'  => ['nullable', 'integer', 'min:0'],
+            'input_tokens' => ['nullable', 'integer', 'min:0'],
             'output_tokens' => ['nullable', 'integer', 'min:0'],
-            'cost'          => ['nullable', 'numeric', 'min:0'],
-            'model'         => ['nullable', 'string', 'max:255'],
+            'cost' => ['nullable', 'numeric', 'min:0'],
+            'model' => ['nullable', 'string', 'max:255'],
         ]);
 
         AgentTaskUsage::create([
             'task_queue_id' => $queue->id,
-            'input_tokens'  => (int) ($data['input_tokens'] ?? 0),
+            'input_tokens' => (int) ($data['input_tokens'] ?? 0),
             'output_tokens' => (int) ($data['output_tokens'] ?? 0),
-            'cost'          => (float) ($data['cost'] ?? 0),
-            'model'         => isset($data['model']) ? trim((string) $data['model']) : null,
-            'created_at'    => now(),
+            'cost' => (float) ($data['cost'] ?? 0),
+            'model' => isset($data['model']) ? trim((string) $data['model']) : null,
+            'created_at' => now(),
         ]);
 
         return response()->json(['status' => 'ok']);
@@ -527,9 +540,9 @@ class DaemonController extends Controller
         ]);
 
         $queue->forceFill([
-            'status'       => 'completed',
+            'status' => 'completed',
             'completed_at' => now(),
-            'pr_url'       => $data['pr_url'] ?? $queue->pr_url,
+            'pr_url' => $data['pr_url'] ?? $queue->pr_url,
         ])->save();
 
         $queue->task()->update(['status' => 'in-review']);
@@ -537,7 +550,7 @@ class DaemonController extends Controller
         $task = $queue->task()->with('project.teams')->first();
         $workspaceId = (string) ($task->project?->teams?->first()?->id ?? '');
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
+            WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
         }
 
         // Broadcast real-time events via Reverb/Echo
@@ -569,7 +582,7 @@ class DaemonController extends Controller
         ]);
 
         $queue->forceFill([
-            'status'        => 'failed',
+            'status' => 'failed',
             'error_message' => $data['error'] ?? null,
         ])->save();
 
@@ -579,7 +592,7 @@ class DaemonController extends Controller
         $task = $queue->task()->with('project.teams')->first();
         $workspaceId = (string) ($task->project?->teams?->first()?->id ?? '');
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
+            WebSocketBroadcaster::broadcastIssueUpdated($task, $workspaceId);
         }
 
         // Broadcast real-time events via Reverb/Echo
@@ -597,7 +610,7 @@ class DaemonController extends Controller
             'task_id' => $queue->task_id,
             'agent_id' => $queue->agent_id,
             'user_id' => $queue->runtime->user_id,
-            'body'    => '❌ Agent failed: ' . ($data['error'] ?? 'Unknown error'),
+            'body' => '❌ Agent failed: '.($data['error'] ?? 'Unknown error'),
         ]);
 
         TaskToken::query()->where('task_id', $queue->id)->delete();
@@ -621,7 +634,7 @@ class DaemonController extends Controller
             'task_id' => $queue->task_id,
             'agent_id' => $queue->agent_id,
             'user_id' => $queue->runtime->user_id,
-            'body'    => '⚠️ Task cancelled.',
+            'body' => '⚠️ Task cancelled.',
         ]);
 
         TaskToken::query()->where('task_id', $queue->id)->delete();
@@ -677,7 +690,7 @@ class DaemonController extends Controller
 
             if ($url !== '') {
                 $repos[] = [
-                    'url'         => $url,
+                    'url' => $url,
                     'description' => (string) ($resource->label ?? ''),
                 ];
             }
@@ -713,7 +726,7 @@ class DaemonController extends Controller
     private function buildDeviceInfo(string $deviceName, string $version): ?string
     {
         if ($deviceName !== '' && $version !== '') {
-            return $deviceName . ' · ' . $version;
+            return $deviceName.' · '.$version;
         }
 
         if ($deviceName !== '') {
