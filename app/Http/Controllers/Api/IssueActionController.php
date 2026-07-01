@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\Agent;
+use App\Models\AgentTaskQueue;
 use App\Models\Project;
 use App\Models\Task;
+use App\WebSocket\WebSocketBroadcaster;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -11,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 class IssueActionController
 {
-    public function __construct(private readonly IssuePayloadTransformer $issuePayloadTransformer = new IssuePayloadTransformer()) {}
+    public function __construct(private readonly IssuePayloadTransformer $issuePayloadTransformer = new IssuePayloadTransformer) {}
 
     public function search(Request $request): JsonResponse
     {
@@ -37,8 +40,8 @@ class IssueActionController
 
         $query->where(function ($issueQuery) use ($q): void {
             $issueQuery
-                ->where('title', 'like', '%' . $q . '%')
-                ->orWhere('description', 'like', '%' . $q . '%');
+                ->where('title', 'like', '%'.$q.'%')
+                ->orWhere('description', 'like', '%'.$q.'%');
         });
 
         if (! $includeClosed) {
@@ -55,7 +58,7 @@ class IssueActionController
 
         return response()->json([
             'issues' => $issues->map(fn (Task $task): array => $this->issuePayloadTransformer->transform($task, $fallbackUserId))->values(),
-            'total'  => $total,
+            'total' => $total,
         ]);
     }
 
@@ -94,7 +97,7 @@ class IssueActionController
             if ($groupBy === 'assignee_id') {
                 [, $assigneeId] = $this->issuePayloadTransformer->normalizeIncomingAssignee('member', $raw === null ? null : (string) $raw);
 
-                return $assigneeId ? 'member-' . $assigneeId : 'null';
+                return $assigneeId ? 'member-'.$assigneeId : 'null';
             }
 
             if ($raw === null || $raw === '') {
@@ -109,16 +112,16 @@ class IssueActionController
         $groups = $grouped
             ->map(function (Collection $items, string $key) use ($fallbackUserId): array {
                 return [
-                    'key'    => $key,
+                    'key' => $key,
                     'issues' => $items->map(fn (Task $task): array => $this->issuePayloadTransformer->transform($task, $fallbackUserId))->values(),
-                    'total'  => $items->count(),
+                    'total' => $items->count(),
                 ];
             })
             ->values();
 
         return response()->json([
             'groups' => $groups,
-            'total'  => $issues->count(),
+            'total' => $issues->count(),
         ]);
     }
 
@@ -146,8 +149,8 @@ class IssueActionController
             $frequencies->map(static function ($row): array {
                 return [
                     'assignee_type' => 'member',
-                    'assignee_id'   => 'member-' . (string) $row->assigned_to,
-                    'count'         => (int) $row->count,
+                    'assignee_id' => 'member-'.(string) $row->assigned_to,
+                    'count' => (int) $row->count,
                 ];
             })->values()
         );
@@ -200,7 +203,35 @@ class IssueActionController
                 $data['assignee_type'] ?? null,
                 $data['assignee_id'] ?? null,
             );
+
+            if ($task->agent_id && ! $task->assigned_to) {
+                $agent = Agent::find($task->agent_id);
+                if ($agent) {
+                    $task->assigned_to = $agent->owner_id;
+                }
+            }
+
             $task->save();
+
+            // If agent assigned, create queue entry and wake up daemon
+            if ($task->agent_id) {
+                $agent = Agent::where('id', $task->agent_id)
+                    ->whereNull('archived_at')
+                    ->first();
+
+                if ($agent) {
+                    $task->loadMissing('checklists');
+                    $queueEntry = AgentTaskQueue::create([
+                        'task_id' => $task->id,
+                        'agent_id' => $agent->id,
+                        'runtime_id' => $agent->runtime_id,
+                        'team_id' => $agent->team_id,
+                        'status' => 'queued',
+                        'prompt' => AgentTaskQueue::buildPrompt($task),
+                    ]);
+                    WebSocketBroadcaster::wakeupDaemon($agent->runtime_id, $queueEntry->id);
+                }
+            }
         }
 
         return response()->json($this->issuePayloadTransformer->transform($task->fresh()), 201);
@@ -235,5 +266,4 @@ class IssueActionController
     {
         return response()->json(['status' => 'ok']);
     }
-
 }
