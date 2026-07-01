@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -117,6 +118,8 @@ class OAuthController extends Controller
             'code' => ['required', 'string'],
             'code_verifier' => ['required', 'string', 'min:43', 'max:128'],
         ]);
+
+        Log::info('oauth token request', $request->all());
 
         $cacheKey = 'oauth_code_'.$payload['code'];
         $record = Cache::get($cacheKey);

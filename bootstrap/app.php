@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'auth/send-code',
             'auth/verify-code',
+            'oauth/token',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
