@@ -3,31 +3,36 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AgentRuntime;
+use App\Models\BacklogItem;
 use App\Models\Project;
 use App\Models\ProjectResource;
+use App\Models\Sprint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class ProjectApiController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $user = $request->user();
-
-        if (! $user->hasPermission('projects.view')) {
-            return response()->json(['error' => 'forbidden'], 403);
-        }
-
-        $projects = $this->scopedProjects($request)
-            ->orderBy('name', 'asc')
+        $projects = Project::query()
+            ->when(! $request->user()->hasPermission('projects.view_all'), function ($q) use ($request) {
+                $q->whereHas('teams.members', fn ($q) => $q->where('users.id', $request->user()->id));
+            })
+            ->where('status', '!=', 'complete')
+            ->orderBy('name')
             ->get();
 
-        return response()->json([
-            'projects' => $projects->map(fn (Project $project): array => $this->projectSummaryPayload($project))->values(),
-            'total' => $projects->count(),
-        ]);
+        return response()->json($projects->map(fn ($p) => [
+            'id' => $p->id,
+            'name' => $p->name,
+            'description' => $p->description,
+            'status' => $p->status,
+            'health' => $p->health,
+            'stack' => $p->stack,
+        ])->values());
     }
 
     public function store(Request $request): JsonResponse
@@ -37,26 +42,26 @@ class ProjectApiController extends Controller
         }
 
         $data = $request->validate([
-            'title'                      => ['required', 'string', 'max:255'],
-            'description'                => ['nullable', 'string'],
-            'status'                     => ['nullable', 'in:active,paused,complete'],
-            'health'                     => ['nullable', 'in:on-track,at-risk,blocked'],
-            'priority'                   => ['nullable', 'string', 'max:50'],
-            'resources'                  => ['nullable', 'array'],
-            'resources.*.resource_type'  => ['required_with:resources', 'in:github_repo,local_directory'],
-            'resources.*.resource_ref'   => ['required_with:resources', 'array'],
-            'resources.*.label'          => ['nullable', 'string', 'max:255'],
-            'resources.*.position'       => ['nullable', 'integer'],
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'status' => ['nullable', 'in:active,paused,complete'],
+            'health' => ['nullable', 'in:on-track,at-risk,blocked'],
+            'priority' => ['nullable', 'string', 'max:50'],
+            'resources' => ['nullable', 'array'],
+            'resources.*.resource_type' => ['required_with:resources', 'in:github_repo,local_directory'],
+            'resources.*.resource_ref' => ['required_with:resources', 'array'],
+            'resources.*.label' => ['nullable', 'string', 'max:255'],
+            'resources.*.position' => ['nullable', 'integer'],
         ]);
 
         $user = $request->user();
 
         $project = DB::transaction(function () use ($data, $user) {
             $project = Project::create([
-                'name'        => trim($data['title']),
+                'name' => trim($data['title']),
                 'description' => $data['description'] ?? null,
-                'status'      => $data['status'] ?? 'active',
-                'health'      => $data['health'] ?? 'on-track',
+                'status' => $data['status'] ?? 'active',
+                'health' => $data['health'] ?? 'on-track',
             ]);
 
             $userTeamIds = $user->teams()->pluck('teams.id');
@@ -72,12 +77,12 @@ class ProjectApiController extends Controller
                 );
 
                 ProjectResource::create([
-                    'project_id'     => $project->id,
-                    'resource_type'  => $resourceData['resource_type'],
-                    'resource_ref'   => $normalizedRef,
-                    'label'          => $resourceData['label'] ?? null,
-                    'position'       => (int) ($resourceData['position'] ?? $index),
-                    'created_by'     => $user->id,
+                    'project_id' => $project->id,
+                    'resource_type' => $resourceData['resource_type'],
+                    'resource_ref' => $normalizedRef,
+                    'label' => $resourceData['label'] ?? null,
+                    'position' => (int) ($resourceData['position'] ?? $index),
+                    'created_by' => $user->id,
                 ]);
             }
 
@@ -91,22 +96,91 @@ class ProjectApiController extends Controller
         ], 201);
     }
 
-    public function show(Request $request, string $id): JsonResponse
+    public function show(Project $project): JsonResponse
     {
-        if (! $request->user()->hasPermission('projects.view')) {
-            return response()->json(['error' => 'forbidden'], 403);
-        }
+        return response()->json([
+            'id' => $project->id,
+            'name' => $project->name,
+            'description' => $project->description,
+            'guide' => $project->guide,
+            'status' => $project->status,
+            'health' => $project->health,
+            'stack' => $project->stack,
+            'github_repo' => $project->github_repo,
+        ]);
+    }
 
-        $project = $this->scopedProjects($request)
-            ->with(['resources', 'teams'])
-            ->where('id', (int) $id)
-            ->first();
+    public function sprints(Project $project): JsonResponse
+    {
+        $sprints = $project->sprints()
+            ->orderBy('sort_order')
+            ->get();
 
-        if (! $project) {
-            return response()->json(['error' => 'not found'], 404);
-        }
+        return response()->json($sprints->map(fn ($s) => [
+            'id' => $s->id,
+            'name' => $s->name,
+            'description' => $s->description,
+            'status' => $s->status,
+            'deadline' => $s->deadline?->toDateString(),
+            'sort_order' => $s->sort_order,
+        ])->values());
+    }
 
-        return response()->json($this->projectDetailPayload($project));
+    public function storeSprint(Request $request, Project $project): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'deadline' => ['nullable', 'date'],
+        ]);
+
+        $maxOrder = $project->sprints()->max('sort_order') ?? -1;
+
+        $sprint = Sprint::create([
+            'project_id' => $project->id,
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'deadline' => $data['deadline'] ?? null,
+            'sort_order' => $maxOrder + 1,
+            'status' => 'draft',
+        ]);
+
+        return response()->json([
+            'id' => $sprint->id,
+            'name' => $sprint->name,
+            'description' => $sprint->description,
+            'status' => $sprint->status,
+            'deadline' => $sprint->deadline?->toDateString(),
+            'sort_order' => $sprint->sort_order,
+        ], 201);
+    }
+
+    public function storeBacklog(Request $request, Project $project): JsonResponse
+    {
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'sprint_id' => ['nullable', 'integer', 'exists:sprints,id'],
+        ]);
+
+        $maxOrder = $project->backlogItems()->max('sort_order') ?? -1;
+
+        $item = BacklogItem::create([
+            'project_id' => $project->id,
+            'sprint_id' => $data['sprint_id'] ?? null,
+            'title' => $data['title'],
+            'description' => $data['description'] ?? null,
+            'status' => 'raw',
+            'sort_order' => $maxOrder + 1,
+        ]);
+
+        return response()->json([
+            'id' => $item->id,
+            'title' => $item->title,
+            'description' => $item->description,
+            'sprint_id' => $item->sprint_id,
+            'status' => $item->status,
+        ], 201);
     }
 
     public function update(Request $request, string $id): JsonResponse
@@ -125,11 +199,11 @@ class ProjectApiController extends Controller
         }
 
         $data = $request->validate([
-            'title'       => ['sometimes', 'required', 'string', 'max:255'],
+            'title' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'status'      => ['sometimes', 'in:active,paused,complete'],
-            'health'      => ['sometimes', 'in:on-track,at-risk,blocked'],
-            'priority'    => ['nullable', 'string', 'max:50'],
+            'status' => ['sometimes', 'in:active,paused,complete'],
+            'health' => ['sometimes', 'in:on-track,at-risk,blocked'],
+            'priority' => ['nullable', 'string', 'max:50'],
         ]);
 
         $updates = [];
@@ -197,19 +271,19 @@ class ProjectApiController extends Controller
         $workspaceId = (string) ($project->teams()->first()?->id ?? '1');
 
         return [
-            'id'             => (string) $project->id,
-            'workspace_id'   => $workspaceId,
-            'title'          => $project->name,
-            'description'    => $project->description,
-            'icon'           => null,
-            'status'         => $this->mapOutgoingProjectStatus((string) $project->status),
-            'priority'       => 'medium',
-            'lead_type'      => null,
-            'lead_id'        => null,
-            'created_at'     => optional($project->created_at)?->toIso8601String(),
-            'updated_at'     => optional($project->updated_at)?->toIso8601String(),
-            'issue_count'    => (int) $project->tasks()->count(),
-            'done_count'     => (int) $project->tasks()->where('status', 'done')->count(),
+            'id' => (string) $project->id,
+            'workspace_id' => $workspaceId,
+            'title' => $project->name,
+            'description' => $project->description,
+            'icon' => null,
+            'status' => $this->mapOutgoingProjectStatus((string) $project->status),
+            'priority' => 'medium',
+            'lead_type' => null,
+            'lead_id' => null,
+            'created_at' => optional($project->created_at)?->toIso8601String(),
+            'updated_at' => optional($project->updated_at)?->toIso8601String(),
+            'issue_count' => (int) $project->tasks()->count(),
+            'done_count' => (int) $project->tasks()->where('status', 'done')->count(),
             'resource_count' => (int) $project->resources()->count(),
         ];
     }
@@ -221,14 +295,14 @@ class ProjectApiController extends Controller
             [
                 'resources' => $project->resources->map(static function (ProjectResource $resource): array {
                     return [
-                        'id'            => (string) $resource->id,
-                        'project_id'    => (string) $resource->project_id,
+                        'id' => (string) $resource->id,
+                        'project_id' => (string) $resource->project_id,
                         'resource_type' => $resource->resource_type,
-                        'resource_ref'  => $resource->resource_ref ?? [],
-                        'label'         => $resource->label,
-                        'position'      => $resource->position,
-                        'created_at'    => optional($resource->created_at)?->toIso8601String(),
-                        'updated_at'    => optional($resource->updated_at)?->toIso8601String(),
+                        'resource_ref' => $resource->resource_ref ?? [],
+                        'label' => $resource->label,
+                        'position' => $resource->position,
+                        'created_at' => optional($resource->created_at)?->toIso8601String(),
+                        'updated_at' => optional($resource->updated_at)?->toIso8601String(),
                     ];
                 })->values(),
             ]
@@ -269,7 +343,7 @@ class ProjectApiController extends Controller
             abort(response()->json(['error' => 'resource_ref.daemon_id is required'], 422));
         }
 
-        $runtimeExists = \App\Models\AgentRuntime::query()->where('daemon_id', $daemonId)->exists();
+        $runtimeExists = AgentRuntime::query()->where('daemon_id', $daemonId)->exists();
         if (! $runtimeExists) {
             abort(response()->json(['error' => 'resource_ref.daemon_id not found'], 422));
         }
@@ -288,7 +362,7 @@ class ProjectApiController extends Controller
 
         $normalized = [
             'local_path' => $path,
-            'daemon_id'  => $daemonId,
+            'daemon_id' => $daemonId,
         ];
 
         if (isset($resourceRef['label']) && trim((string) $resourceRef['label']) !== '') {

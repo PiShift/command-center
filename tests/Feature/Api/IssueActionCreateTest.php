@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -56,6 +57,17 @@ class IssueActionCreateTest extends TestCase
             $table->string('github_repo')->nullable();
             $table->string('stack')->nullable();
             $table->string('status')->default('active');
+            $table->timestamps();
+        });
+
+        Schema::create('sprints', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('project_id');
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->date('deadline')->nullable();
+            $table->unsignedSmallInteger('sort_order')->default(0);
+            $table->enum('status', ['draft', 'active', 'completed'])->default('draft');
             $table->timestamps();
         });
 
@@ -166,5 +178,39 @@ class IssueActionCreateTest extends TestCase
         $this->assertNotNull($queue);
         $this->assertSame($agent->id, $queue->agent_id);
         $this->assertSame('queued', $queue->status);
+    }
+
+    public function test_create_accepts_sprint_id_and_persists_it_on_task(): void
+    {
+        $viewer = User::factory()->create();
+
+        $project = Project::query()->create([
+            'name' => 'Sprint Project',
+            'status' => 'active',
+        ]);
+
+        $sprintId = DB::table('sprints')->insertGetId([
+            'project_id' => $project->id,
+            'name' => 'Sprint A',
+            'description' => null,
+            'deadline' => null,
+            'sort_order' => 0,
+            'status' => 'draft',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($viewer)->postJson('/api/issues', [
+            'title' => 'Issue with sprint',
+            'project_id' => $project->id,
+            'sprint_id' => $sprintId,
+        ]);
+
+        $response->assertCreated();
+
+        $taskId = (int) $response->json('id');
+        $task = Task::query()->findOrFail($taskId);
+
+        $this->assertSame($sprintId, $task->sprint_id);
     }
 }

@@ -155,9 +155,18 @@ Route::middleware([
 
     Route::get('/projects/search', [ProjectSearchController::class, 'search']);
 
+    // Projects
     Route::get('/projects', [ProjectApiController::class, 'index']);
+    Route::get('/projects/{project}', [ProjectApiController::class, 'show']);
+
+    // Sprints
+    Route::get('/projects/{project}/sprints', [ProjectApiController::class, 'sprints']);
+    Route::post('/projects/{project}/sprints', [ProjectApiController::class, 'storeSprint']);
+
+    // Backlog
+    Route::post('/projects/{project}/backlog', [ProjectApiController::class, 'storeBacklog']);
+
     Route::post('/projects', [ProjectApiController::class, 'store']);
-    Route::get('/projects/{id}', [ProjectApiController::class, 'show']);
     Route::put('/projects/{id}', [ProjectApiController::class, 'update']);
     Route::delete('/projects/{id}', [ProjectApiController::class, 'destroy']);
 
