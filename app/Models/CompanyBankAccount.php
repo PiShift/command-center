@@ -2,12 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\BankAccountTransfer;
-use App\Models\Expense;
-use App\Models\EmployeeAdvance;
-use App\Models\EmployeeLoan;
-use App\Models\InvoicePayment;
-use App\Models\PayrollRun;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -29,7 +23,7 @@ class CompanyBankAccount extends Model
 
     protected $casts = [
         'is_default' => 'boolean',
-        'is_system'  => 'boolean',
+        'is_system' => 'boolean',
     ];
 
     public function invoicePayments(): HasMany
@@ -40,6 +34,11 @@ class CompanyBankAccount extends Model
     public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class, 'company_account_id');
+    }
+
+    public function payrollRunPayments(): HasMany
+    {
+        return $this->hasMany(PayrollRunPayment::class, 'company_account_id');
     }
 
     public function scopeDefault(Builder $query): Builder
@@ -72,9 +71,11 @@ class CompanyBankAccount extends Model
             ->sum('amount_total');
 
         // Money OUT — payroll paid
-        $payrollOut = PayrollRun::where('company_account_id', $this->id)
-            ->where('status', 'paid')
-            ->sum('total_net');
+        $payrollOut = Schema::hasTable('payroll_run_payments')
+            ? (float) PayrollRunPayment::where('company_account_id', $this->id)->sum('amount')
+            : (float) PayrollRun::where('company_account_id', $this->id)
+                ->where('status', 'paid')
+                ->sum('total_net');
 
         // Money OUT from transfers
         $transfersOut = Schema::hasTable('bank_account_transfers')

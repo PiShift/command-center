@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Model;
 
 class PayrollEntry extends Model
 {
@@ -29,18 +29,18 @@ class PayrollEntry extends Model
     ];
 
     protected $casts = [
-        'base_salary'        => 'decimal:2',
-        'gross_amount'       => 'decimal:2',
-        'advances_deducted'  => 'decimal:2',
-        'skip_advances'      => 'boolean',
-        'loans_deducted'     => 'decimal:2',
-        'skip_loans'         => 'boolean',
-        'skip_unpaid_leave'  => 'boolean',
-        'other_deductions'   => 'decimal:2',
+        'base_salary' => 'decimal:2',
+        'gross_amount' => 'decimal:2',
+        'advances_deducted' => 'decimal:2',
+        'skip_advances' => 'boolean',
+        'loans_deducted' => 'decimal:2',
+        'skip_loans' => 'boolean',
+        'skip_unpaid_leave' => 'boolean',
+        'other_deductions' => 'decimal:2',
         'unpaid_leave_deduction' => 'decimal:2',
-        'bonuses'            => 'decimal:2',
-        'net_amount'         => 'decimal:2',
-        'paid_at'            => 'datetime',
+        'bonuses' => 'decimal:2',
+        'net_amount' => 'decimal:2',
+        'paid_at' => 'datetime',
     ];
 
     public function payrollRun(): BelongsTo
@@ -66,6 +66,11 @@ class PayrollEntry extends Model
     public function loanRepayments(): HasMany
     {
         return $this->hasMany(EmployeeLoanRepayment::class, 'payroll_entry_id');
+    }
+
+    public function paymentItems(): HasMany
+    {
+        return $this->hasMany(PayrollRunPaymentEntry::class, 'payroll_entry_id');
     }
 
     public function getTotalDeductionsAttribute(): float

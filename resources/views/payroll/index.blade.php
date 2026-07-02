@@ -49,7 +49,9 @@
                             @if($run->status === 'draft')
                                 <span class="inline-flex items-center rounded-[5px] bg-surface px-2 py-0.5 text-[11px] font-semibold text-muted">Draft</span>
                             @elseif($run->status === 'approved')
-                                <span class="inline-flex items-center rounded-[5px] bg-[#fef9ec] px-2 py-0.5 text-[11px] font-semibold text-[#9a7a1a]">Approved</span>
+                                <span class="inline-flex items-center rounded-[5px] bg-warn-light px-2 py-0.5 text-[11px] font-semibold text-warn-text">Approved</span>
+                            @elseif($run->status === 'partially_paid')
+                                <span class="inline-flex items-center rounded-[5px] bg-info-light px-2 py-0.5 text-[11px] font-semibold text-info-text">Partially Paid</span>
                             @else
                                 <span class="inline-flex items-center rounded-[5px] bg-success-light px-2 py-0.5 text-[11px] font-semibold text-success-text">Paid</span>
                             @endif

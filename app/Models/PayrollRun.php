@@ -22,11 +22,11 @@ class PayrollRun extends Model
     ];
 
     protected $casts = [
-        'month'            => 'date',
-        'paid_at'          => 'datetime',
-        'total_gross'      => 'decimal:2',
+        'month' => 'date',
+        'paid_at' => 'datetime',
+        'total_gross' => 'decimal:2',
         'total_deductions' => 'decimal:2',
-        'total_net'        => 'decimal:2',
+        'total_net' => 'decimal:2',
     ];
 
     public function entries(): HasMany
@@ -44,6 +44,11 @@ class PayrollRun extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(PayrollRunPayment::class, 'payroll_run_id')->latest('paid_at');
+    }
+
     public function scopeDraft(Builder $query): Builder
     {
         return $query->where('status', 'draft');
@@ -52,6 +57,11 @@ class PayrollRun extends Model
     public function scopeApproved(Builder $query): Builder
     {
         return $query->where('status', 'approved');
+    }
+
+    public function scopePartiallyPaid(Builder $query): Builder
+    {
+        return $query->where('status', 'partially_paid');
     }
 
     public function scopePaid(Builder $query): Builder

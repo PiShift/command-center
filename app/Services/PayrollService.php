@@ -9,6 +9,8 @@ use App\Models\EmployeeProfile;
 use App\Models\LeaveRequest;
 use App\Models\PayrollEntry;
 use App\Models\PayrollRun;
+use App\Models\PayrollRunPayment;
+use App\Models\PayrollRunPaymentEntry;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -40,7 +42,7 @@ class PayrollService
         foreach ($employees as $employee) {
             $contract = $employee->contracts->first();
 
-            if (!$contract) {
+            if (! $contract) {
                 continue;
             }
 
@@ -121,7 +123,7 @@ class PayrollService
                     - max(0, $otherDeductions);
                 $entry->save();
 
-                if (!$entry->skip_advances) {
+                if (! $entry->skip_advances) {
                     EmployeeAdvance::query()
                         ->where('employee_id', $entry->employee_id)
                         ->where('status', 'pending')
@@ -131,7 +133,7 @@ class PayrollService
                         ]);
                 }
 
-                if (!$entry->skip_loans) {
+                if (! $entry->skip_loans) {
                     $activeLoansList = EmployeeLoan::query()
                         ->where('employee_id', $entry->employee_id)
                         ->active()
@@ -176,22 +178,113 @@ class PayrollService
 
     public function payRun(PayrollRun $run, int $companyAccountId): void
     {
-        if ($run->status !== 'approved') {
-            throw new RuntimeException('Only approved payroll runs can be paid.');
+        $pendingEntryIds = $run->entries()
+            ->where('status', 'pending')
+            ->pluck('id')
+            ->all();
+
+        if ($pendingEntryIds === []) {
+            throw new RuntimeException('No pending payroll entries to pay.');
         }
 
-        DB::transaction(function () use ($run, $companyAccountId) {
-            $now = now();
+        $this->paySelected($run, $companyAccountId, $pendingEntryIds);
+    }
 
-            $run->entries()->update([
-                'status' => 'paid',
+    /**
+     * @param  list<int|string>  $entryIds
+     */
+    public function paySelected(PayrollRun $run, int $companyAccountId, array $entryIds, ?string $reference = null, ?string $notes = null): void
+    {
+        if (! in_array($run->status, ['approved', 'partially_paid'], true)) {
+            throw new RuntimeException('Only approved or partially paid payroll runs can be paid.');
+        }
+
+        $normalizedEntryIds = collect($entryIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($normalizedEntryIds === []) {
+            throw new RuntimeException('Select at least one payroll entry to pay.');
+        }
+
+        DB::transaction(function () use ($run, $companyAccountId, $normalizedEntryIds, $reference, $notes) {
+            $run = PayrollRun::query()->lockForUpdate()->findOrFail($run->id);
+
+            if (! in_array($run->status, ['approved', 'partially_paid'], true)) {
+                throw new RuntimeException('Only approved or partially paid payroll runs can be paid.');
+            }
+
+            $entries = PayrollEntry::query()
+                ->where('payroll_run_id', $run->id)
+                ->whereIn('id', $normalizedEntryIds)
+                ->lockForUpdate()
+                ->get();
+
+            if ($entries->count() !== count($normalizedEntryIds)) {
+                throw new RuntimeException('Some selected payroll entries are invalid for this run.');
+            }
+
+            if ($entries->contains(fn (PayrollEntry $entry) => $entry->status !== 'pending')) {
+                throw new RuntimeException('Only pending payroll entries can be paid.');
+            }
+
+            $now = now();
+            $batchAmount = (float) $entries->sum('net_amount');
+
+            if ($batchAmount <= 0) {
+                throw new RuntimeException('Selected payroll entries must have a positive payable amount.');
+            }
+
+            $paymentBatch = PayrollRunPayment::query()->create([
+                'payroll_run_id' => $run->id,
+                'company_account_id' => $companyAccountId,
+                'amount' => $batchAmount,
                 'paid_at' => $now,
+                'reference' => $reference,
+                'notes' => $notes,
+                'created_by' => Auth::id(),
             ]);
 
+            $entries->each(function (PayrollEntry $entry) use ($paymentBatch): void {
+                PayrollRunPaymentEntry::query()->create([
+                    'payroll_run_payment_id' => $paymentBatch->id,
+                    'payroll_entry_id' => $entry->id,
+                    'amount' => (float) $entry->net_amount,
+                ]);
+            });
+
+            PayrollEntry::query()
+                ->whereIn('id', $entries->pluck('id')->all())
+                ->update([
+                    'status' => 'paid',
+                    'paid_at' => $now,
+                ]);
+
+            $hasPendingEntries = PayrollEntry::query()
+                ->where('payroll_run_id', $run->id)
+                ->where('status', 'pending')
+                ->exists();
+
+            $distinctAccounts = PayrollRunPayment::query()
+                ->where('payroll_run_id', $run->id)
+                ->select('company_account_id')
+                ->distinct()
+                ->pluck('company_account_id')
+                ->filter(fn ($id) => $id !== null)
+                ->values();
+
+            $runStatus = $hasPendingEntries ? 'partially_paid' : 'paid';
+            $singleAccountForRun = (! $hasPendingEntries && $distinctAccounts->count() === 1)
+                ? (int) $distinctAccounts->first()
+                : null;
+
             $run->update([
-                'status' => 'paid',
-                'paid_at' => $now,
-                'company_account_id' => $companyAccountId,
+                'status' => $runStatus,
+                'paid_at' => $hasPendingEntries ? null : $now,
+                'company_account_id' => $singleAccountForRun,
             ]);
 
             $run->recalculateTotals();
