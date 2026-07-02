@@ -164,6 +164,7 @@ class IssueActionController
             'status' => ['nullable', 'string', 'max:100'],
             'priority' => ['nullable', 'in:low,medium,high'],
             'project_id' => ['nullable', 'integer'],
+            'sprint_id' => ['nullable', 'integer', 'exists:sprints,id'],
             'assignee_id' => ['nullable', 'string'],
             'assignee_type' => ['nullable', 'string'],
         ]);
@@ -190,6 +191,7 @@ class IssueActionController
 
         $task = Task::create([
             'project_id' => $projectId,
+            'sprint_id' => $data['sprint_id'] ?? null,
             'title' => trim((string) $data['title']),
             'description' => $data['description'] ?? null,
             'type' => 'feature',
