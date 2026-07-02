@@ -174,7 +174,8 @@ class KanbanBoard extends Component
                     'checklists',
                     'latestQueue' => fn ($q) => $q->whereIn('status', $this->activeQueueStatuses),
                 ])
-                ->withCount('comments');
+                ->withCount('comments')
+                ->orderByDesc('updated_at');
 
             // Developers: only their own assigned tasks (not team-wide unclaimed tasks)
             if ($scopedToUser) {
