@@ -1,6 +1,8 @@
 <x-layouts.app :title="$run->month->format('F Y') . ' Payroll'">
     @php
         $fmt = fn($n) => 'MRU ' . number_format((float) $n, 2);
+        $canPaySelected = in_array($run->status, ['approved', 'partially_paid'], true);
+        $columnCount = 9 + ($run->status === 'draft' ? 2 : 0) + ($canPaySelected ? 1 : 0);
     @endphp
 
     <div
@@ -52,7 +54,9 @@
                     @if($run->status === 'draft')
                         <span class="inline-flex items-center rounded-[5px] bg-surface px-2 py-0.5 text-[11px] font-semibold text-muted">Draft</span>
                     @elseif($run->status === 'approved')
-                        <span class="inline-flex items-center rounded-[5px] bg-[#fef9ec] px-2 py-0.5 text-[11px] font-semibold text-[#9a7a1a]">Approved</span>
+                        <span class="inline-flex items-center rounded-[5px] bg-warn-light px-2 py-0.5 text-[11px] font-semibold text-warn-text">Approved</span>
+                    @elseif($run->status === 'partially_paid')
+                        <span class="inline-flex items-center rounded-[5px] bg-info-light px-2 py-0.5 text-[11px] font-semibold text-info-text">Partially Paid</span>
                     @else
                         <span class="inline-flex items-center rounded-[5px] bg-success-light px-2 py-0.5 text-[11px] font-semibold text-success-text">Paid</span>
                     @endif
@@ -70,16 +74,22 @@
                         @method('DELETE')
                         <button type="submit" class="rounded-lg border border-danger-border bg-danger-light px-4 py-2 text-[13px] font-medium text-danger hover:bg-[#ffe0e0] transition-colors cursor-pointer">Delete Draft</button>
                     </form>
-                @elseif($run->status === 'approved')
-                    <form method="POST" action="{{ route('payroll.pay', $run) }}" class="flex items-center gap-2">
+                @elseif($canPaySelected)
+                    <form id="pay-selected-form" method="POST" action="{{ route('payroll.pay', $run) }}" class="flex flex-wrap items-center gap-2">
                         @csrf
                         <select name="company_account_id" required class="rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-ink focus:border-accent focus:bg-white focus:outline-none transition-colors">
                             <option value="">Select account…</option>
                             @foreach($companyAccounts as $account)
-                                <option value="{{ $account->id }}">{{ $account->name }}</option>
+                                <option value="{{ $account->id }}">{{ $account->name }} @if($account->bank_name) · {{ $account->bank_name }} @endif</option>
                             @endforeach
                         </select>
-                        <button type="submit" class="rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-white hover:bg-accent-hover transition-colors cursor-pointer">Mark as Paid</button>
+                        <input
+                            type="text"
+                            name="reference"
+                            placeholder="Batch reference (optional)"
+                            class="w-56 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-ink placeholder:text-muted focus:border-accent focus:bg-white focus:outline-none transition-colors"
+                        >
+                        <button type="submit" class="rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-white hover:bg-accent-hover transition-colors cursor-pointer">Pay Selected</button>
                     </form>
                 @else
                     <a href="{{ route('payroll.pdf', $run) }}" class="rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-white hover:bg-accent-hover transition-colors">Download Summary PDF</a>
@@ -115,9 +125,14 @@
         @endif
 
         <div class="overflow-x-auto rounded-xl border border-line bg-white shadow-card">
-            <table class="w-full min-w-[1400px] border-collapse">
+            <table class="w-full min-w-350 border-collapse">
                 <thead>
                     <tr class="border-b border-line bg-canvas">
+                        @if($canPaySelected)
+                            <th class="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+                                <input id="pay-select-all" type="checkbox" class="h-4 w-4 rounded border-line text-accent focus:ring-accent/30">
+                            </th>
+                        @endif
                         <th class="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Employee</th>
                         <th class="px-4 py-2.5 text-right text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Base Salary</th>
                         <th class="px-4 py-2.5 text-right text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Bonuses</th>
@@ -162,6 +177,21 @@
                             x-effect="notifyTotals()"
                             class="border-b border-hairline last:border-b-0 hover:bg-canvas transition-colors"
                         >
+                            @if($canPaySelected)
+                                <td class="px-4 py-3">
+                                    @if($entry->status === 'pending')
+                                        <input
+                                            type="checkbox"
+                                            form="pay-selected-form"
+                                            name="payroll_entry_ids[]"
+                                            value="{{ $entry->id }}"
+                                            class="pay-entry-checkbox h-4 w-4 rounded border-line text-accent focus:ring-accent/30"
+                                        >
+                                    @else
+                                        <span class="text-[12px] text-muted">—</span>
+                                    @endif
+                                </td>
+                            @endif
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2">
                                     <span class="inline-flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-semibold text-white" style="background: {{ $avatarColor }}">{{ $initials }}</span>
@@ -234,13 +264,13 @@
                                             <span>Skip unpaid leave</span>
                                         </label>
 
-                                        <p x-show="skipAdvances" x-cloak class="text-[11px] font-medium text-[#9a7a1a]">
+                                        <p x-show="skipAdvances" x-cloak class="text-[11px] font-medium text-warn-text">
                                             Advances will not be deducted this month — they carry over to next payroll.
                                         </p>
-                                        <p x-show="skipLoans" x-cloak class="text-[11px] font-medium text-[#9a7a1a]">
+                                        <p x-show="skipLoans" x-cloak class="text-[11px] font-medium text-warn-text">
                                             Loan installment skipped this month.
                                         </p>
-                                        <p x-show="skipUnpaidLeave" x-cloak class="text-[11px] font-medium text-[#9a7a1a]">
+                                        <p x-show="skipUnpaidLeave" x-cloak class="text-[11px] font-medium text-warn-text">
                                             Unpaid leave deduction will be excluded from net pay.
                                         </p>
                                         <p class="text-[11px] text-muted">
@@ -282,12 +312,50 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ $run->status === 'draft' ? 11 : 9 }}" class="px-4 py-12 text-center text-[13px] text-muted">No entries in this payroll run.</td>
+                            <td colspan="{{ $columnCount }}" class="px-4 py-12 text-center text-[13px] text-muted">No entries in this payroll run.</td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
+
+        @if($canPaySelected)
+            <p class="mt-2 text-[12px] text-muted">
+                Select one or more pending employees, choose a company account, then click Pay Selected.
+            </p>
+        @endif
+
+        @if($run->payments->isNotEmpty())
+            <div class="mt-6 overflow-x-auto rounded-xl border border-line bg-white shadow-card">
+                <div class="border-b border-line bg-canvas px-4 py-3">
+                    <h2 class="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Payment Batches</h2>
+                </div>
+                <table class="w-full min-w-225 border-collapse">
+                    <thead>
+                        <tr class="border-b border-line bg-canvas">
+                            <th class="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Paid At</th>
+                            <th class="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Account</th>
+                            <th class="px-4 py-2.5 text-right text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Employees</th>
+                            <th class="px-4 py-2.5 text-right text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Amount</th>
+                            <th class="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Reference</th>
+                            <th class="px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-muted">Processed By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($run->payments as $payment)
+                            <tr class="border-b border-hairline last:border-b-0 hover:bg-canvas transition-colors">
+                                <td class="px-4 py-3 text-[13px] text-ink">{{ $payment->paid_at?->format('M d, Y H:i') ?? '—' }}</td>
+                                <td class="px-4 py-3 text-[13px] text-dim">{{ $payment->companyAccount?->name ?? 'Deleted account' }}</td>
+                                <td class="px-4 py-3 text-right text-[13px] text-ink">{{ $payment->items->count() }}</td>
+                                <td class="px-4 py-3 text-right text-[13px] font-semibold text-ink">{{ $fmt($payment->amount) }}</td>
+                                <td class="px-4 py-3 text-[13px] text-dim">{{ $payment->reference ?: '—' }}</td>
+                                <td class="px-4 py-3 text-[13px] text-dim">{{ $payment->creator?->name ?? 'System' }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
     </div>
 
     @if($run->status === 'draft')
@@ -377,6 +445,32 @@
                     }
                 };
             }
+        </script>
+    @endif
+
+    @if($canPaySelected)
+        <script>
+            (() => {
+                const selectAll = document.getElementById('pay-select-all');
+                if (!selectAll) {
+                    return;
+                }
+
+                const rowCheckboxes = () => Array.from(document.querySelectorAll('.pay-entry-checkbox'));
+
+                selectAll.addEventListener('change', () => {
+                    rowCheckboxes().forEach((checkbox) => {
+                        checkbox.checked = selectAll.checked;
+                    });
+                });
+
+                rowCheckboxes().forEach((checkbox) => {
+                    checkbox.addEventListener('change', () => {
+                        const checkboxes = rowCheckboxes();
+                        selectAll.checked = checkboxes.length > 0 && checkboxes.every((input) => input.checked);
+                    });
+                });
+            })();
         </script>
     @endif
 </x-layouts.app>

@@ -8,6 +8,7 @@ use App\Models\EmployeeAdvance;
 use App\Models\EmployeeLoan;
 use App\Models\Expense;
 use App\Models\PayrollRun;
+use App\Models\PayrollRunPayment;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,7 +45,7 @@ class CompanyBankAccountController extends Controller
         abort_unless(auth()->user()->hasPermission('finance.manage'), 403);
 
         return view('finance.bank-accounts.form', [
-            'account' => new CompanyBankAccount(),
+            'account' => new CompanyBankAccount,
         ]);
     }
 
@@ -86,8 +87,8 @@ class CompanyBankAccountController extends Controller
                     'date' => $payment->payment_date,
                     'type' => 'in',
                     'description' => 'Payment received — '
-                        . ($payment->invoice?->invoice_number ?? 'N/A')
-                        . ' (' . ($payment->invoice?->customer?->name ?? 'Unknown customer') . ')',
+                        .($payment->invoice?->invoice_number ?? 'N/A')
+                        .' ('.($payment->invoice?->customer?->name ?? 'Unknown customer').')',
                     'amount' => (float) $payment->amount,
                     'reference' => $payment->reference,
                     'source' => 'invoice_payment',
@@ -104,7 +105,7 @@ class CompanyBankAccountController extends Controller
                 $transactions->push([
                     'date' => $expense->expense_date,
                     'type' => 'out',
-                    'description' => $expense->title . ' (' . ($expense->category?->name ?? 'Uncategorized') . ')',
+                    'description' => $expense->title.' ('.($expense->category?->name ?? 'Uncategorized').')',
                     'amount' => (float) $expense->amount,
                     'reference' => null,
                     'source' => 'expense',
@@ -122,7 +123,7 @@ class CompanyBankAccountController extends Controller
                 $transactions->push([
                     'date' => $advance->date,
                     'type' => 'out',
-                    'description' => 'Advance — ' . $employeeName . ' (' . $advance->reason . ')',
+                    'description' => 'Advance — '.$employeeName.' ('.$advance->reason.')',
                     'amount' => (float) $advance->amount,
                     'reference' => null,
                     'source' => 'advance',
@@ -140,7 +141,7 @@ class CompanyBankAccountController extends Controller
                 $transactions->push([
                     'date' => $loan->started_at,
                     'type' => 'out',
-                    'description' => 'Loan — ' . $employeeName . ' (' . $loan->title . ')',
+                    'description' => 'Loan — '.$employeeName.' ('.$loan->title.')',
                     'amount' => (float) $loan->amount_total,
                     'reference' => null,
                     'source' => 'loan',
@@ -148,23 +149,47 @@ class CompanyBankAccountController extends Controller
                 ]);
             });
 
-        PayrollRun::where('company_account_id', $account->id)
-            ->where('status', 'paid')
-            ->with('entries')
-            ->get()
-            ->each(function ($run) use (&$transactions) {
-                $transactions->push([
-                    'date' => $run->paid_at,
-                    'type' => 'out',
-                    'description' => 'Payroll — '
-                        . Carbon::parse($run->month)->format('F Y')
-                        . ' (' . $run->entries->count() . ' employees)',
-                    'amount' => (float) $run->total_net,
-                    'reference' => null,
-                    'source' => 'payroll_run',
-                    'source_id' => $run->id,
-                ]);
-            });
+        if (Schema::hasTable('payroll_run_payments')) {
+            PayrollRunPayment::query()
+                ->where('company_account_id', $account->id)
+                ->with(['run', 'items'])
+                ->get()
+                ->each(function (PayrollRunPayment $payment) use (&$transactions) {
+                    $runMonthLabel = $payment->run?->month
+                        ? Carbon::parse($payment->run->month)->format('F Y')
+                        : 'Unknown month';
+
+                    $transactions->push([
+                        'date' => $payment->paid_at,
+                        'type' => 'out',
+                        'description' => 'Payroll batch — '
+                            .$runMonthLabel
+                            .' ('.$payment->items->count().' employees)',
+                        'amount' => (float) $payment->amount,
+                        'reference' => $payment->reference,
+                        'source' => 'payroll_run_payment',
+                        'source_id' => $payment->id,
+                    ]);
+                });
+        } else {
+            PayrollRun::where('company_account_id', $account->id)
+                ->where('status', 'paid')
+                ->with('entries')
+                ->get()
+                ->each(function ($run) use (&$transactions) {
+                    $transactions->push([
+                        'date' => $run->paid_at,
+                        'type' => 'out',
+                        'description' => 'Payroll — '
+                            .Carbon::parse($run->month)->format('F Y')
+                            .' ('.$run->entries->count().' employees)',
+                        'amount' => (float) $run->total_net,
+                        'reference' => null,
+                        'source' => 'payroll_run',
+                        'source_id' => $run->id,
+                    ]);
+                });
+        }
 
         if (Schema::hasTable('bank_account_transfers')) {
             // Transfers IN
@@ -175,7 +200,7 @@ class CompanyBankAccountController extends Controller
                     $transactions->push([
                         'date' => $transfer->date,
                         'type' => 'in',
-                        'description' => 'Transfer from ' . ($transfer->fromAccount?->name ?? 'Unknown account'),
+                        'description' => 'Transfer from '.($transfer->fromAccount?->name ?? 'Unknown account'),
                         'amount' => (float) $transfer->amount,
                         'reference' => $transfer->reference,
                         'source' => 'transfer_in',
@@ -192,7 +217,7 @@ class CompanyBankAccountController extends Controller
                     $transactions->push([
                         'date' => $transfer->date,
                         'type' => 'out',
-                        'description' => 'Transfer to ' . ($transfer->toAccount?->name ?? 'Unknown account'),
+                        'description' => 'Transfer to '.($transfer->toAccount?->name ?? 'Unknown account'),
                         'amount' => (float) $transfer->amount,
                         'reference' => $transfer->reference,
                         'source' => 'transfer_out',
@@ -229,7 +254,9 @@ class CompanyBankAccountController extends Controller
         $totalOut = (float) $account->expenses()->where('status', 'confirmed')->sum('amount')
             + (float) EmployeeAdvance::where('company_account_id', $account->id)->sum('amount')
             + (float) EmployeeLoan::where('company_account_id', $account->id)->sum('amount_total')
-            + (float) PayrollRun::where('company_account_id', $account->id)->where('status', 'paid')->sum('total_net');
+            + (Schema::hasTable('payroll_run_payments')
+                ? (float) PayrollRunPayment::where('company_account_id', $account->id)->sum('amount')
+                : (float) PayrollRun::where('company_account_id', $account->id)->where('status', 'paid')->sum('total_net'));
 
         if (Schema::hasTable('bank_account_transfers')) {
             $totalOut += (float) BankAccountTransfer::where('from_account_id', $account->id)->sum('amount');
