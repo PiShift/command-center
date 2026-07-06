@@ -20,50 +20,71 @@
 
         {{-- Filters + primary action (board only) --}}
         @if($activeTab === 'board')
-        <div class="flex items-center gap-2 flex-wrap">
-            <div class="relative flex-shrink-0">
-                <select wire:model.live="filterProject"
-                        class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer transition-colors"
-                        style="background: #F5F4EF; border: 1px solid #e5e4df; color: #141413; outline: none">
-                    <option value="">All Projects</option>
-                    @foreach($projects as $p)
-                        <option value="{{ $p->id }}">{{ $p->name }}</option>
-                    @endforeach
-                </select>
-                <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style="color: #8c8c8a">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                </span>
+        <div
+            class="flex items-center gap-2 flex-wrap"
+            x-data
+            x-init="
+                const storageKey = 'cc.board.projects.{{ auth()->id() }}';
+                const hasUrlSelection = @js($projectFilter !== '');
+                if (!hasUrlSelection) {
+                    const stored = localStorage.getItem(storageKey);
+                    if (stored) {
+                        $wire.applyStoredProjectSelection(stored);
+                    }
+                }
+
+                $wire.$watch('projectIds', (value) => {
+                    if (Array.isArray(value) && value.length > 0) {
+                        localStorage.setItem(storageKey, value.join(','));
+                    } else {
+                        localStorage.removeItem(storageKey);
+                    }
+                });
+            "
+        >
+            <div class="w-56 shrink-0">
+                <x-searchable-select
+                    multiple
+                    livewireModel="projectIds"
+                    placeholder="All Projects"
+                    :selected="$projectIds"
+                    :options="$projects->map(fn ($project) => [
+                        'id' => $project->id,
+                        'label' => $project->name,
+                        'color' => $project->color,
+                    ])->values()->all()"
+                />
             </div>
-            <div class="relative flex-shrink-0">
-                <select wire:model.live="filterAssignee"
-                        class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer transition-colors"
-                        style="background: #F5F4EF; border: 1px solid #e5e4df; color: #141413; outline: none">
-                    <option value="">All Members</option>
-                    @foreach($teamMembers as $m)
-                        <option value="{{ $m->id }}">{{ $m->name }}</option>
-                    @endforeach
-                </select>
-                <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style="color: #8c8c8a">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                </span>
+
+            <div class="w-48 shrink-0">
+                <x-searchable-select
+                    livewireModel="filterAssignee"
+                    placeholder="All Members"
+                    :selected="$filterAssignee"
+                    :options="$teamMembers->map(fn ($member) => [
+                        'id' => $member->id,
+                        'label' => $member->name,
+                    ])->values()->all()"
+                />
             </div>
-            <div class="relative flex-shrink-0">
-                <select wire:model.live="filterPriority"
-                        class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer transition-colors"
-                        style="background: #F5F4EF; border: 1px solid #e5e4df; color: #141413; outline: none">
-                    <option value="">All Priorities</option>
-                    <option value="critical">Critical</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                </select>
-                <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style="color: #8c8c8a">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                </span>
+
+            <div class="w-44 shrink-0">
+                <x-searchable-select
+                    livewireModel="filterPriority"
+                    placeholder="All Priorities"
+                    :selected="$filterPriority"
+                    :options="[
+                        ['id' => 'critical', 'label' => 'Critical'],
+                        ['id' => 'high', 'label' => 'High'],
+                        ['id' => 'medium', 'label' => 'Medium'],
+                        ['id' => 'low', 'label' => 'Low'],
+                    ]"
+                />
             </div>
+
             <button type="button"
                     x-on:click="$wire.dispatch('new-task', {})"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors whitespace-nowrap cursor-pointer flex-shrink-0">
+                    class="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors whitespace-nowrap cursor-pointer shrink-0">
                 + Add Task
             </button>
         </div>
