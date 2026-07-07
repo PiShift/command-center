@@ -13,8 +13,8 @@ return new class extends Migration
         if (! Schema::hasColumn('invoices', 'payment_status')) {
             Schema::table('invoices', function (Blueprint $table) {
                 $table->enum('payment_status', ['unpaid', 'partially_paid', 'paid'])
-                      ->default('unpaid')
-                      ->after('amount_paid');
+                    ->default('unpaid')
+                    ->after('amount_paid');
             });
         }
 
@@ -36,6 +36,10 @@ return new class extends Migration
         ");
 
         // 4. Narrow status to lifecycle values only (driver-specific)
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         if (DB::getDriverName() === 'pgsql') {
             DB::statement('ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_status_check');
             DB::statement("ALTER TABLE invoices ADD CONSTRAINT invoices_status_check CHECK (status IN ('draft', 'published', 'cancelled'))");
@@ -51,7 +55,7 @@ return new class extends Migration
         if (DB::getDriverName() === 'pgsql') {
             DB::statement('ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_status_check');
             DB::statement("ALTER TABLE invoices ADD CONSTRAINT invoices_status_check CHECK (status IN ('draft', 'published', 'partially_paid', 'paid', 'cancelled'))");
-        } else {
+        } elseif (DB::getDriverName() !== 'sqlite') {
             DB::statement("ALTER TABLE invoices MODIFY COLUMN status ENUM('draft','published','partially_paid','paid','cancelled') NOT NULL DEFAULT 'draft'");
         }
 

@@ -108,7 +108,7 @@
     <div x-show="tab === 'overview'" class="space-y-6">
 
         {{-- Stat cards --}}
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 {{ $canViewBilling ? 'lg:grid-cols-5' : 'lg:grid-cols-4' }} gap-4">
             @if($canManage)
             <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
                 <p class="text-[11px] font-bold uppercase tracking-wider text-muted mb-1">Total Tasks</p>
@@ -123,6 +123,13 @@
                 <p class="text-[11px] font-bold uppercase tracking-wider text-muted mb-1">Done</p>
                 <p class="text-[28px] font-bold text-[#2e7d55] leading-none">{{ $doneTasks }}</p>
             </div>
+            @if($canViewBilling)
+            <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-muted mb-1">Ready to Bill</p>
+                <p class="text-[28px] font-bold text-ink leading-none">{{ $readyToBillCount }}</p>
+                <p class="text-[12px] text-muted mt-1">{{ $readyToBillCount === 1 ? '1 task ready to bill' : $readyToBillCount . ' tasks ready to bill' }}</p>
+            </div>
+            @endif
             @if($canManage)
             <div class="rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)] border {{ $overdueTasks > 0 ? 'bg-[#fff8f8] border-[#ffd0d0]' : 'bg-white border-line' }}">
                 <p class="text-[11px] font-bold uppercase tracking-wider mb-1 {{ $overdueTasks > 0 ? 'text-[#b94040]' : 'text-muted' }}">Overdue</p>

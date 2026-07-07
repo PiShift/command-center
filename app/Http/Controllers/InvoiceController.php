@@ -7,9 +7,11 @@ use App\Http\Requests\UpdateInvoiceRequest;
 use App\Mail\InvoicePublishedMailable;
 use App\Models\CompanyBankAccount;
 use App\Models\Customer;
+use App\Models\CustomerCredit;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Project;
+use App\Models\Task;
 use App\Services\InvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -21,15 +23,15 @@ class InvoiceController extends Controller
     public function index(Request $request)
     {
         abort_unless(auth()->user()->hasPermission('invoices.view'), 403);
-        $sortable  = ['invoice_number', 'issue_date', 'due_date', 'total', 'status'];
-        $sort      = in_array($request->sort, $sortable) ? $request->sort : 'issue_date';
+        $sortable = ['invoice_number', 'issue_date', 'due_date', 'total', 'status'];
+        $sort = in_array($request->sort, $sortable) ? $request->sort : 'issue_date';
         $direction = $request->direction === 'asc' ? 'asc' : 'desc';
 
         $query = Invoice::with(['customer', 'project'])->orderBy($sort, $direction);
 
         if ($s = $request->search) {
-            $query->where(fn($q) => $q->where('invoice_number', 'like', "%$s%")
-                ->orWhereHas('customer', fn($q) => $q->where('name', 'like', "%$s%")));
+            $query->where(fn ($q) => $q->where('invoice_number', 'like', "%$s%")
+                ->orWhereHas('customer', fn ($q) => $q->where('name', 'like', "%$s%")));
         }
         if ($status = $request->status) {
             $query->where('status', $status);
@@ -41,7 +43,7 @@ class InvoiceController extends Controller
             $query->overdue();
         }
 
-        $invoices  = $query->paginate(25)->withQueryString();
+        $invoices = $query->paginate(25)->withQueryString();
         $customers = Customer::orderBy('name')->get(['id', 'name']);
         $companyAccounts = CompanyBankAccount::query()
             ->orderByDesc('is_default')
@@ -55,7 +57,7 @@ class InvoiceController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
         $customers = Customer::orderBy('name')->get(['id', 'name']);
-        $projects  = Project::orderBy('name')->get(['id', 'name', 'customer_id']);
+        $projects = Project::orderBy('name')->get(['id', 'name', 'customer_id']);
         $companyAccounts = CompanyBankAccount::query()
             ->orderByDesc('is_default')
             ->orderBy('name')
@@ -86,7 +88,7 @@ class InvoiceController extends Controller
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->get(['id', 'name', 'bank_name', 'is_default']);
-        $credits = \App\Models\CustomerCredit::where('customer_id', $invoice->customer_id)
+        $credits = CustomerCredit::where('customer_id', $invoice->customer_id)
             ->where('currency', $invoice->currency)
             ->available()
             ->get();
@@ -99,7 +101,7 @@ class InvoiceController extends Controller
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
         $invoice->load('items.task');
         $customers = Customer::orderBy('name')->get(['id', 'name']);
-        $projects  = Project::orderBy('name')->get(['id', 'name', 'customer_id']);
+        $projects = Project::orderBy('name')->get(['id', 'name', 'customer_id']);
         $companyAccounts = CompanyBankAccount::query()
             ->orderByDesc('is_default')
             ->orderBy('name')
@@ -123,6 +125,7 @@ class InvoiceController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
         $invoice->delete();
+
         return redirect()->route('invoices.index')->with('success', 'Invoice deleted.');
     }
 
@@ -144,13 +147,15 @@ class InvoiceController extends Controller
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
         Mail::to($invoice->customer->email)
             ->queue(new InvoicePublishedMailable($invoice->load(['customer', 'items'])));
-        return back()->with('success', 'Invoice resent to ' . $invoice->customer->email . '.');
+
+        return back()->with('success', 'Invoice resent to '.$invoice->customer->email.'.');
     }
 
     public function cancel(Invoice $invoice)
     {
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
         $invoice->update(['status' => 'cancelled']);
+
         return back()->with('success', 'Invoice cancelled.');
     }
 
@@ -158,13 +163,14 @@ class InvoiceController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
         $invoice->update(['status' => 'draft', 'payment_status' => 'unpaid']);
+
         return back()->with('success', 'Invoice reset to draft.');
     }
 
     public function bulkAction(Request $request)
     {
         abort_unless(auth()->user()->hasPermission('invoices.manage'), 403);
-        $ids    = array_filter(explode(',', (string) $request->input('ids', '')));
+        $ids = array_filter(explode(',', (string) $request->input('ids', '')));
         $action = $request->input('action');
 
         if (empty($ids)) {
@@ -174,27 +180,29 @@ class InvoiceController extends Controller
         $invoices = Invoice::whereIn('id', $ids)->get();
 
         match ($action) {
-            'delete'         => $invoices->each->delete(),
-            'cancel'         => $invoices->each(fn($i) => $i->update(['status' => 'cancelled'])),
-            'reset_to_draft' => $invoices->each(fn($i) => $i->update(['status' => 'draft', 'payment_status' => 'unpaid'])),
-            default          => null,
+            'delete' => $invoices->each->delete(),
+            'cancel' => $invoices->each(fn ($i) => $i->update(['status' => 'cancelled'])),
+            'reset_to_draft' => $invoices->each(fn ($i) => $i->update(['status' => 'draft', 'payment_status' => 'unpaid'])),
+            default => null,
         };
 
-        return back()->with('success', count($invoices) . ' invoice(s) updated.');
+        return back()->with('success', count($invoices).' invoice(s) updated.');
     }
 
     public function download(Invoice $invoice)
     {
         abort_unless(auth()->user()->hasPermission('invoices.view'), 403);
         $pdf = $this->service->generatePdf($invoice);
-        return $pdf->download($invoice->invoice_number . '.pdf');
+
+        return $pdf->download($invoice->invoice_number.'.pdf');
     }
 
     public function preview(Invoice $invoice)
     {
         abort_unless(auth()->user()->hasPermission('invoices.view'), 403);
         $pdf = $this->service->generatePdf($invoice);
-        return $pdf->stream($invoice->invoice_number . '.pdf');
+
+        return $pdf->stream($invoice->invoice_number.'.pdf');
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -203,20 +211,32 @@ class InvoiceController extends Controller
         $invoice->items()->delete();
         $rows = $request->input('items', []);
         foreach ($rows as $i => $row) {
-            if (empty($row['description']) && empty($row['unit_price'])) continue;
-            InvoiceItem::create([
-                'invoice_id'     => $invoice->id,
-                'type'           => 'manual',
-                'task_id'        => null,
-                'description'    => $row['description'],
-                'quantity'       => $row['quantity'] ?? 1,
-                'unit'           => $row['unit'] ?? 'units',
-                'unit_price'     => $row['unit_price'] ?? 0,
-                'discount_type'  => $row['discount_type'] ?? null,
-                'discount_value' => $row['discount_value'] ?? null,
-                'cost_price'     => isset($row['cost_price']) && $row['cost_price'] !== '' ? $row['cost_price'] : null,
-                'sort_order'     => $i,
+            if (empty($row['description']) && empty($row['unit_price'])) {
+                continue;
+            }
+
+            $task = isset($row['task_id']) && $row['task_id'] !== ''
+                ? Task::find($row['task_id'])
+                : null;
+
+            $item = $task ? InvoiceItem::fromTask($task) : new InvoiceItem([
+                'type' => 'manual',
+                'task_id' => null,
             ]);
+
+            $item->fill([
+                'description' => $row['description'],
+                'quantity' => $row['quantity'] ?? 1,
+                'unit' => $row['unit'] ?? 'units',
+                'unit_price' => $row['unit_price'] ?? 0,
+                'discount_type' => $row['discount_type'] ?? null,
+                'discount_value' => $row['discount_value'] ?? null,
+                'cost_price' => isset($row['cost_price']) && $row['cost_price'] !== '' ? $row['cost_price'] : null,
+            ]);
+
+            $item->invoice_id = $invoice->id;
+            $item->sort_order = $i;
+            $item->save();
         }
     }
 }

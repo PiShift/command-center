@@ -94,7 +94,7 @@
             $projectIds = $projects->pluck('id')->toArray();
             $allProjectTasks = \App\Models\Task::where('status', 'done')
                 ->whereIn('project_id', $projectIds)
-                ->with('sprint:id,name')
+                ->with(['sprint:id,name', 'activeInvoiceItem.invoice', 'invoiceOverride'])
                 ->get(['id', 'project_id', 'sprint_id', 'title', 'estimated_hours'])
                 ->groupBy('project_id')
                 ->map(fn($ts) => $ts->map(fn($t) => [
@@ -102,18 +102,24 @@
                     'title'           => $t->title,
                     'sprint_name'     => $t->sprint?->name,
                     'estimated_hours' => $t->estimated_hours,
+                    'invoice_status'  => $t->invoiceStatus,
                 ])->values()->all())
                 ->all();
             $allProjectSprints = \App\Models\Sprint::whereIn('project_id', $projectIds)
                 ->whereIn('status', ['active', 'completed'])
-                ->with('tasks:id,sprint_id,title')
+                ->with(['tasks' => fn($query) => $query
+                    ->select(['id', 'sprint_id', 'title', 'status'])
+                    ->with(['activeInvoiceItem.invoice', 'invoiceOverride'])])
                 ->get(['id', 'project_id', 'name', 'status'])
                 ->groupBy('project_id')
                 ->map(fn($ss) => $ss->map(fn($s) => [
                     'id'     => $s->id,
                     'name'   => $s->name,
                     'status' => $s->status,
-                    'tasks'  => $s->tasks->pluck('title')->values()->all(),
+                    'tasks'  => $s->tasks->map(fn($task) => [
+                        'title'          => $task->title,
+                        'invoice_status' => $task->invoiceStatus,
+                    ])->values()->all(),
                 ])->values()->all())
                 ->all();
         @endphp
@@ -137,6 +143,14 @@
                                     ? 'font-size:12px;font-weight:500;color:#fff;background:#D97757;border:1px solid #D97757;cursor:pointer;border-radius:6px;padding:3px 10px'
                                     : 'font-size:12px;font-weight:500;color:#5c5c5a;background:none;border:1px solid #e5e4df;cursor:pointer;border-radius:6px;padding:3px 10px'"
                                 >+ From Tasks</button>
+                    </template>
+
+                    <template x-if="currentProjectId">
+                        <label class="inline-flex items-center gap-2 text-[12px] text-dim">
+                            <input type="checkbox" x-model="showInvoicedTasks"
+                                   style="accent-color:#D97757;width:14px;height:14px;cursor:pointer">
+                            Show already-invoiced tasks
+                        </label>
                     </template>
 
                     <template x-if="currentProjectId">
@@ -187,6 +201,7 @@
                     <template x-for="(item, idx) in items" :key="idx">
                     <tr style="border-bottom:1px solid #eeeee9">
                         <td class="px-4 py-2">
+                            <input type="hidden" :name="`items[${idx}][task_id]`" :value="item.task_id || ''">
                             <textarea :name="`items[${idx}][description]`" x-model="item.description" placeholder="Description"
                                       rows="1"
                                       class="w-full rounded text-[12.5px] px-2 py-1.5"
@@ -248,10 +263,15 @@
                                         <input type="checkbox" :value="task.id" x-model="selectedTaskIds"
                                                style="accent-color:#D97757;width:14px;height:14px;flex-shrink:0;cursor:pointer">
                                         <div style="flex:1;min-width:0">
-                                            <p style="font-size:12.5px;color:#141413;font-weight:500" x-text="task.title"></p>
-                                            <p style="font-size:11px;color:#8c8c8a">
-                                                <span x-text="task.sprint_name || 'No sprint'"></span>
-                                                <template x-if="task.estimated_hours">
+                                           <div class="flex items-center justify-between gap-3">
+                                               <p style="font-size:12.5px;color:#141413;font-weight:500" x-text="task.title"></p>
+                                               <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                                                     :style="invoiceStatusStyle(task.invoice_status)"
+                                                     x-text="invoiceStatusLabel(task.invoice_status)"></span>
+                                           </div>
+                                           <p style="font-size:11px;color:#8c8c8a">
+                                               <span x-text="task.sprint_name || 'No sprint'"></span>
+                                               <template x-if="task.estimated_hours">
                                                     <span> &middot; <span x-text="task.estimated_hours"></span>h estimated</span>
                                                 </template>
                                             </p>
@@ -403,6 +423,8 @@
 @php
     $existingItems = (isset($invoice) && $invoice->relationLoaded('items') && $invoice->items->isNotEmpty())
         ? $invoice->items->map(fn($i) => [
+            'type'           => $i->type,
+            'task_id'        => $i->task_id,
             'description'    => $i->description,
             'quantity'       => $i->quantity,
             'unit'           => $i->unit,
@@ -420,11 +442,12 @@ const _allProjectSprints = @json($allProjectSprints);
 
 function itemsManager() {
     return {
-        items: @json($existingItems).map(i => ({ isMultiline: false, cost_price: null, ...i })),
+        items: @json($existingItems).map(i => ({ isMultiline: false, type: 'manual', task_id: null, cost_price: null, ...i })),
         currentProjectId: '{{ old('project_id', $invoice->project_id ?? '') }}',
         showTaskPanel:    false,
         showSprintSelect: false,
         showCost:         @json($existingItems) && @json($existingItems).some(i => i.cost_price > 0),
+        showInvoicedTasks: false,
         selectedTaskIds:  [],
         selectedSprintId: '',
         discountType:  '{{ old('discount_type', $invoice->discount_type ?? '') }}',
@@ -459,12 +482,35 @@ function itemsManager() {
 
         get projectTasks() {
             if (!this.currentProjectId) return [];
-            return _allProjectTasks[this.currentProjectId] ?? [];
+            return (_allProjectTasks[this.currentProjectId] ?? []).filter((task) => {
+                return this.showInvoicedTasks || task.invoice_status === 'not_invoiced';
+            });
         },
 
         get projectSprints() {
             if (!this.currentProjectId) return [];
-            return _allProjectSprints[this.currentProjectId] ?? [];
+            return (_allProjectSprints[this.currentProjectId] ?? [])
+                .map((sprint) => ({
+                    ...sprint,
+                    tasks: sprint.tasks.filter((task) => this.showInvoicedTasks || task.invoice_status === 'not_invoiced'),
+                }))
+                .filter((sprint) => sprint.tasks.length > 0);
+        },
+
+        invoiceStatusLabel(status) {
+            return {
+                not_invoiced: 'Not invoiced',
+                invoiced: 'Invoiced',
+                paid: 'Paid',
+            }[status] ?? 'Not invoiced';
+        },
+
+        invoiceStatusStyle(status) {
+            return {
+                not_invoiced: 'background:#f3f2ee;color:#5c5c5a',
+                invoiced: 'background:#fef9ec;color:#9a7a1a',
+                paid: 'background:#edf7f2;color:#2e7d55',
+            }[status] ?? 'background:#f3f2ee;color:#5c5c5a';
         },
 
         addItem() {
@@ -484,7 +530,7 @@ function itemsManager() {
                     const unit = t.estimated_hours ? 'hours' : 'fixed';
                     this.items.push({
                         isMultiline: false,
-                        type: 'manual', task_id: null,
+                        type: 'task', task_id: t.id,
                         description: t.title,
                         quantity: qty, unit: unit,
                         unit_price: 0, discount_value: null, discount_type: '', subtotal: 0, cost_price: null,
@@ -498,7 +544,7 @@ function itemsManager() {
             if (!this.selectedSprintId) return;
             const sprint = this.projectSprints.find(s => String(s.id) === String(this.selectedSprintId));
             if (!sprint) return;
-            const taskLines  = sprint.tasks.map(t => '\u00b7 ' + t).join('\n');
+            const taskLines  = sprint.tasks.map(t => '\u00b7 ' + t.title).join('\n');
             const desc       = sprint.name + '\n\n' + taskLines;
             this.items.push({
                 isMultiline: true,

@@ -2,19 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\KanbanColumn;
 use App\Models\Agent;
 use App\Models\AgentTaskQueue;
+use App\Models\KanbanColumn;
 use App\Models\Project;
-use App\Models\Role;
 use App\Models\Task;
 use App\Models\User;
-use App\Support\Broadcasts\IssueBroadcastPayload;
 use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\TaskAssignedNotification;
 use App\Notifications\TaskClaimedNotification;
 use App\Notifications\TaskStatusChangedNotification;
+use App\Support\Broadcasts\IssueBroadcastPayload;
+use App\WebSocket\WebSocketBroadcaster;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Gate;
 
 class TaskController extends Controller
 {
@@ -41,7 +43,7 @@ class TaskController extends Controller
         $workspaceId = $this->resolveWorkspaceId($task);
 
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastIssueCreated(
+            WebSocketBroadcaster::broadcastIssueCreated(
                 $task, $workspaceId, (string) auth()->id()
             );
         }
@@ -58,16 +60,27 @@ class TaskController extends Controller
 
     public function show(Task $task)
     {
-        abort_unless(auth()->user()->hasPermission('tasks.view'), 403);
-        $task->load([
+        $user = auth()->user();
+
+        abort_unless($user->hasPermission('tasks.view'), 403);
+
+        $relations = [
             'project',
             'assignee',
             'agent.runtime',
             'latestQueue',
             'checklists',
             'media',
-            'comments' => fn($q) => $q->with(['author', 'media'])->latest(),
-        ]);
+            'comments' => fn ($q) => $q->with(['author', 'media'])->latest(),
+        ];
+
+        if ($user->hasPermission('invoices.view')) {
+            $relations[] = 'activeInvoiceItem.invoice';
+            $relations[] = 'invoiceOverride.markedBy';
+        }
+
+        $task->load($relations);
+
         return view('tasks.show', compact('task'));
     }
 
@@ -76,9 +89,9 @@ class TaskController extends Controller
         abort_unless(auth()->user()->hasPermission('tasks.edit_any'), 403);
 
         $projects = Project::orderBy('name')->get(['id', 'name']);
-        $users    = User::orderBy('name')->get(['id', 'name']);
-        $columns  = KanbanColumn::orderBy('position')->get(['slug', 'name']);
-        $agents   = Agent::query()
+        $users = User::orderBy('name')->get(['id', 'name']);
+        $columns = KanbanColumn::orderBy('position')->get(['slug', 'name']);
+        $agents = Agent::query()
             ->where('owner_id', auth()->id())
             ->whereNull('archived_at')
             ->with('runtime:id,name,provider')
@@ -93,16 +106,16 @@ class TaskController extends Controller
         abort_unless(auth()->user()->hasPermission('tasks.edit_any'), 403);
 
         $oldAssignedTo = $task->assigned_to;
-        $oldAgentId    = $task->agent_id;
-        $oldStatus     = $task->status;
-        $data          = $this->validated($request);
+        $oldAgentId = $task->agent_id;
+        $oldStatus = $task->status;
+        $data = $this->validated($request);
 
         $task->update($data);
 
         $workspaceId = $this->resolveWorkspaceId($task);
 
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated(
+            WebSocketBroadcaster::broadcastIssueUpdated(
                 $task, $workspaceId, (string) auth()->id()
             );
         }
@@ -112,7 +125,7 @@ class TaskController extends Controller
             $queueEntry = $this->syncAgentQueue($task, $data['agent_id'] ?? null, $oldAgentId);
 
             if ($queueEntry) {
-                \App\WebSocket\WebSocketBroadcaster::wakeupDaemon($queueEntry->runtime_id, $queueEntry->id);
+                WebSocketBroadcaster::wakeupDaemon($queueEntry->runtime_id, $queueEntry->id);
             }
         }
 
@@ -137,15 +150,15 @@ class TaskController extends Controller
 
         // Notify on status change
         if (isset($data['status']) && $data['status'] !== $oldStatus) {
-            \Illuminate\Support\Facades\Cache::tags(['dashboard'])->flush();
+            Cache::tags(['dashboard'])->flush();
             $recipients = collect();
 
             if ($task->assigned_to && $task->assigned_to !== auth()->id()) {
                 $recipients->push($task->assignee);
             }
 
-            $managers = User::whereHas('roleModel', fn($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
-            $recipients = $recipients->merge($managers)->unique('id')->filter(fn($u) => $u->id !== auth()->id());
+            $managers = User::whereHas('roleModel', fn ($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
+            $recipients = $recipients->merge($managers)->unique('id')->filter(fn ($u) => $u->id !== auth()->id());
 
             foreach ($recipients as $recipient) {
                 $recipient->notify(new TaskStatusChangedNotification($task->load('project'), $oldStatus, $data['status'], auth()->user()));
@@ -165,7 +178,7 @@ class TaskController extends Controller
         $task->delete();
 
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastIssueDeleted(
+            WebSocketBroadcaster::broadcastIssueDeleted(
                 $taskId, $workspaceId, (string) auth()->id()
             );
         }
@@ -178,20 +191,20 @@ class TaskController extends Controller
         abort_unless(auth()->user()->hasPermission('tasks.edit_any'), 403);
 
         $next = match ($task->status) {
-            'backlog'     => 'in-progress',
+            'backlog' => 'in-progress',
             'in-progress' => 'done',
-            default       => 'backlog',
+            default => 'backlog',
         };
 
         $task->update([
-            'status'       => $next,
+            'status' => $next,
             'completed_at' => $next === 'done' ? now() : null,
         ]);
 
         $workspaceId = $this->resolveWorkspaceId($task);
 
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated(
+            WebSocketBroadcaster::broadcastIssueUpdated(
                 $task, $workspaceId, (string) auth()->id()
             );
         }
@@ -202,20 +215,20 @@ class TaskController extends Controller
     public function claim(Task $task)
     {
         $user = auth()->user();
-        \Illuminate\Support\Facades\Gate::authorize('claim', $task);
+        Gate::authorize('claim', $task);
 
         if ($task->assigned_to !== null) {
             return back()->with('error', 'This task is already assigned to someone.');
         }
 
         $task->assigned_to = $user->id;
-        $task->status      = 'todo';
+        $task->status = 'todo';
         $task->save();
 
         $workspaceId = $this->resolveWorkspaceId($task);
 
         if ($workspaceId) {
-            \App\WebSocket\WebSocketBroadcaster::broadcastIssueUpdated(
+            WebSocketBroadcaster::broadcastIssueUpdated(
                 $task, $workspaceId, (string) $user->id
             );
         }
@@ -225,7 +238,7 @@ class TaskController extends Controller
             ->causedBy($user)
             ->log('claimed task');
 
-        $managers = User::whereHas('roleModel', fn($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
+        $managers = User::whereHas('roleModel', fn ($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
         foreach ($managers as $manager) {
             $manager->notify(new TaskClaimedNotification($task->load('project'), $user));
         }
@@ -238,21 +251,21 @@ class TaskController extends Controller
     private function validated(Request $request): array
     {
         return $request->validate([
-            'title'           => 'required|string|max:255',
-            'project_id'      => 'required|exists:projects,id',
-            'assigned_to'     => 'nullable|exists:users,id',
-            'agent_id'        => 'nullable|exists:agents,id',
-            'type'            => 'required|in:bug,feature,change',
-            'priority'        => 'required|in:low,medium,high',
-            'status'          => 'required|string',
-            'due_date'        => 'nullable|date',
+            'title' => 'required|string|max:255',
+            'project_id' => 'required|exists:projects,id',
+            'assigned_to' => 'nullable|exists:users,id',
+            'agent_id' => 'nullable|exists:agents,id',
+            'type' => 'required|in:bug,feature,change',
+            'priority' => 'required|in:low,medium,high',
+            'status' => 'required|string',
+            'due_date' => 'nullable|date',
             'estimated_hours' => 'nullable|numeric|min:0',
-            'labels'          => 'nullable|array',
-            'labels.*'        => 'string|max:50',
-            'description'     => 'nullable|string',
-            'source'          => 'required|in:manual,ai-chat',
-            'original_input'  => 'nullable|string',
-            'guide'           => 'nullable|string',
+            'labels' => 'nullable|array',
+            'labels.*' => 'string|max:50',
+            'description' => 'nullable|string',
+            'source' => 'required|in:manual,ai-chat',
+            'original_input' => 'nullable|string',
+            'guide' => 'nullable|string',
         ]);
     }
 
@@ -283,13 +296,12 @@ class TaskController extends Controller
         $task->loadMissing('checklists');
 
         return AgentTaskQueue::create([
-            'task_id'    => $task->id,
-            'agent_id'   => $agent->id,
+            'task_id' => $task->id,
+            'agent_id' => $agent->id,
             'runtime_id' => $agent->runtime_id,
-            'team_id'    => $agent->team_id,
-            'status'     => 'queued',
-            'prompt'     => AgentTaskQueue::buildPrompt($task),
+            'team_id' => $agent->team_id,
+            'status' => 'queued',
+            'prompt' => AgentTaskQueue::buildPrompt($task),
         ]);
     }
-
 }
