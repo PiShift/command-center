@@ -48,6 +48,7 @@ use App\Http\Controllers\TaskChecklistController;
 use App\Http\Controllers\TaskCommentAttachmentController;
 use App\Http\Controllers\TaskCommentController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TaskInvoiceOverrideController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\TwoFactorController;
@@ -172,6 +173,8 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::resource('tasks', TaskController::class)->names('tasks')->except(['create']);
     Route::patch('/tasks/{task}/advance', [TaskController::class, 'advance'])->name('tasks.advance');
     Route::post('/tasks/{task}/claim', [TaskController::class, 'claim'])->name('tasks.claim');
+    Route::post('/tasks/{task}/invoice-override', [TaskInvoiceOverrideController::class, 'store'])->name('task-invoice-overrides.store');
+    Route::delete('/tasks/{task}/invoice-override', [TaskInvoiceOverrideController::class, 'destroy'])->name('task-invoice-overrides.destroy');
     // Checklists
     Route::post('/tasks/{task}/checklists', [TaskChecklistController::class, 'store'])->name('checklists.store');
     Route::patch('/tasks/{task}/checklists/{item}', [TaskChecklistController::class, 'update'])->name('checklists.update');

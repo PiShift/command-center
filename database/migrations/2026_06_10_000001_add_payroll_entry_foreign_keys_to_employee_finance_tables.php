@@ -56,6 +56,10 @@ return new class extends Migration
             return (bool) ($row->constraint_exists ?? false);
         }
 
+        if ($driver === 'sqlite') {
+            return false;
+        }
+
         $row = DB::selectOne(
             'select exists(select 1 from information_schema.table_constraints where constraint_schema = database() and table_name = ? and constraint_name = ?) as constraint_exists',
             [$table, $constraintName]

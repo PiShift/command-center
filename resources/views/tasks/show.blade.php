@@ -1,6 +1,12 @@
 <x-layouts.app :title="$task->title">
 
 <div class="max-w-3xl mx-auto space-y-5">
+    @php
+        $canViewBilling = auth()->user()->hasPermission('invoices.view');
+        $canManageBilling = auth()->user()->hasPermission('invoices.manage');
+        $billingInvoice = $task->activeInvoiceItem?->invoice;
+    @endphp
+
     <div class="flex items-center gap-3 text-[13px] mb-2">
         <a href="{{ route('tasks.index') }}" class="text-muted hover:text-ink">Tasks</a>
         <span class="text-muted">/</span>
@@ -18,6 +24,15 @@
                     @include('components.badge', ['type' => 'priority', 'value' => $task->priority])
                     @include('components.badge', ['type' => 'type',     'value' => $task->type])
                     @include('components.badge', ['type' => 'source',   'value' => $task->source])
+                    @if($canViewBilling)
+                        @if($billingInvoice)
+                            <a href="{{ route('invoices.show', $billingInvoice) }}" class="hover:opacity-90 transition-opacity">
+                                @include('components.badge', ['type' => 'invoice_status', 'value' => $task->invoiceStatus])
+                            </a>
+                        @else
+                            @include('components.badge', ['type' => 'invoice_status', 'value' => $task->invoiceStatus])
+                        @endif
+                    @endif
                 </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
@@ -108,6 +123,63 @@
             </div>
             @endif
         </div>
+
+        @if($canManageBilling)
+        <div class="mt-5 border-t border-hairline pt-4">
+            <div class="flex items-center justify-between gap-4 mb-3">
+                <div>
+                    <p class="text-[11px] font-medium text-muted uppercase tracking-wider">Manual Billing Override</p>
+                    <p class="text-[13px] text-dim mt-1">Backfill historical invoiced or paid work without linking a new invoice line item.</p>
+                </div>
+                @if($task->invoiceOverride)
+                <form method="POST" action="{{ route('task-invoice-overrides.destroy', $task) }}">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit"
+                            class="inline-flex items-center gap-1 px-3 py-1.5 text-[12px] border border-line rounded-lg text-dim hover:bg-hairline">
+                        Remove override
+                    </button>
+                </form>
+                @endif
+            </div>
+
+            @if($task->invoiceOverride)
+            <p class="text-[12px] text-muted mb-3">
+                Currently marked as <span class="font-medium text-ink">{{ ucfirst($task->invoiceOverride->status) }}</span>
+                @if($task->invoiceOverride->markedBy)
+                    by {{ $task->invoiceOverride->markedBy->name }}
+                @endif
+                @if($task->invoiceOverride->marked_at)
+                    on {{ $task->invoiceOverride->marked_at->format('M d, Y H:i') }}
+                @endif
+            </p>
+            @endif
+
+            <form method="POST" action="{{ route('task-invoice-overrides.store', $task) }}" class="space-y-3">
+                @csrf
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                        <label class="text-[11px] font-medium text-muted uppercase tracking-wider mb-1 block">Status</label>
+                        <select name="status"
+                                class="w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] text-ink">
+                            <option value="invoiced" @selected(old('status', $task->invoiceOverride?->status ?? 'invoiced') === 'invoiced')>Invoiced</option>
+                            <option value="paid" @selected(old('status', $task->invoiceOverride?->status) === 'paid')>Paid</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[11px] font-medium text-muted uppercase tracking-wider mb-1 block">Note</label>
+                    <textarea name="note" rows="3"
+                              class="w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] text-ink"
+                              placeholder="Optional context for this manual override">{{ old('note', $task->invoiceOverride?->note) }}</textarea>
+                </div>
+                <button type="submit"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium border border-line rounded-lg text-dim hover:bg-hairline">
+                    Mark as invoiced
+                </button>
+            </form>
+        </div>
+        @endif
 
         @if($task->description)
         <div class="mt-5 border-t border-hairline pt-4">

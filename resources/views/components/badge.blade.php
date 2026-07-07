@@ -1,6 +1,6 @@
 {{--
   Badge component.
-  Usage: @include('components.badge', ['type' => 'status|priority|type|project_status|health|customer_status', 'value' => $val])
+  Usage: @include('components.badge', ['type' => 'status|priority|type|project_status|health|customer_status|invoice_status', 'value' => $val])
 --}}
 @php
 $maps = [
@@ -38,6 +38,11 @@ $maps = [
     'source' => [
         'manual'  => ['label' => 'Manual',  'bg' => '#f3f2ee', 'text' => '#5c5c5a'],
         'ai-chat' => ['label' => 'AI Chat', 'bg' => '#eef3fb', 'text' => '#3a6fba'],
+    ],
+    'invoice_status' => [
+        'not_invoiced' => ['label' => 'Not Invoiced', 'bg' => '#f3f2ee', 'text' => '#5c5c5a'],
+        'invoiced'     => ['label' => 'Invoiced',     'bg' => '#fef9ec', 'text' => '#9a7a1a'],
+        'paid'         => ['label' => 'Paid',         'bg' => '#edf7f2', 'text' => '#2e7d55'],
     ],
 ];
 $badge = $maps[$type][$value] ?? ['label' => ucfirst($value), 'bg' => '#f3f2ee', 'text' => '#5c5c5a'];

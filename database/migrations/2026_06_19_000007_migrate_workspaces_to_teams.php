@@ -2,33 +2,37 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            return;
+        }
+
         // Remove workspace_id from agent_runtimes and add team_id
         Schema::table('agent_runtimes', function (Blueprint $table) {
             if (Schema::hasColumn('agent_runtimes', 'workspace_id')) {
                 // Try to drop existing constraints - ignore if they don't exist
                 try {
                     $table->dropForeign(['workspace_id']);
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     // Constraint doesn't exist, that's fine
                 }
-                
+
                 try {
                     // Try dropping by constraint name pattern
                     DB::statement('ALTER TABLE agent_runtimes DROP CONSTRAINT IF EXISTS agent_runtimes_workspace_daemon_provider_unique');
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     // If that fails, try the actual constraint check
                 }
-                
+
                 $table->dropColumn('workspace_id');
             }
-            
+
             $table->unsignedBigInteger('team_id')->nullable()->after('user_id');
             $table->foreign('team_id')->references('id')->on('teams')->nullOnDelete();
             $table->unique(['team_id', 'daemon_id', 'provider']);
@@ -39,7 +43,7 @@ return new class extends Migration
             if (Schema::hasColumn('agent_task_queue', 'workspace_id')) {
                 try {
                     $table->dropForeign(['workspace_id']);
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     // Constraint doesn't exist, that's fine
                 }
                 $table->dropColumn('workspace_id');
@@ -53,7 +57,7 @@ return new class extends Migration
             if (Schema::hasColumn('projects', 'workspace_id')) {
                 try {
                     $table->dropForeign(['workspace_id']);
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     // Constraint doesn't exist, that's fine
                 }
                 $table->dropColumn('workspace_id');
@@ -66,6 +70,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            return;
+        }
+
         // Recreate workspaces table
         Schema::create('workspaces', function (Blueprint $table) {
             $table->uuid('id')->primary();

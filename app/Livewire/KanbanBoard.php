@@ -218,6 +218,7 @@ class KanbanBoard extends Component
     {
         $user = auth()->user();
         $scopedToUser = ! $user->hasPermission('tasks.view_all');
+        $canViewBilling = $user->hasPermission('invoices.view');
         $priorityOrder = ['critical' => 0, 'high' => 1, 'medium' => 2, 'low' => 3];
 
         $teamProjectIds = $scopedToUser
@@ -227,20 +228,27 @@ class KanbanBoard extends Component
                 ->flatMap(fn ($t) => $t->projects->pluck('id'))
             : collect();
 
-        $columns = KanbanColumn::orderBy('position')->get()->map(function ($col) use ($priorityOrder, $scopedToUser, $user) {
+        $columns = KanbanColumn::orderBy('position')->get()->map(function ($col) use ($priorityOrder, $scopedToUser, $user, $canViewBilling) {
             // Developers never see the Open column — it belongs to the Lobby
             if ($scopedToUser && $col->slug === 'open') {
                 return null;
             }
 
+            $relations = [
+                'project',
+                'assignee',
+                'agent',
+                'checklists',
+                'latestQueue' => fn ($q) => $q->whereIn('status', $this->activeQueueStatuses),
+            ];
+
+            if ($canViewBilling) {
+                $relations[] = 'activeInvoiceItem.invoice';
+                $relations[] = 'invoiceOverride';
+            }
+
             $query = $col->tasks()
-                ->with([
-                    'project',
-                    'assignee',
-                    'agent',
-                    'checklists',
-                    'latestQueue' => fn ($q) => $q->whereIn('status', $this->activeQueueStatuses),
-                ])
+                ->with($relations)
                 ->withCount('comments')
                 ->orderByDesc('updated_at');
 
@@ -299,6 +307,6 @@ class KanbanBoard extends Component
                 ->get()
             : collect();
 
-        return view('livewire.kanban-board', compact('columns', 'projects', 'teamMembers', 'scopedToUser', 'userTeams'));
+        return view('livewire.kanban-board', compact('columns', 'projects', 'teamMembers', 'scopedToUser', 'userTeams', 'canViewBilling'));
     }
 }
