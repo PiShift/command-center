@@ -190,7 +190,6 @@ class ExpenseController extends Controller
                     'start_date'      => $recStartDate,
                     'end_date'        => $recEndDate,
                     'max_occurrences' => $recMaxOccurrences,
-                    'is_active'       => true,
                     'currency'        => $expense->currency,
                 ]);
             } else {
