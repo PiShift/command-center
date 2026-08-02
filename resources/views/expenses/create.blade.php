@@ -50,7 +50,7 @@
 
     <form method="POST" action="{{ route('expenses.store') }}" enctype="multipart/form-data"
           x-data="{
-              recurring: false,
+              recurring: {{ (string) old('is_recurring', '0') === '1' ? 'true' : 'false' }},
               expenseDate: '{{ date('Y-m-d') }}',
               showNewCat: false,
               newCatName: '',
@@ -218,19 +218,14 @@
 
             {{-- Recurring toggle --}}
             <div style="border-top:1px solid #eeeee9;padding-top:20px;margin-top:4px">
-                <input type="hidden" name="is_recurring" :value="recurring ? '1' : '0'">
-                <div @click="recurring = !recurring"
-                     style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
-                    <div :style="recurring ? 'background:#D97757' : 'background:#e5e4df'"
-                         style="width:40px;height:22px;border-radius:11px;transition:background 150ms ease;position:relative;flex-shrink:0">
-                        <div :style="recurring ? 'left:20px' : 'left:2px'"
-                             style="position:absolute;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left 150ms ease"></div>
-                    </div>
-                    <div>
-                        <div style="font-size:14px;font-weight:500;color:#141413">Make Recurring</div>
-                        <div style="font-size:12px;color:#8c8c8a">Automatically schedule this expense on a repeating basis</div>
-                    </div>
-                </div>
+                <input type="hidden" name="is_recurring" value="0">
+                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;user-select:none">
+                    <input type="checkbox" name="is_recurring" value="1" x-model="recurring" style="margin-top:2px">
+                    <span>
+                        <span style="font-size:14px;font-weight:500;color:#141413;display:block">Make Recurring</span>
+                        <span style="font-size:12px;color:#8c8c8a;display:block">Automatically schedule this expense on a repeating basis</span>
+                    </span>
+                </label>
 
                 <div x-show="recurring" x-cloak class="expense-form-recurring-grid" style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
                     <div>

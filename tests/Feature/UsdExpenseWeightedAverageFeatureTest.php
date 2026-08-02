@@ -200,11 +200,14 @@ class UsdExpenseWeightedAverageFeatureTest extends TestCase
         $this->actingAs($user)
             ->get(route('expenses.create'))
             ->assertOk()
+            ->assertSee('type="checkbox" name="is_recurring"', false)
+            ->assertSee('recurring: false')
             ->assertSee('expense-form-two-col');
 
         $this->actingAs($user)
             ->get(route('expenses.edit', $expense))
             ->assertOk()
+            ->assertSee('type="checkbox" name="is_recurring"', false)
             ->assertSee('expense-form-recurring-grid');
 
         $this->actingAs($user)
