@@ -1,5 +1,26 @@
 <x-layouts.app title="Monthly Budgets">
 
+<style>
+    @media (max-width: 768px) {
+        .monthly-budgets-header-actions,
+        .monthly-budgets-inline-form {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+        }
+
+        .monthly-budgets-header-actions,
+        .monthly-budgets-inline-form {
+            gap: 8px !important;
+        }
+
+        .monthly-budgets-header-actions > *,
+        .monthly-budgets-inline-form > * {
+            width: 100%;
+        }
+    }
+</style>
+
 <div style="max-width:1000px;margin:0 auto;padding:32px 24px">
 
     {{-- Header --}}
@@ -8,7 +29,7 @@
             <h1 style="font-size:22px;font-weight:700;color:#141413;margin:0">Monthly Budgets</h1>
             <p style="font-size:13px;color:#8c8c8a;margin:4px 0 0">{{ $month->format('F Y') }}</p>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
+        <div class="monthly-budgets-header-actions" style="display:flex;align-items:center;gap:10px">
             {{-- Month picker --}}
             <form method="GET" style="display:flex;align-items:center;gap:8px">
                 <input type="month" name="month" value="{{ $month->format('Y-m') }}"
@@ -37,7 +58,8 @@
 
     {{-- Budget table --}}
     <div style="background:#fff;border:1px solid #eeeee9;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(20,20,19,.04);margin-bottom:32px">
-        <table style="width:100%;border-collapse:collapse">
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:720px">
             <thead>
                 <tr style="background:#faf9f5">
                     <th style="text-align:left;padding:11px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8c8c8a;border-bottom:1px solid #e5e4df">Category</th>
@@ -93,7 +115,7 @@
 
                         {{-- Edit mode (inline form) --}}
                         <td colspan="3" style="padding:12px 16px;vertical-align:middle" x-show="editing" x-cloak>
-                            <form method="POST" action="{{ route('monthly-budgets.store') }}" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                            <form method="POST" action="{{ route('monthly-budgets.store') }}" class="monthly-budgets-inline-form" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                                 @csrf
                                 <input type="hidden" name="category_id" value="{{ $category->id }}">
                                 <input type="hidden" name="month" value="{{ $month->toDateString() }}">
@@ -126,6 +148,7 @@
                 @endforelse
             </tbody>
         </table>
+        </div>
     </div>
 
 </div>

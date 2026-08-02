@@ -7,15 +7,70 @@
     ];
 @endphp
 
+<style>
+    @media (max-width: 768px) {
+        .expenses-header,
+        .expenses-header-actions,
+        .expenses-draft-row,
+        .expenses-draft-row-main,
+        .expenses-draft-row-actions,
+        .expenses-row-actions {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+        }
+
+        .expenses-header-actions {
+            width: 100%;
+            gap: 8px !important;
+        }
+
+        .expenses-header-actions > * {
+            width: 100%;
+        }
+
+        .expenses-header-actions button,
+        .expenses-header-actions a {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .expenses-filter-form > * {
+            width: 100%;
+        }
+
+        .expenses-draft-row {
+            gap: 10px;
+        }
+
+        .expenses-draft-row-actions form,
+        .expenses-draft-row-actions a,
+        .expenses-row-actions form,
+        .expenses-row-actions a {
+            width: 100%;
+        }
+
+        .expenses-draft-row-actions button,
+        .expenses-draft-row-actions a,
+        .expenses-row-actions button,
+        .expenses-row-actions a {
+            width: 100%;
+            text-align: center;
+            justify-content: center;
+            display: inline-flex;
+        }
+    }
+</style>
+
 <div style="max-width:1200px;margin:0 auto;padding:32px 24px">
 
     {{-- Header --}}
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+    <div class="expenses-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:12px">
         <div>
             <h1 style="font-size:22px;font-weight:700;color:#141413;margin:0">Expenses</h1>
             <p style="font-size:13px;color:#8c8c8a;margin:4px 0 0">Track and confirm your business expenses.</p>
         </div>
-        <div style="display:flex;gap:10px;align-items:center">
+        <div class="expenses-header-actions" style="display:flex;gap:10px;align-items:center">
             {{-- Generate drafts --}}
             <form method="POST" action="{{ route('expenses.generate-drafts') }}">
                 @csrf
@@ -46,7 +101,7 @@
     @endif
 
     {{-- Filter bar --}}
-    <form method="GET" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;align-items:center">
+    <form method="GET" class="expenses-filter-form" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;align-items:center">
         <input type="text" name="search" value="{{ request('search') }}"
                placeholder="Search expenses…"
                style="padding:8px 12px;font-size:13px;border:1px solid #e5e4df;border-radius:8px;background:#faf9f5;color:#141413;min-width:200px;outline:none">
@@ -99,8 +154,8 @@
             </div>
             <div style="display:flex;flex-direction:column;gap:8px">
                 @foreach($pendingDrafts as $expense)
-                    <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #f5e0a8;border-radius:8px;padding:12px 16px">
-                        <div style="display:flex;align-items:center;gap:12px">
+                    <div class="expenses-draft-row" style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #f5e0a8;border-radius:8px;padding:12px 16px;gap:12px">
+                        <div class="expenses-draft-row-main" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
                             @if($expense->category)
                                 <span style="width:8px;height:8px;border-radius:50%;background:{{ $expense->category->color }};display:inline-block"></span>
                                 <span style="font-size:12px;color:#8c8c8a">{{ $expense->category->name }}</span>
@@ -110,7 +165,7 @@
                                 <span style="font-size:11px;background:#f0f0f0;color:#8c8c8a;padding:2px 8px;border-radius:4px">Recurring</span>
                             @endif
                         </div>
-                        <div style="display:flex;align-items:center;gap:14px">
+                        <div class="expenses-draft-row-actions" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
                             <span style="font-size:13px;color:#8c8c8a">{{ $expense->expense_date->format('d M Y') }}</span>
                             <span style="font-size:14px;font-weight:600;color:#141413">
                                 {{ number_format((float) $expense->amount_mru, 2) }} MRU
@@ -184,7 +239,7 @@
                             </span>
                         </td>
                         <td style="padding:13px 16px;text-align:right">
-                            <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+                            <div class="expenses-row-actions" style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
                                 @if($expense->status === 'draft')
                                     <form method="POST" action="{{ route('expenses.confirm', $expense) }}">
                                         @csrf @method('PATCH')
