@@ -256,6 +256,7 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
         Route::post('/bank-accounts', [CompanyBankAccountController::class, 'store'])->name('bank-accounts.store');
         Route::post('/bank-accounts/transfer', [BankAccountTransferController::class, 'store'])->name('bank-accounts.transfer.store');
         Route::delete('/bank-accounts/transfer/{transfer}', [BankAccountTransferController::class, 'destroy'])->name('bank-accounts.transfer.destroy');
+        Route::patch('/bank-accounts/{account}/usd-exchange-rate', [CompanyBankAccountController::class, 'updateUsdExchangeRate'])->name('bank-accounts.usd-rate.update');
         Route::get('/bank-accounts/{account}', [CompanyBankAccountController::class, 'show'])->name('bank-accounts.show');
         Route::get('/bank-accounts/{account}/edit', [CompanyBankAccountController::class, 'edit'])->name('bank-accounts.edit');
         Route::put('/bank-accounts/{account}', [CompanyBankAccountController::class, 'update'])->name('bank-accounts.update');
