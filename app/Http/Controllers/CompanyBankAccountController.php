@@ -12,6 +12,7 @@ use App\Models\PayrollRunPayment;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
@@ -34,6 +35,10 @@ class CompanyBankAccountController extends Controller
                 $account->setAttribute(
                     'computed_balance',
                     (float) $account->balance
+                );
+                $account->setAttribute(
+                    'effective_usd_exchange_rate',
+                    (float) ($account->usd_exchange_rate ?: 40)
                 );
             });
 
@@ -58,6 +63,7 @@ class CompanyBankAccountController extends Controller
             'bank_name' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:255',
             'currency' => 'required|string|max:10',
+            'usd_exchange_rate' => 'nullable|numeric|gt:0',
             'is_default' => 'nullable|boolean',
             'notes' => 'nullable|string',
         ]);
@@ -67,6 +73,8 @@ class CompanyBankAccountController extends Controller
         if ($validated['is_default']) {
             CompanyBankAccount::query()->update(['is_default' => false]);
         }
+
+        $this->prepareUsdExchangeRateValues($validated);
 
         CompanyBankAccount::create($validated);
 
@@ -322,6 +330,7 @@ class CompanyBankAccountController extends Controller
             'bank_name' => 'nullable|string|max:255',
             'account_number' => 'nullable|string|max:255',
             'currency' => 'required|string|max:10',
+            'usd_exchange_rate' => 'nullable|numeric|gt:0',
             'is_default' => 'nullable|boolean',
             'notes' => 'nullable|string',
         ]);
@@ -331,6 +340,8 @@ class CompanyBankAccountController extends Controller
         if ($validated['is_default']) {
             CompanyBankAccount::query()->where('id', '!=', $account->id)->update(['is_default' => false]);
         }
+
+        $this->prepareUsdExchangeRateValues($validated, $account);
 
         $account->update($validated);
 
@@ -346,6 +357,31 @@ class CompanyBankAccountController extends Controller
         $account->delete();
 
         return redirect()->route('bank-accounts.index')->with('success', 'Bank account deleted.');
+    }
+
+    public function updateUsdExchangeRate(Request $request, CompanyBankAccount $account): JsonResponse
+    {
+        abort_unless(auth()->user()->hasPermission('finance.manage'), 403);
+
+        if (strtoupper((string) $account->currency) !== 'USD') {
+            return response()->json([
+                'message' => 'Only USD accounts can store this exchange rate.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'exchange_rate' => 'required|numeric|gt:0',
+        ]);
+
+        $account->update([
+            'usd_exchange_rate' => (float) $validated['exchange_rate'],
+            'usd_exchange_rate_updated_at' => now(),
+        ]);
+
+        return response()->json([
+            'exchange_rate' => (float) $account->fresh()->usd_exchange_rate,
+            'updated_at_label' => $account->fresh()->usd_exchange_rate_updated_at?->format('M d, Y H:i'),
+        ]);
     }
 
     private function formatCrossCurrencySummary(BankAccountTransfer $transfer): string
@@ -373,5 +409,32 @@ class CompanyBankAccountController extends Controller
         }
 
         return $formatted.' '.$upperCurrency;
+    }
+
+    private function prepareUsdExchangeRateValues(array &$validated, ?CompanyBankAccount $account = null): void
+    {
+        $currency = strtoupper((string) ($validated['currency'] ?? $account?->currency));
+        $incomingRate = isset($validated['usd_exchange_rate']) && $validated['usd_exchange_rate'] !== ''
+            ? (float) $validated['usd_exchange_rate']
+            : null;
+
+        if ($currency !== 'USD') {
+            $validated['usd_exchange_rate'] = null;
+            $validated['usd_exchange_rate_updated_at'] = null;
+
+            return;
+        }
+
+        if (is_null($incomingRate)) {
+            $validated['usd_exchange_rate'] = $account?->usd_exchange_rate;
+            $validated['usd_exchange_rate_updated_at'] = $account?->usd_exchange_rate_updated_at;
+
+            return;
+        }
+
+        $validated['usd_exchange_rate'] = $incomingRate;
+        if (! $account || (float) $account->usd_exchange_rate !== $incomingRate) {
+            $validated['usd_exchange_rate_updated_at'] = now();
+        }
     }
 }
