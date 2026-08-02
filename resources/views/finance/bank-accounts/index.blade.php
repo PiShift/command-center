@@ -137,7 +137,7 @@
                 <div x-show="!isCrossCurrency" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">Amount</label>
-                        <input name="amount" type="number" step="0.01" min="0.01" x-model.number="amount" :required="!isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="0.00">
+                        <input name="amount" type="number" step="0.01" min="0.01" x-model.number="amount" :required="!isCrossCurrency" :disabled="isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="0.00">
                     </div>
                     <div>
                         <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">Date</label>
@@ -150,23 +150,23 @@
                         Cross-currency transfer: rate is always <span class="font-semibold text-ink">1 USD = X MRU</span>.
                     </div>
 
-                    <input type="hidden" name="amount" :value="amountSent || ''">
+                    <input type="hidden" name="amount" :value="amountSent || ''" :disabled="!isCrossCurrency">
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">Amount Sent (<span x-text="fromCurrency"></span>)</label>
-                            <input name="amount_sent" type="number" step="0.01" min="0.01" :value="amountSent" @input="updateField('amountSent', $event.target.value)" :required="isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="0.00">
+                            <input name="amount_sent" type="number" step="0.01" min="0.01" :value="amountSent" @input="updateField('amountSent', $event.target.value)" :required="isCrossCurrency" :disabled="!isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="0.00">
                         </div>
                         <div>
                             <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">Amount Received (<span x-text="toCurrency"></span>)</label>
-                            <input name="amount_received" type="number" step="0.01" min="0.01" :value="amountReceived" @input="updateField('amountReceived', $event.target.value)" :required="isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="0.00">
+                            <input name="amount_received" type="number" step="0.01" min="0.01" :value="amountReceived" @input="updateField('amountReceived', $event.target.value)" :required="isCrossCurrency" :disabled="!isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="0.00">
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">Rate (1 USD = X MRU)</label>
-                            <input name="exchange_rate" type="number" step="0.000001" min="0.000001" :value="exchangeRate" @input="updateField('exchangeRate', $event.target.value)" :required="isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="389">
+                            <input name="exchange_rate" type="number" step="0.000001" min="0.000001" :value="exchangeRate" @input="updateField('exchangeRate', $event.target.value)" :required="isCrossCurrency" :disabled="!isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="389">
                         </div>
                         <div>
                             <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">Date</label>
