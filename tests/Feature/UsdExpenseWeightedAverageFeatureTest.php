@@ -200,11 +200,14 @@ class UsdExpenseWeightedAverageFeatureTest extends TestCase
         $this->actingAs($user)
             ->get(route('expenses.create'))
             ->assertOk()
+            ->assertSee('type="checkbox" name="is_recurring"', false)
+            ->assertSee('recurring: false')
             ->assertSee('expense-form-two-col');
 
         $this->actingAs($user)
             ->get(route('expenses.edit', $expense))
             ->assertOk()
+            ->assertSee('type="checkbox" name="is_recurring"', false)
             ->assertSee('expense-form-recurring-grid');
 
         $this->actingAs($user)
@@ -281,6 +284,88 @@ class UsdExpenseWeightedAverageFeatureTest extends TestCase
             ->get(route('expenses.edit', $expense))
             ->assertOk()
             ->assertSee('recurring: false');
+    }
+
+    public function test_updating_expense_does_not_reactivate_inactive_recurring_charge(): void
+    {
+        $user = $this->createManager();
+        $category = ExpenseCategory::query()->create(['name' => 'Operations']);
+        $companyAccount = CompanyBankAccount::query()->create(['name' => 'Cash', 'currency' => 'MRU']);
+
+        $recurringCharge = RecurringCharge::query()->create([
+            'name' => 'Domain renewal',
+            'category_id' => $category->id,
+            'company_account_id' => $companyAccount->id,
+            'amount' => 120.00,
+            'currency' => 'MRU',
+            'frequency' => 'monthly',
+            'start_date' => now()->startOfMonth()->toDateString(),
+            'next_due_date' => now()->startOfMonth()->toDateString(),
+            'is_active' => false,
+        ]);
+
+        $expense = Expense::query()->create([
+            'title' => 'Domain renewal',
+            'category_id' => $category->id,
+            'company_account_id' => $companyAccount->id,
+            'recurring_charge_id' => $recurringCharge->id,
+            'amount' => 120.00,
+            'expense_date' => now()->toDateString(),
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($user)->put(route('expenses.update', $expense), [
+            'title' => 'Domain renewal updated',
+            'category_id' => $category->id,
+            'project_id' => null,
+            'company_account_id' => $companyAccount->id,
+            'amount' => 130.00,
+            'expense_date' => now()->toDateString(),
+            'status' => 'draft',
+            'is_recurring' => '1',
+            'rec_frequency' => 'monthly',
+            'rec_start_date' => now()->startOfMonth()->toDateString(),
+            'rec_end_date' => null,
+            'rec_max_occurrences' => null,
+        ])->assertRedirect(route('expenses.monthly-overview'));
+
+        $this->assertFalse($recurringCharge->fresh()->is_active);
+    }
+
+    public function test_toggled_recurring_charge_is_skipped_when_disabled_and_used_when_reenabled(): void
+    {
+        $user = $this->createManager();
+        $month = Carbon::create(2026, 8, 1);
+        $category = ExpenseCategory::query()->create(['name' => 'Operations']);
+        $companyAccount = CompanyBankAccount::query()->create(['name' => 'Cash', 'currency' => 'MRU']);
+
+        $charge = RecurringCharge::query()->create([
+            'name' => 'Cloud hosting',
+            'category_id' => $category->id,
+            'company_account_id' => $companyAccount->id,
+            'amount' => 19.00,
+            'currency' => 'MRU',
+            'frequency' => 'monthly',
+            'start_date' => $month->toDateString(),
+            'next_due_date' => $month->toDateString(),
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('recurring-charges.toggle', $charge))
+            ->assertRedirect();
+        $this->assertFalse($charge->fresh()->is_active);
+
+        $this->assertSame(0, app(ExpenseService::class)->generateRecurringDrafts($month));
+        $this->assertDatabaseMissing('expenses', ['recurring_charge_id' => $charge->id]);
+
+        $this->actingAs($user)
+            ->post(route('recurring-charges.toggle', $charge))
+            ->assertRedirect();
+        $this->assertTrue($charge->fresh()->is_active);
+
+        $this->assertSame(1, app(ExpenseService::class)->generateRecurringDrafts($month));
+        $this->assertDatabaseHas('expenses', ['recurring_charge_id' => $charge->id]);
     }
 
     private function createManager(): User
