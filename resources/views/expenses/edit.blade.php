@@ -44,7 +44,7 @@
 
     <form method="POST" action="{{ route('expenses.update', $expense) }}" enctype="multipart/form-data"
           x-data="{
-              recurring: {{ $expense->recurring_charge_id ? 'true' : 'false' }},
+              recurring: {{ (string) old('is_recurring', $expense->recurringCharge?->is_active ? '1' : '0') === '1' ? 'true' : 'false' }},
               expenseDate: '{{ old('expense_date', $expense->expense_date->format('Y-m-d')) }}',
               selectedCompanyAccountId: '{{ old('company_account_id', $expense->company_account_id ?? $defaultCompanyAccountId) }}',
               accountCurrencyById: @js($companyAccounts->mapWithKeys(fn ($account) => [(string) $account->id => strtoupper((string) $account->currency)])),
