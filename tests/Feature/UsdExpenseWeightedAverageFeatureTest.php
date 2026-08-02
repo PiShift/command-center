@@ -249,6 +249,40 @@ class UsdExpenseWeightedAverageFeatureTest extends TestCase
         $this->assertSame(769.5, round((float) $expense->amount_mru, 2));
     }
 
+    public function test_edit_form_defaults_recurring_toggle_to_off_for_inactive_recurring_charge(): void
+    {
+        $user = $this->createManager();
+        $category = ExpenseCategory::query()->create(['name' => 'Operations']);
+        $companyAccount = CompanyBankAccount::query()->create(['name' => 'Cash', 'currency' => 'MRU']);
+
+        $recurringCharge = RecurringCharge::query()->create([
+            'name' => 'Domain renewal',
+            'category_id' => $category->id,
+            'company_account_id' => $companyAccount->id,
+            'amount' => 120.00,
+            'currency' => 'MRU',
+            'frequency' => 'monthly',
+            'start_date' => now()->startOfMonth()->toDateString(),
+            'next_due_date' => now()->startOfMonth()->toDateString(),
+            'is_active' => false,
+        ]);
+
+        $expense = Expense::query()->create([
+            'title' => 'Domain renewal',
+            'category_id' => $category->id,
+            'company_account_id' => $companyAccount->id,
+            'recurring_charge_id' => $recurringCharge->id,
+            'amount' => 120.00,
+            'expense_date' => now()->toDateString(),
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('expenses.edit', $expense))
+            ->assertOk()
+            ->assertSee('recurring: false');
+    }
+
     private function createManager(): User
     {
         $role = Role::query()->where('slug', 'manager')->firstOrFail();
