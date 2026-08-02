@@ -11,6 +11,64 @@
     ];
 @endphp
 
+<style>
+    @media (max-width: 768px) {
+        .expenses-overview-header-actions,
+        .expenses-overview-pending-row,
+        .expenses-overview-pending-main,
+        .expenses-overview-pending-actions,
+        .expenses-overview-table-actions {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+        }
+
+        .expenses-overview-header-actions {
+            width: 100%;
+            gap: 8px !important;
+        }
+
+        .expenses-overview-header-actions > * {
+            width: 100%;
+        }
+
+        .expenses-overview-header-actions a,
+        .expenses-overview-header-actions button {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .expenses-overview-tabs {
+            width: 100%;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .expenses-overview-tabs button {
+            flex-shrink: 0;
+        }
+
+        .expenses-overview-pending-row {
+            gap: 8px;
+        }
+
+        .expenses-overview-pending-actions form,
+        .expenses-overview-table-actions form,
+        .expenses-overview-table-actions a {
+            width: 100%;
+        }
+
+        .expenses-overview-pending-actions button,
+        .expenses-overview-table-actions button,
+        .expenses-overview-table-actions a {
+            width: 100%;
+            text-align: center;
+            justify-content: center;
+            display: inline-flex;
+        }
+    }
+</style>
+
 <div x-data="{ tab: '{{ request('tab', 'overview') }}', month: '{{ $month->format('Y-m') }}' }"
      style="max-width:1200px;margin:0 auto;padding:32px 24px">
 
@@ -20,7 +78,7 @@
             <h1 style="font-size:22px;font-weight:700;color:#141413;margin:0">Expenses</h1>
             <p style="font-size:13px;color:#8c8c8a;margin:4px 0 0" x-show="tab === 'overview'">{{ $month->format('F Y') }}</p>
         </div>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div class="expenses-overview-header-actions" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             {{-- New expense — always visible --}}
             <a href="{{ route('expenses.create') }}"
                style="display:inline-flex;align-items:center;gap:7px;padding:9px 16px;background:#D97757;border:none;border-radius:8px;font-size:13px;font-weight:500;color:#fff;text-decoration:none;white-space:nowrap">
@@ -56,7 +114,7 @@
     </div>
 
     {{-- Tab switcher --}}
-    <div class="inline-flex bg-surface rounded-lg p-1 gap-0.5 mb-7">
+    <div class="expenses-overview-tabs inline-flex bg-surface rounded-lg p-1 gap-0.5 mb-7">
         <button type="button" @click="tab = 'overview'"
                 :class="tab === 'overview'
                     ? 'bg-white text-ink shadow-[0_1px_3px_rgba(20,20,19,0.08)]'
@@ -142,15 +200,15 @@
                     </form>
                 </div>
                 @foreach($drafts as $d)
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5e0a8">
-                        <div style="display:flex;align-items:center;gap:10px">
+                    <div class="expenses-overview-pending-row" style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5e0a8;gap:10px">
+                        <div class="expenses-overview-pending-main" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                             @if($d->category)
                                 <span style="width:8px;height:8px;border-radius:50%;background:{{ $d->category->color }};display:inline-block"></span>
                             @endif
                             <span style="font-size:14px;color:#141413">{{ $d->title }}</span>
                             <span style="font-size:12px;color:#8c8c8a">{{ $d->expense_date->format('d M') }}</span>
                         </div>
-                        <div style="display:flex;align-items:center;gap:12px">
+                        <div class="expenses-overview-pending-actions" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
                             <span style="font-size:14px;font-weight:600;color:#141413">
                                 {{ number_format((float) $d->amount_mru, 2) }} MRU
                                 @if(strtoupper((string) $d->currency) !== 'MRU')
@@ -175,7 +233,8 @@
             <div style="padding:16px 20px;border-bottom:1px solid #eeeee9">
                 <h2 style="font-size:15px;font-weight:600;color:#141413;margin:0">Category Breakdown</h2>
             </div>
-            <table style="width:100%;border-collapse:collapse">
+            <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;min-width:760px">
                 <thead>
                     <tr style="border-bottom:1px solid #eeeee9;background:#F5F4EF">
                         <th style="text-align:left;padding:11px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a">Category</th>
@@ -254,6 +313,7 @@
                     </tr>
                 </tfoot>
             </table>
+            </div>
         </div>
 
         {{-- 6-month trend --}}
@@ -301,7 +361,8 @@
 
         {{-- Expenses table --}}
         <div style="background:#fff;border:1px solid #e5e4df;border-radius:12px;overflow:hidden">
-            <table style="width:100%;border-collapse:collapse">
+            <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;min-width:760px">
                 <thead>
                     <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
                         <th style="text-align:left;padding:11px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8c8c8a">Title</th>
@@ -345,7 +406,7 @@
                                 </span>
                             </td>
                             <td style="padding:13px 16px;text-align:right">
-                                <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+                                <div class="expenses-overview-table-actions" style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
                                     @if($expense->status === 'draft')
                                         <form method="POST" action="{{ route('expenses.confirm', $expense) }}">
                                             @csrf @method('PATCH')
@@ -391,6 +452,7 @@
                     </tfoot>
                 @endif
             </table>
+            </div>
         </div>
 
         @if($allExpenses->hasPages())
@@ -409,7 +471,8 @@
             <div style="padding:16px 20px;border-bottom:1px solid #eeeee9;display:flex;align-items:center;justify-content:space-between">
                 <h2 style="font-size:15px;font-weight:600;color:#141413;margin:0">Recurring Charges</h2>
             </div>
-            <table style="width:100%;border-collapse:collapse">
+            <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;min-width:860px">
                 <thead>
                     <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
                         <th style="text-align:left;padding:11px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8c8c8a">Name</th>
@@ -487,6 +550,7 @@
                     @endforelse
                 </tbody>
             </table>
+            </div>
         </div>
 
     </div>{{-- /recurring tab --}}

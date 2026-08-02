@@ -1,5 +1,32 @@
 <x-layouts.app title="New Expense">
 
+<style>
+    @media (max-width: 768px) {
+        .expense-form-two-col,
+        .expense-form-recurring-grid,
+        .expense-form-actions,
+        .expense-category-inline {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+        }
+
+        .expense-form-actions {
+            gap: 8px !important;
+        }
+
+        .expense-form-actions a,
+        .expense-form-actions button,
+        .expense-category-inline > * {
+            width: 100%;
+        }
+
+        .expense-category-inline button {
+            justify-content: center;
+        }
+    }
+</style>
+
 <div style="max-width:720px;margin:0 auto;padding:32px 24px">
 
     <div style="margin-bottom:24px">
@@ -52,7 +79,7 @@
                        onfocus="this.style.borderColor='#D97757'" onblur="this.style.borderColor='#e5e4df'">
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="expense-form-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
                 {{-- Category --}}
                 <div>
                     <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px">Category</label>
@@ -72,7 +99,7 @@
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         <span x-text="showNewCat ? 'Cancel' : 'New category'"></span>
                     </button>
-                    <div x-show="showNewCat" x-cloak
+                    <div x-show="showNewCat" x-cloak class="expense-category-inline"
                          style="margin-top:8px;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#faf9f5;border:1px solid #e5e4df;border-radius:8px">
                         <input type="text" x-model="newCatName" placeholder="Category name" maxlength="80"
                                style="flex:1;padding:7px 10px;font-size:13px;border:1px solid #e5e4df;border-radius:7px;background:#fff;color:#141413;outline:none"
@@ -139,7 +166,7 @@
                 </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="expense-form-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
                 {{-- Amount --}}
                 <div>
                     <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px" x-text="amountLabel"></label>
@@ -205,7 +232,7 @@
                     </div>
                 </div>
 
-                <div x-show="recurring" x-cloak style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <div x-show="recurring" x-cloak class="expense-form-recurring-grid" style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
                     <div>
                         <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px">Frequency *</label>
                         <div style="position:relative">
@@ -243,7 +270,7 @@
 
         </div>
 
-        <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:28px;padding-top:20px;border-top:1px solid #eeeee9">
+        <div class="expense-form-actions" style="display:flex;justify-content:flex-end;gap:12px;margin-top:28px;padding-top:20px;border-top:1px solid #eeeee9">
             <a href="{{ route('expenses.monthly-overview') }}"
                style="padding:10px 20px;background:#F5F4EF;border:1px solid #e5e4df;border-radius:8px;font-size:14px;font-weight:500;color:#141413;text-decoration:none">
                 Cancel

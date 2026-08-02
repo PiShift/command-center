@@ -1,5 +1,26 @@
 <x-layouts.app title="Edit Expense">
 
+<style>
+    @media (max-width: 768px) {
+        .expense-form-two-col,
+        .expense-form-recurring-grid,
+        .expense-form-actions {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+        }
+
+        .expense-form-actions {
+            gap: 8px !important;
+        }
+
+        .expense-form-actions a,
+        .expense-form-actions button {
+            width: 100%;
+        }
+    }
+</style>
+
 <div style="max-width:720px;margin:0 auto;padding:32px 24px">
 
     <div style="margin-bottom:24px">
@@ -47,7 +68,7 @@
                        onfocus="this.style.borderColor='#D97757'" onblur="this.style.borderColor='#e5e4df'">
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="expense-form-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
                 {{-- Category --}}
                 <div>
                     <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px">Category</label>
@@ -98,7 +119,7 @@
                 </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="expense-form-two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
                 {{-- Amount --}}
                 <div>
                     <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px" x-text="amountLabel"></label>
@@ -177,7 +198,7 @@
                     </div>
                 </div>
 
-                <div x-show="recurring" x-cloak style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <div x-show="recurring" x-cloak class="expense-form-recurring-grid" style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
                     <div>
                         <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px">Frequency *</label>
                         <div style="position:relative">
@@ -222,7 +243,7 @@
 
         </div>
 
-        <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:28px;padding-top:20px;border-top:1px solid #eeeee9">
+        <div class="expense-form-actions" style="display:flex;justify-content:flex-end;gap:12px;margin-top:28px;padding-top:20px;border-top:1px solid #eeeee9">
             <a href="{{ route('expenses.monthly-overview') }}"
                style="padding:10px 20px;background:#F5F4EF;border:1px solid #e5e4df;border-radius:8px;font-size:14px;font-weight:500;color:#141413;text-decoration:none">
                 Cancel
