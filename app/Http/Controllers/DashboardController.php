@@ -73,11 +73,11 @@ class DashboardController extends Controller
 
             $expensesThisMonth = Expense::confirmed()
                 ->whereBetween('expense_date', [$selectedStart, $selectedEnd])
-                ->sum('amount');
+                ->sum('amount_mru');
 
             $expensesLastMonth = Expense::confirmed()
                 ->whereBetween('expense_date', [$prevStart, $prevEnd])
-                ->sum('amount');
+                ->sum('amount_mru');
 
             $netThisMonth = $revenueThisMonth - $expensesThisMonth;
 
@@ -92,7 +92,7 @@ class DashboardController extends Controller
                 ])->sum('amount');
                 $expensesByMonth[$label] = Expense::confirmed()->whereBetween('expense_date', [
                     $m->copy()->startOfMonth(), $m->copy()->endOfMonth(),
-                ])->sum('amount');
+                ])->sum('amount_mru');
             }
 
             // Revenue by customer — top 5 in selected year

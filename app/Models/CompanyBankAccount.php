@@ -19,6 +19,8 @@ class CompanyBankAccount extends Model
         'currency',
         'usd_exchange_rate',
         'usd_exchange_rate_updated_at',
+        'usd_cost_basis_mru',
+        'usd_weighted_average_rate',
         'is_default',
         'notes',
     ];
@@ -28,6 +30,8 @@ class CompanyBankAccount extends Model
         'is_system' => 'boolean',
         'usd_exchange_rate' => 'decimal:6',
         'usd_exchange_rate_updated_at' => 'datetime',
+        'usd_cost_basis_mru' => 'decimal:6',
+        'usd_weighted_average_rate' => 'decimal:6',
     ];
 
     public function invoicePayments(): HasMany

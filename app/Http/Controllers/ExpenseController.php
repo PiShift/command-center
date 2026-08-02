@@ -8,6 +8,7 @@ use App\Models\CompanyBankAccount;
 use App\Models\Project;
 use App\Models\RecurringCharge;
 use App\Services\ExpenseService;
+use App\Services\UsdCostBasisService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -92,7 +93,8 @@ class ExpenseController extends Controller
         $recMaxOccurrences = $validated['rec_max_occurrences'] ?? null;
 
         unset($validated['is_recurring'], $validated['rec_frequency'], $validated['rec_start_date'], $validated['rec_end_date'], $validated['rec_max_occurrences']);
-        $validated['currency'] = 'MRU';
+        $companyAccount = CompanyBankAccount::query()->findOrFail((int) $validated['company_account_id']);
+        $this->applyExpenseCurrencyValues($validated, $companyAccount);
 
         $expense = Expense::create($validated);
 
@@ -117,6 +119,8 @@ class ExpenseController extends Controller
             ]);
             $expense->update(['recurring_charge_id' => $charge->id]);
         }
+
+        $this->recalculateUsdCostBasisForAccounts([$companyAccount]);
 
         return redirect()->route('expenses.monthly-overview')->with('success', 'Expense created.');
     }
@@ -161,8 +165,10 @@ class ExpenseController extends Controller
         $recEndDate        = $validated['rec_end_date'] ?? null;
         $recMaxOccurrences = $validated['rec_max_occurrences'] ?? null;
 
+        $previousAccount = $expense->companyAccount;
         unset($validated['is_recurring'], $validated['rec_frequency'], $validated['rec_start_date'], $validated['rec_end_date'], $validated['rec_max_occurrences']);
-        $validated['currency'] = 'MRU';
+        $companyAccount = CompanyBankAccount::query()->findOrFail((int) $validated['company_account_id']);
+        $this->applyExpenseCurrencyValues($validated, $companyAccount);
 
         $expense->update($validated);
 
@@ -207,6 +213,8 @@ class ExpenseController extends Controller
             }
         }
 
+        $this->recalculateUsdCostBasisForAccounts([$previousAccount, $companyAccount]);
+
         return redirect()->route('expenses.monthly-overview')->with('success', 'Expense updated.');
     }
 
@@ -214,7 +222,9 @@ class ExpenseController extends Controller
     {
         Gate::authorize('delete', $expense);
 
+        $account = $expense->companyAccount;
         $expense->delete();
+        $this->recalculateUsdCostBasisForAccounts([$account]);
 
         return redirect()->route('expenses.index')->with('success', 'Expense deleted.');
     }
@@ -289,12 +299,48 @@ class ExpenseController extends Controller
         for ($i = 5; $i >= 0; $i--) {
             $m       = $month->copy()->subMonths($i);
             $label   = $m->format('M Y');
-            $actual  = Expense::forMonth($m)->confirmed()->sum('amount');
+            $actual  = Expense::forMonth($m)->confirmed()->sum('amount_mru');
             $trend[] = ['label' => $label, 'actual' => (float) $actual];
         }
 
         $categories = ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
 
         return view('expenses.monthly-overview', array_merge($summary, compact('month', 'trend', 'categories')));
+    }
+
+    private function applyExpenseCurrencyValues(array &$validated, CompanyBankAccount $companyAccount): void
+    {
+        $currency = strtoupper((string) $companyAccount->currency);
+        $amount = (float) $validated['amount'];
+
+        if ($currency === 'USD') {
+            $rate = (float) ($companyAccount->usd_weighted_average_rate ?: 0);
+            $validated['currency'] = 'USD';
+            $validated['exchange_rate_used'] = $rate > 0 ? $rate : 0;
+            $validated['amount_mru'] = round($amount * $validated['exchange_rate_used'], 2);
+
+            return;
+        }
+
+        $validated['currency'] = 'MRU';
+        $validated['exchange_rate_used'] = 1;
+        $validated['amount_mru'] = round($amount, 2);
+    }
+
+    /**
+     * @param  array<int, CompanyBankAccount|null>  $accounts
+     */
+    private function recalculateUsdCostBasisForAccounts(array $accounts): void
+    {
+        $service = app(UsdCostBasisService::class);
+
+        collect($accounts)
+            ->filter()
+            ->unique(fn (CompanyBankAccount $account): int => (int) $account->id)
+            ->each(function (CompanyBankAccount $account) use ($service): void {
+                if (strtoupper((string) $account->currency) === 'USD') {
+                    $service->recalculateForAccount($account);
+                }
+            });
     }
 }

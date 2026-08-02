@@ -22,7 +22,22 @@
     @endif
 
     <form method="POST" action="{{ route('expenses.store') }}" enctype="multipart/form-data"
-          x-data="{ recurring: false, expenseDate: '{{ date('Y-m-d') }}', showNewCat: false, newCatName: '', newCatColor: '#D97757', addingCat: false }"
+          x-data="{
+              recurring: false,
+              expenseDate: '{{ date('Y-m-d') }}',
+              showNewCat: false,
+              newCatName: '',
+              newCatColor: '#D97757',
+              addingCat: false,
+              selectedCompanyAccountId: '{{ old('company_account_id', $defaultCompanyAccountId) }}',
+              accountCurrencyById: @js($companyAccounts->mapWithKeys(fn ($account) => [(string) $account->id => strtoupper((string) $account->currency)])),
+              get selectedCurrency() {
+                  return this.accountCurrencyById[String(this.selectedCompanyAccountId)] || 'MRU';
+              },
+              get amountLabel() {
+                  return this.selectedCurrency === 'USD' ? 'Amount (USD) *' : 'Amount (MRU) *';
+              }
+          }"
           style="background:#fff;border:1px solid #e5e4df;border-radius:12px;padding:28px">
         @csrf
 
@@ -108,7 +123,7 @@
             <div>
                 <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px">Company Account *</label>
                 <div style="position:relative">
-                    <select name="company_account_id" required
+                    <select name="company_account_id" required x-model="selectedCompanyAccountId"
                             style="width:100%;padding:10px 32px 10px 12px;font-size:14px;border:1px solid #e5e4df;border-radius:8px;background:#faf9f5;color:#141413;outline:none;appearance:none;box-sizing:border-box">
                         @foreach($companyAccounts as $account)
                             <option value="{{ $account->id }}"
@@ -127,7 +142,7 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
                 {{-- Amount --}}
                 <div>
-                    <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px">Amount (MRU) *</label>
+                    <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px" x-text="amountLabel"></label>
                     <input type="number" name="amount" value="{{ old('amount') }}" min="0" step="0.01" required
                            style="width:100%;padding:10px 12px;font-size:14px;border:1px solid #e5e4df;border-radius:8px;background:#faf9f5;color:#141413;outline:none;box-sizing:border-box"
                            placeholder="0.00"
