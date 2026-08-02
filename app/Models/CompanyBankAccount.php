@@ -17,6 +17,8 @@ class CompanyBankAccount extends Model
         'bank_name',
         'account_number',
         'currency',
+        'usd_exchange_rate',
+        'usd_exchange_rate_updated_at',
         'is_default',
         'notes',
     ];
@@ -24,6 +26,8 @@ class CompanyBankAccount extends Model
     protected $casts = [
         'is_default' => 'boolean',
         'is_system' => 'boolean',
+        'usd_exchange_rate' => 'decimal:6',
+        'usd_exchange_rate_updated_at' => 'datetime',
     ];
 
     public function invoicePayments(): HasMany

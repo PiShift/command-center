@@ -47,6 +47,31 @@
                 @error('currency')<p class="text-xs text-danger mt-1">{{ $message }}</p>@enderror
             </div>
 
+            @if($account->exists && strtoupper((string) $account->currency) === 'USD')
+                <div
+                    x-data="usdExchangeRateEditor({
+                        url: '{{ route('bank-accounts.usd-rate.update', $account) }}',
+                        initialRate: {{ (float) ($account->usd_exchange_rate ?: 40) }},
+                        updatedAtLabel: '{{ $account->usd_exchange_rate_updated_at?->format('M d, Y H:i') }}'
+                    })"
+                    class="rounded-lg border border-hairline bg-canvas px-3 py-3 space-y-2"
+                >
+                    <div class="flex items-center justify-between gap-3">
+                        <label class="text-xxs font-bold uppercase tracking-[0.05em] text-muted">USD Exchange Rate (1 USD = X MRU)</label>
+                        <span x-show="saving" x-cloak class="text-[11px] text-muted">Saving…</span>
+                        <span x-show="saved" x-cloak class="text-[11px] text-success-text">Saved</span>
+                    </div>
+
+                    <input type="number" min="0.000001" step="0.000001" x-model="rate" @input.debounce.500ms="save()"
+                           class="w-full rounded-md border border-line bg-surface focus:bg-card focus:border-accent px-3 py-2.5 text-base text-ink transition-colors" />
+
+                    <p class="text-[11px] text-muted">
+                        Last updated:
+                        <span class="font-medium text-dim" x-text="updatedAtLabel || '—'"></span>
+                    </p>
+                </div>
+            @endif
+
             <div>
                 <label for="notes" class="block text-xxs font-bold uppercase tracking-[0.05em] text-muted mb-1.5">Notes</label>
                 <textarea id="notes" name="notes" rows="4"
@@ -66,4 +91,57 @@
             </div>
         </form>
     </div>
+
+    @if($account->exists && strtoupper((string) $account->currency) === 'USD')
+        @push('scripts')
+            <script>
+                function usdExchangeRateEditor(config) {
+                    return {
+                        url: config.url,
+                        rate: config.initialRate || 40,
+                        lastSavedRate: config.initialRate || 40,
+                        updatedAtLabel: config.updatedAtLabel || '',
+                        saving: false,
+                        saved: false,
+                        async save() {
+                            const nextRate = Number(this.rate);
+                            if (!Number.isFinite(nextRate) || nextRate <= 0 || nextRate === this.lastSavedRate) {
+                                return;
+                            }
+
+                            this.saving = true;
+                            this.saved = false;
+
+                            try {
+                                const response = await fetch(this.url, {
+                                    method: 'PATCH',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json',
+                                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content || ''
+                                    },
+                                    body: JSON.stringify({ exchange_rate: nextRate })
+                                });
+
+                                if (!response.ok) {
+                                    throw new Error('Failed to save exchange rate');
+                                }
+
+                                const payload = await response.json();
+                                this.rate = payload.exchange_rate;
+                                this.lastSavedRate = payload.exchange_rate;
+                                this.updatedAtLabel = payload.updated_at_label || this.updatedAtLabel;
+                                this.saved = true;
+                                setTimeout(() => this.saved = false, 1500);
+                            } catch (error) {
+                                this.rate = this.lastSavedRate;
+                            } finally {
+                                this.saving = false;
+                            }
+                        }
+                    };
+                }
+            </script>
+        @endpush
+    @endif
 </x-layouts.app>

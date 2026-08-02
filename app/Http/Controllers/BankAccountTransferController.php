@@ -48,13 +48,12 @@ class BankAccountTransferController extends Controller
 
         if ($isCrossCurrency) {
             if (
-                ! isset($validated['amount_sent'], $validated['amount_received'], $validated['exchange_rate'])
+                ! isset($validated['amount_sent'], $validated['amount_received'])
                 || (float) $validated['amount_sent'] <= 0
                 || (float) $validated['amount_received'] <= 0
-                || (float) $validated['exchange_rate'] <= 0
             ) {
                 return back()->withErrors([
-                    'amount_sent' => 'Amount sent, amount received, and rate are required for cross-currency transfers.',
+                    'amount_sent' => 'Amount sent and amount received are required for cross-currency transfers.',
                 ])->withInput();
             }
         } elseif (! isset($validated['amount']) || (float) $validated['amount'] <= 0) {
@@ -69,7 +68,9 @@ class BankAccountTransferController extends Controller
         $amountReceived = $isCrossCurrency
             ? (float) $validated['amount_received']
             : $amountSent;
-        $exchangeRate = $isCrossCurrency ? (float) $validated['exchange_rate'] : null;
+        $exchangeRate = $isCrossCurrency
+            ? (float) ($validated['exchange_rate'] ?? $this->resolveUsdExchangeRateDefault($fromAccount, $toAccount))
+            : null;
 
         $fromBalance = (float) $fromAccount->balance;
         $willBeNegative = $fromBalance < $amountSent;
@@ -110,5 +111,18 @@ class BankAccountTransferController extends Controller
         $transfer->delete();
 
         return back()->with('success', 'Transfer deleted successfully.');
+    }
+
+    private function resolveUsdExchangeRateDefault(CompanyBankAccount $fromAccount, CompanyBankAccount $toAccount): float
+    {
+        $usdAccount = strtoupper((string) $fromAccount->currency) === 'USD'
+            ? $fromAccount
+            : (strtoupper((string) $toAccount->currency) === 'USD' ? $toAccount : null);
+
+        if (! $usdAccount || is_null($usdAccount->usd_exchange_rate) || (float) $usdAccount->usd_exchange_rate <= 0) {
+            return 40.0;
+        }
+
+        return (float) $usdAccount->usd_exchange_rate;
     }
 }
