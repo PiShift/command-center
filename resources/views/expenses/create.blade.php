@@ -220,7 +220,7 @@
             <div style="border-top:1px solid #eeeee9;padding-top:20px;margin-top:4px">
                 <input type="hidden" name="is_recurring" value="0">
                 <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;user-select:none">
-                    <input type="checkbox" name="is_recurring" value="1" x-model="recurring" style="margin-top:2px">
+                    <input type="checkbox" name="is_recurring" value="1" x-model="recurring" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:#D97757;appearance:auto;-webkit-appearance:checkbox">
                     <span>
                         <span style="font-size:14px;font-weight:500;color:#141413;display:block">Make Recurring</span>
                         <span style="font-size:12px;color:#8c8c8a;display:block">Automatically schedule this expense on a repeating basis</span>
