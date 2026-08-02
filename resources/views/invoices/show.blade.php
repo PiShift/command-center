@@ -29,7 +29,7 @@
         </span>
         @endif
     </div>
-    <div class="flex flex-wrap gap-2">
+    <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         @if($invoice->status === 'draft')
             <a href="{{ route('invoices.edit', $invoice) }}"
                class="flex sm:inline-flex w-full sm:w-auto justify-center items-center"
@@ -97,7 +97,7 @@
         @if($invoice->status !== 'cancelled' && $invoice->payment_status !== 'paid')
             <form method="POST" action="{{ route('invoices.cancel', $invoice) }}" class="contents" onsubmit="return confirm('Cancel this invoice?')">@csrf @method('PATCH')
                 <button type="submit"
-                        class="w-full sm:w-auto"
+                        class="col-span-2 w-full sm:w-auto"
                         style="padding:8px 14px;font-size:13px;font-weight:500;background:#fff0f0;border:1px solid #ffd0d0;color:#b94040;border-radius:8px;cursor:pointer;transition:background 150ms ease"
                         onmouseover="this.style.background='#ffe0e0'" onmouseout="this.style.background='#fff0f0'">Cancel</button>
             </form>
@@ -166,20 +166,26 @@
             <div class="px-6 py-4" style="border-bottom:1px solid #eeeee9">
                 <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Line Items</p>
             </div>
+            <div class="overflow-x-auto">
             <table class="w-full" style="font-size:13px">
                 <thead>
                     <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
-                        <th class="px-6 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Description</th>
+                        <th class="px-6 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;min-width:200px">Description</th>
                         <th class="px-4 py-3 text-center hidden sm:table-cell" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Unit</th>
                         <th class="px-4 py-3 text-right hidden sm:table-cell" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Qty</th>
-                        <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Price</th>
-                        <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Subtotal</th>
+                        <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;min-width:100px">Price</th>
+                        <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;min-width:100px">Subtotal</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach($invoice->items as $item)
                     <tr style="border-bottom:1px solid #eeeee9">
-                        <td class="px-6 py-3" style="color:#141413;line-height:1.6">@include('invoices._item_description', ['description' => $item->description])</td>
+                        <td class="px-6 py-3" style="color:#141413;line-height:1.6">
+                            @include('invoices._item_description', ['description' => $item->description])
+                            @if($item->cost_price > 0)
+                            <span style="display:block;font-size:11px;color:#8c8c8a;margin-top:2px">cost: {{ $invoice->currency }} {{ number_format($item->cost_price, 2) }}</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-center hidden sm:table-cell" style="color:#5c5c5a">{{ $item->unit }}</td>
                         <td class="px-4 py-3 text-right hidden sm:table-cell" style="color:#5c5c5a">{{ $item->quantity }}</td>
                         <td class="px-4 py-3 text-right" style="color:#5c5c5a">{{ $invoice->currency }} {{ number_format($item->unit_price, 2) }}</td>
@@ -188,6 +194,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
             {{-- Totals --}}
             <div class="px-6 py-4" style="border-top:1px solid #eeeee9">
                 <div class="flex flex-col items-end gap-1" style="font-size:13px">
@@ -205,6 +212,40 @@
                     <div class="flex gap-8"><span style="font-weight:600;color:{{ $invoice->amount_due > 0 ? '#b94040' : '#2e7d55' }}">Amount Due</span><span style="font-weight:600;color:{{ $invoice->amount_due > 0 ? '#b94040' : '#2e7d55' }}">{{ $invoice->currency }} {{ number_format($invoice->amount_due, 2) }}</span></div>
                 </div>
             </div>
+
+            @php
+                $totalCost = $invoice->items->sum(fn($i) => (float) $i->cost_price);
+                $revenue   = (float) $invoice->total;
+                $margin    = $revenue - $totalCost;
+                $marginPct = $revenue > 0 ? ($margin / $revenue * 100) : 0;
+                $autoExpenseCount = \App\Models\Expense::whereIn('source_invoice_item_id', $invoice->items->pluck('id'))->count();
+            @endphp
+            @if($totalCost > 0)
+            {{-- Margin block --}}
+            <div class="px-6 py-4" style="border-top:1px solid #eeeee9;background:#faf9f5">
+                <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;margin-bottom:10px">Margin</p>
+                <div class="flex flex-col items-end gap-1" style="font-size:13px">
+                    <div class="flex gap-8"><span style="color:#8c8c8a">Revenue</span><span style="color:#141413;font-weight:500">{{ $invoice->currency }} {{ number_format($revenue, 2) }}</span></div>
+                    <div class="flex gap-8"><span style="color:#8c8c8a">Cost</span><span style="color:#141413;font-weight:500">{{ $invoice->currency }} {{ number_format($totalCost, 2) }}</span></div>
+                    <div class="flex gap-8 mt-1 pt-2" style="border-top:1px solid #eeeee9">
+                        <span style="font-weight:600;color:#141413">Margin</span>
+                        <span style="font-weight:700;color:{{ $margin >= 0 ? '#2e7d55' : '#b94040' }}">
+                            {{ $margin < 0 ? '−' : '' }}{{ $invoice->currency }} {{ number_format(abs($margin), 2) }}
+                            <span style="font-size:11px;font-weight:500;margin-left:4px">({{ number_format($marginPct, 1) }}%)</span>
+                        </span>
+                    </div>
+                </div>
+                @if($autoExpenseCount > 0)
+                <div class="mt-3 text-right">
+                    <a href="/expenses?source_invoice={{ $invoice->id }}"
+                       style="font-size:12px;color:#8c8c8a;text-decoration:none"
+                       onmouseover="this.style.color='#5c5c5a'"
+                       onmouseout="this.style.color='#8c8c8a'"
+                    >View related expenses ({{ $autoExpenseCount }}) →</a>
+                </div>
+                @endif
+            </div>
+            @endif
         </div>
 
         {{-- Payments --}}
@@ -217,7 +258,7 @@
                 <thead>
                     <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
                         <th class="px-6 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Date</th>
-                        <th class="px-4 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Method</th>
+                        <th class="px-4 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Bank Account</th>
                         <th class="px-4 py-3 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Reference</th>
                         <th class="px-4 py-3 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a">Amount</th>
                     </tr>
@@ -226,7 +267,7 @@
                     @foreach($invoice->payments as $payment)
                     <tr style="border-bottom:1px solid #eeeee9">
                         <td class="px-6 py-3" style="color:#5c5c5a;font-size:12px">{{ $payment->payment_date->format('M d, Y') }}</td>
-                        <td class="px-4 py-3" style="color:#5c5c5a">{{ str_replace('_', ' ', ucfirst($payment->method)) }}</td>
+                        <td class="px-4 py-3" style="color:#5c5c5a">{{ $payment->companyAccount?->name ?? '—' }}</td>
                         <td class="px-4 py-3" style="color:#8c8c8a;font-size:12px">{{ $payment->reference ?? '—' }}</td>
                         <td class="px-4 py-3 text-right" style="font-weight:500;color:#2e7d55">{{ $invoice->currency }} {{ number_format($payment->amount, 2) }}</td>
                     </tr>
@@ -274,6 +315,7 @@
                 <div>
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">{{ $field['label'] }}</label>
                     <input type="{{ $field['type'] }}" name="{{ $field['name'] }}" {{ $field['attrs'] }}
+                           value="{{ old($field['name'], $field['name'] === 'amount' ? number_format((float) $invoice->amount_due, 2, '.', '') : ($field['name'] === 'payment_date' ? now()->toDateString() : '')) }}"
                            class="w-full rounded-lg text-[13px] px-3 py-2"
                            style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none"
                            onfocus="this.style.borderColor='#D97757';this.style.background='#fff'"
@@ -281,12 +323,17 @@
                 </div>
                 @endforeach
                 <div>
-                    <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Method</label>
+                    <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Company Account</label>
                     <div class="relative">
-                        <select name="method" class="w-full appearance-none rounded-lg text-[13px] pl-3 pr-8 py-2"
+                        <select name="company_account_id" required class="w-full appearance-none rounded-lg text-[13px] pl-3 pr-8 py-2"
                                 style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none">
-                            @foreach(['bank_transfer'=>'Bank Transfer','cash'=>'Cash','check'=>'Check','card'=>'Card','other'=>'Other'] as $v=>$l)
-                                <option value="{{ $v }}">{{ $l }}</option>
+                            @foreach($companyAccounts as $account)
+                                <option value="{{ $account->id }}" {{ $account->is_default ? 'selected' : '' }}>
+                                    {{ $account->name }}
+                                    @if($account->bank_name)
+                                        — {{ $account->bank_name }}
+                                    @endif
+                                </option>
                             @endforeach
                         </select>
                         <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style="color:#8c8c8a">
@@ -296,7 +343,7 @@
                 </div>
                 <div>
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Proof (optional)</label>
-                    <input type="file" name="proof" accept=".jpg,.jpeg,.png,.pdf" class="text-[12px]" style="color:#5c5c5a">
+                    <x-file-upload name="proof" accept=".jpg,.jpeg,.png,.pdf" label="Drop payment proof here" />
                 </div>
                 @if($invoice->customer?->email)
                 <label class="flex items-center gap-2" style="font-size:13px;color:#5c5c5a;cursor:pointer">
@@ -404,7 +451,7 @@
             @endif
 
             @if($invoice->reminders->where('sent', false)->count() < 2)
-            <form method="POST" action="{{ route('invoices.reminders.store', $invoice) }}" class="flex gap-2 items-end">
+            <form method="POST" action="{{ route('invoices.reminders.store', $invoice) }}" class="flex gap-2 items-center">
                 @csrf
                 <div class="flex-1">
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Reminder Date</label>
@@ -418,6 +465,7 @@
                     @error('scheduled_date')<p style="font-size:11px;color:#b94040;margin-top:3px">{{ $message }}</p>@enderror
                 </div>
                 <button type="submit"
+                        class="shrink-0"
                         style="padding:8px 16px;font-size:13px;font-weight:500;background:#F5F4EF;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer;transition:background 150ms ease;white-space:nowrap"
                         onmouseover="this.style.background='#eeeee9'" onmouseout="this.style.background='#F5F4EF'">Schedule Reminder</button>
             </form>

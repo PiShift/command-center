@@ -15,7 +15,8 @@ class Expense extends Model implements HasMedia
     use SoftDeletes, InteractsWithMedia;
 
     protected $fillable = [
-        'title', 'category_id', 'project_id', 'recurring_charge_id',
+        'title', 'category_id', 'project_id', 'company_account_id', 'recurring_charge_id',
+        'source_invoice_item_id',
         'amount', 'expense_date', 'status', 'notes',
     ];
 
@@ -61,6 +62,11 @@ class Expense extends Model implements HasMedia
     public function recurringCharge(): BelongsTo
     {
         return $this->belongsTo(RecurringCharge::class, 'recurring_charge_id');
+    }
+
+    public function companyAccount(): BelongsTo
+    {
+        return $this->belongsTo(CompanyBankAccount::class, 'company_account_id');
     }
 
     public function scopeDraft($query)

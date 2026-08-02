@@ -8,9 +8,9 @@
     $nav = [
         ['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'grid'],
     ];
-    if ($user->hasPermission('tasks.view')) {
+    if ($user->hasPermission('tasks.view') || $user->hasPermission('projects.view')) {
         $nav[] = ['route' => 'board', 'label' => 'Board', 'icon' => 'columns', 'badge' => \App\Models\Task::where('status','!=','done')->count()];
-        $nav[] = ['route' => 'tasks.index', 'label' => 'Tasks', 'icon' => 'clipboard', 'badge' => \App\Models\Task::where('status','!=','done')->where(fn($q)=>$q->where('priority','high')->orWhere(fn($q2)=>$q2->whereNotNull('due_date')->whereDate('due_date','<',now())))->count()];
+        $nav[] = ['route' => 'agents.index', 'label' => 'Agents', 'icon' => 'play'];
     }
     if ($user->hasPermission('projects.view')) {
         $nav[] = ['route' => 'projects.index', 'label' => 'Projects', 'icon' => 'folder', 'badge' => \App\Models\Project::count()];
@@ -21,8 +21,28 @@
     if ($user->hasPermission('teams.view')) {
         $nav[] = ['route' => 'teams.index', 'label' => 'Teams', 'icon' => 'layers', 'badge' => \App\Models\Team::count() ?: null];
     }
+    if ($user->hasPermission('hr.view')) {
+        $nav[] = ['_group' => 'HR'];
+        $nav[] = ['route' => 'employees.index', 'label' => 'Employees', 'icon' => 'users', 'badge' => \App\Models\EmployeeProfile::active()->count() ?: null];
+            $nav[] = ['route' => 'leaves.index', 'label' => 'Leaves', 'icon' => 'calendar', 'badge' => \App\Models\LeaveRequest::pending()->count() ?: null];
+    }
+    if ($user->hasPermission('hr.manage')) {
+        $nav[] = ['route' => 'payroll.index', 'label' => 'Payroll', 'icon' => 'file-text', 'badge' => \App\Models\PayrollRun::draft()->count() ?: null];
+        $nav[] = ['route' => 'contract-templates.index', 'label' => 'Contract Templates', 'icon' => 'file-text'];
+    }
     if ($user->hasPermission('customers.view')) {
         $nav[] = ['route' => 'customers.index', 'label' => 'Customers', 'icon' => 'briefcase'];
+    }
+    if ($user->hasPermission('roles.view')) {
+        $nav[] = ['route' => 'roles.index', 'label' => 'Roles', 'icon' => 'shield'];
+    }
+    if (
+        $user->hasPermission('invoices.view') ||
+        $user->hasPermission('payments.view') ||
+        $user->hasPermission('finance.manage') ||
+        $user->hasPermission('expenses.view')
+    ) {
+        $nav[] = ['_group' => 'FINANCE'];
     }
     if ($user->hasPermission('invoices.view')) {
         $nav[] = ['route' => 'invoices.index', 'label' => 'Invoices', 'icon' => 'file-text', 'badge' => \App\Models\Invoice::whereIn('status',['published','partially_paid'])->count() ?: null];
@@ -30,14 +50,16 @@
     if ($user->hasPermission('payments.view')) {
         $nav[] = ['route' => 'payments.index', 'label' => 'Payments', 'icon' => 'credit-card'];
     }
-    if ($user->hasPermission('roles.view')) {
-        $nav[] = ['route' => 'roles.index', 'label' => 'Roles', 'icon' => 'shield'];
+    if ($user->hasPermission('finance.manage')) {
+        $nav[] = ['route' => 'bank-accounts.index', 'label' => 'Bank Accounts', 'icon' => 'wallet', 'badge' => \App\Models\CompanyBankAccount::count()];
     }
     if ($user->hasPermission('expenses.view')) {
         $nav[] = ['route' => 'expenses.monthly-overview', 'label' => 'Expenses', 'icon' => 'wallet'];
     }
     if ($user->hasPermission('settings.manage')) {
         $nav[] = ['_group' => 'Admin'];
+        $nav[] = ['route' => 'skills.index', 'label' => 'Skills', 'icon' => 'book'];
+        $nav[] = ['route' => 'runtimes.index', 'label' => 'Runtimes', 'icon' => 'play'];
         $nav[] = ['route' => 'settings.notifications', 'label' => 'Settings', 'icon' => 'shield'];
     }
     $projects = \App\Models\Project::orderBy('name')->get(['id', 'name', 'color']);
@@ -212,6 +234,7 @@
                 <p class="sidebar-group-label text-[10px] font-semibold uppercase tracking-wider text-muted px-2 pb-1 pt-3">{{ $item['_group'] }}</p>
             @else
             <a href="{{ route($item['route']) }}"
+                    @click="if (window.innerWidth < 1024) { Alpine.store('sidebar').close(); }"
                @mouseenter="$store.sidebarTip.open($el, '{{ $item['label'] }}')"
                @mouseleave="$store.sidebarTip.close()"
                class="nav-item {{ request()->routeIs($item['route']) || request()->routeIs($item['route'].'.*') ? 'active' : '' }}">
@@ -230,6 +253,7 @@
                 <p class="sidebar-group-label text-[10px] font-semibold uppercase tracking-wider text-muted px-2 pb-1">Projects</p>
                 @foreach ($projects as $project)
                     <a href="{{ route('projects.show', $project) }}"
+                              @click="if (window.innerWidth < 1024) { Alpine.store('sidebar').close(); }"
                        @mouseenter="$store.sidebarTip.open($el, '{{ $project->name }}')"
                        @mouseleave="$store.sidebarTip.close()"
                        class="nav-item {{ request()->routeIs('projects.show') && request()->route('project')?->id == $project->id ? 'active' : '' }}">

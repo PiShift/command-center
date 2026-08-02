@@ -86,8 +86,8 @@
         </button>
         @else
         @if($item->promotedTask)
-        <a href="{{ route('tasks.show', $item->promotedTask) }}"
-           class="inline-flex items-center h-7 px-2 text-[11px] font-medium text-accent hover:underline flex-shrink-0"
+        <a href="#" onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $item->promotedTask->id }} } }))"
+           class="inline-flex items-center h-7 px-2 text-[11px] font-medium text-accent hover:underline flex-shrink-0 cursor-pointer"
            title="View promoted task">
             → View Task
         </a>

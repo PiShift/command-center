@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\CompanyBankAccount;
 use App\Models\Project;
 use App\Models\RecurringCharge;
 use App\Services\ExpenseService;
@@ -36,6 +37,11 @@ class ExpenseController extends Controller
             $query->where('month', $monthDate);
         }
 
+        if ($sourceInvoice = $request->source_invoice) {
+            $itemIds = \App\Models\InvoiceItem::where('invoice_id', $sourceInvoice)->pluck('id');
+            $query->whereIn('source_invoice_item_id', $itemIds);
+        }
+
         $expenses   = $query->paginate(50)->withQueryString();
         $categories = ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
 
@@ -51,8 +57,12 @@ class ExpenseController extends Controller
 
         $categories = ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
         $projects   = Project::orderBy('name')->get();
+        $companyAccounts = CompanyBankAccount::orderByDesc('is_default')->orderBy('name')->get();
+        $defaultCompanyAccountId = CompanyBankAccount::where('is_system', true)
+            ->where('name', 'Cash')
+            ->value('id');
 
-        return view('expenses.create', compact('categories', 'projects'));
+        return view('expenses.create', compact('categories', 'projects', 'companyAccounts', 'defaultCompanyAccountId'));
     }
 
     public function store(Request $request)
@@ -63,6 +73,7 @@ class ExpenseController extends Controller
             'title'          => 'required|string|max:255',
             'category_id'    => 'nullable|exists:expense_categories,id',
             'project_id'     => 'nullable|exists:projects,id',
+            'company_account_id' => 'required|exists:company_bank_accounts,id',
             'amount'         => 'required|numeric|min:0',
             'expense_date'   => 'required|date',
             'status'         => 'nullable|in:draft,confirmed',
@@ -116,8 +127,12 @@ class ExpenseController extends Controller
 
         $categories = ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
         $projects   = Project::orderBy('name')->get();
+        $companyAccounts = CompanyBankAccount::orderByDesc('is_default')->orderBy('name')->get();
+        $defaultCompanyAccountId = CompanyBankAccount::where('is_system', true)
+            ->where('name', 'Cash')
+            ->value('id');
 
-        return view('expenses.edit', compact('expense', 'categories', 'projects'));
+        return view('expenses.edit', compact('expense', 'categories', 'projects', 'companyAccounts', 'defaultCompanyAccountId'));
     }
 
     public function update(Request $request, Expense $expense)
@@ -128,6 +143,7 @@ class ExpenseController extends Controller
             'title'          => 'required|string|max:255',
             'category_id'    => 'nullable|exists:expense_categories,id',
             'project_id'     => 'nullable|exists:projects,id',
+            'company_account_id' => 'required|exists:company_bank_accounts,id',
             'amount'         => 'required|numeric|min:0',
             'expense_date'   => 'required|date',
             'status'         => 'nullable|in:draft,confirmed',

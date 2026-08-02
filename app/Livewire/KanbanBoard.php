@@ -10,21 +10,94 @@ use App\Models\User;
 use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\TaskClaimedNotification;
 use App\Notifications\TaskStatusChangedNotification;
+use App\Support\Broadcasts\IssueBroadcastPayload;
+use App\WebSocket\WebSocketBroadcaster;
 use Illuminate\Support\Facades\Gate;
+use Livewire\Attributes\On;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 class KanbanBoard extends Component
 {
+    use IssueBroadcastPayload;
+
+    public array $activeQueueStatuses = ['queued', 'dispatched', 'running', 'waiting_local_directory'];
+
     public string $activeTab = 'board';
-    public ?int $filterProject = null;
+
+    public array $projectIds = [];
+
     public ?int $filterAssignee = null;
+
     public string $filterPriority = '';
+
+    #[Url(as: 'projects', except: '')]
+    public string $projectFilter = '';
+
+    public function mount(): void
+    {
+        $this->projectIds = $this->parseProjectIds($this->projectFilter);
+    }
+
+    public function updatedProjectFilter(string $value): void
+    {
+        $this->projectIds = $this->parseProjectIds($value);
+    }
+
+    public function updatedProjectIds($value): void
+    {
+        $normalized = collect((array) $value)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $this->projectIds = $normalized;
+
+        $csv = implode(',', $normalized);
+        if ($this->projectFilter !== $csv) {
+            $this->projectFilter = $csv;
+        }
+    }
+
+    public function applyStoredProjectSelection(string $csv): void
+    {
+        if ($this->projectFilter !== '') {
+            return;
+        }
+
+        $ids = $this->parseProjectIds($csv);
+        if ($ids === []) {
+            return;
+        }
+
+        $this->projectIds = $ids;
+        $this->projectFilter = implode(',', $ids);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function parseProjectIds(?string $csv): array
+    {
+        if (! is_string($csv) || trim($csv) === '') {
+            return [];
+        }
+
+        return collect(explode(',', $csv))
+            ->map(fn (string $value) => (int) trim($value))
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
 
     public function moveTask(int $taskId, string $columnSlug): void
     {
-        $task      = Task::findOrFail($taskId);
+        $task = Task::findOrFail($taskId);
         Gate::authorize('editStatus', $task);
-        $col       = KanbanColumn::where('slug', $columnSlug)->firstOrFail();
+        $col = KanbanColumn::where('slug', $columnSlug)->firstOrFail();
         $oldStatus = $task->status;
         $newStatus = $col->slug;
 
@@ -33,6 +106,14 @@ class KanbanBoard extends Component
         }
 
         $task->update(['status' => $newStatus]);
+
+        $workspaceId = $this->resolveWorkspaceId($task);
+
+        if ($workspaceId) {
+            WebSocketBroadcaster::broadcastIssueUpdated(
+                $task, $workspaceId, (string) auth()->id()
+            );
+        }
 
         // Track completion timestamp
         if ($newStatus === 'done') {
@@ -43,13 +124,13 @@ class KanbanBoard extends Component
             $task->saveQuietly();
         }
 
-        $mover      = auth()->user();
+        $mover = auth()->user();
         $recipients = collect();
         if ($task->assigned_to && $task->assigned_to !== $mover->id) {
             $recipients->push($task->assignee);
         }
-        $managers   = User::whereHas('roleModel', fn($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
-        $recipients = $recipients->merge($managers)->unique('id')->filter(fn($u) => $u->id !== $mover->id);
+        $managers = User::whereHas('roleModel', fn ($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
+        $recipients = $recipients->merge($managers)->unique('id')->filter(fn ($u) => $u->id !== $mover->id);
 
         $task->load('project');
         foreach ($recipients as $recipient) {
@@ -68,13 +149,22 @@ class KanbanBoard extends Component
 
         if ($task->assigned_to !== null) {
             session()->flash('error', 'This task is already assigned to someone.');
+
             return;
         }
 
         $user = auth()->user();
         $task->assigned_to = $user->id;
-        $task->status      = 'todo';
+        $task->status = 'todo';
         $task->save();
+
+        $workspaceId = $this->resolveWorkspaceId($task);
+
+        if ($workspaceId) {
+            WebSocketBroadcaster::broadcastIssueUpdated(
+                $task, $workspaceId, (string) $user->id
+            );
+        }
 
         activity()
             ->performedOn($task)
@@ -84,7 +174,7 @@ class KanbanBoard extends Component
         session()->flash('success', 'You are now assigned to this task.');
 
         $task->load('project');
-        $managers = User::whereHas('roleModel', fn($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
+        $managers = User::whereHas('roleModel', fn ($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
         foreach ($managers as $manager) {
             $manager->notify(new TaskClaimedNotification($task, $user));
         }
@@ -94,34 +184,81 @@ class KanbanBoard extends Component
         $this->dispatch('task-claimed', taskId: $taskId);
     }
 
+    #[On('taskStatusChanged')]
+    public function onTaskStatusChanged(int $taskId, string $status): void
+    {
+        $this->dispatch('$refresh');
+    }
+
+    #[On('taskAgentStarted')]
+    public function onTaskAgentStarted(int $taskId): void
+    {
+        $this->dispatch('$refresh');
+    }
+
+    #[On('taskAgentCompleted')]
+    public function onTaskAgentCompleted(int $taskId): void
+    {
+        $this->dispatch('$refresh');
+    }
+
+    #[On('taskAgentFailed')]
+    public function onTaskAgentFailed(int $taskId): void
+    {
+        $this->dispatch('$refresh');
+    }
+
+    #[On('task-deleted')]
+    public function onTaskDeleted(int $taskId): void
+    {
+        $this->dispatch('$refresh');
+    }
+
     public function render()
     {
-        $user         = auth()->user();
-        $scopedToUser = !$user->hasPermission('tasks.view_all');
+        $user = auth()->user();
+        $scopedToUser = ! $user->hasPermission('tasks.view_all');
+        $canViewBilling = $user->hasPermission('invoices.view');
         $priorityOrder = ['critical' => 0, 'high' => 1, 'medium' => 2, 'low' => 3];
 
         $teamProjectIds = $scopedToUser
-            ? Team::whereHas('members', fn($q) => $q->where('user_id', $user->id))
-                  ->with('projects:id')
-                  ->get()
-                  ->flatMap(fn($t) => $t->projects->pluck('id'))
+            ? Team::whereHas('members', fn ($q) => $q->where('user_id', $user->id))
+                ->with('projects:id')
+                ->get()
+                ->flatMap(fn ($t) => $t->projects->pluck('id'))
             : collect();
 
-        $columns = KanbanColumn::orderBy('position')->get()->map(function ($col) use ($priorityOrder, $scopedToUser, $user, $teamProjectIds) {
+        $columns = KanbanColumn::orderBy('position')->get()->map(function ($col) use ($priorityOrder, $scopedToUser, $user, $canViewBilling) {
             // Developers never see the Open column — it belongs to the Lobby
             if ($scopedToUser && $col->slug === 'open') {
                 return null;
             }
 
-            $query = $col->tasks()->with(['project', 'assignee', 'checklists'])->withCount('comments');
+            $relations = [
+                'project',
+                'assignee',
+                'agent',
+                'checklists',
+                'latestQueue' => fn ($q) => $q->whereIn('status', $this->activeQueueStatuses),
+            ];
+
+            if ($canViewBilling) {
+                $relations[] = 'activeInvoiceItem.invoice';
+                $relations[] = 'invoiceOverride';
+            }
+
+            $query = $col->tasks()
+                ->with($relations)
+                ->withCount('comments')
+                ->orderByDesc('updated_at');
 
             // Developers: only their own assigned tasks (not team-wide unclaimed tasks)
             if ($scopedToUser) {
                 $query->where('assigned_to', $user->id);
             }
 
-            if ($this->filterProject) {
-                $query->where('project_id', $this->filterProject);
+            if ($this->projectIds !== []) {
+                $query->whereIn('project_id', $this->projectIds);
             }
             if ($this->filterAssignee) {
                 $query->where('assigned_to', $this->filterAssignee);
@@ -131,15 +268,16 @@ class KanbanBoard extends Component
             }
             $tasks = $query->get()->sortBy(fn ($t) => $priorityOrder[$t->priority] ?? 9);
             $col->setRelation('tasks', $tasks->values());
+
             return $col;
         })->filter()->values();
 
         // Scoped users see projects where they have assigned tasks OR their teams are assigned
         if ($scopedToUser) {
-            $projects = \App\Models\Project::with(['customer', 'tasks.assignee'])
+            $projects = Project::with(['customer', 'tasks.assignee'])
                 ->where(function ($q) use ($user, $teamProjectIds) {
-                    $q->whereHas('tasks', fn($q2) => $q2->where('assigned_to', $user->id))
-                      ->orWhereIn('id', $teamProjectIds);
+                    $q->whereHas('tasks', fn ($q2) => $q2->where('assigned_to', $user->id))
+                        ->orWhereIn('id', $teamProjectIds);
                 })
                 ->orderBy('name')
                 ->get()
@@ -153,22 +291,22 @@ class KanbanBoard extends Component
                         ->count();
                 });
         } else {
-            $projects = \App\Models\Project::with(['tasks', 'customer'])->orderBy('name')->get();
+            $projects = Project::with(['tasks', 'customer'])->orderBy('name')->get();
         }
 
         $teamMembers = $scopedToUser
-            ? \App\Models\User::where('id', $user->id)->get()
-            : \App\Models\User::orderBy('name')->get();
+            ? User::where('id', $user->id)->get()
+            : User::orderBy('name')->get();
 
         // Teams the current user belongs to (always loaded; only shown for scoped/developer)
         $userTeams = $scopedToUser
-            ? Team::whereHas('members', fn($q) => $q->where('user_id', $user->id))
-                  ->with(['lead', 'members', 'projects'])
-                  ->withCount('members')
-                  ->orderBy('name')
-                  ->get()
+            ? Team::whereHas('members', fn ($q) => $q->where('user_id', $user->id))
+                ->with(['lead', 'members', 'projects'])
+                ->withCount('members')
+                ->orderBy('name')
+                ->get()
             : collect();
 
-        return view('livewire.kanban-board', compact('columns', 'projects', 'teamMembers', 'scopedToUser', 'userTeams'));
+        return view('livewire.kanban-board', compact('columns', 'projects', 'teamMembers', 'scopedToUser', 'userTeams', 'canViewBilling'));
     }
 }

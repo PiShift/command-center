@@ -8,6 +8,7 @@ use App\Models\Sprint;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 
 class ProjectSprints extends Component
@@ -36,6 +37,11 @@ class ProjectSprints extends Component
     public ?int $editTaskAssignedTo = null;
     public string $editTaskDueDate = '';
     public int $editTaskWeight = 3;
+    public ?int $editTaskSprintId = null;
+
+    // Task bulk move
+    public array $selectedTaskIds = [];
+    public array $bulkMoveTargetBySprint = [];
 
     // Task quick-add
     public ?int $addTaskSprintId = null;
@@ -147,6 +153,7 @@ class ProjectSprints extends Component
         $this->editTaskAssignedTo = $task->assigned_to;
         $this->editTaskDueDate    = $task->due_date?->format('Y-m-d') ?? '';
         $this->editTaskWeight     = $task->weight ?? 3;
+        $this->editTaskSprintId   = $task->sprint_id;
     }
 
     public function saveTask(): void
@@ -160,6 +167,11 @@ class ProjectSprints extends Component
             'editTaskAssignedTo' => 'nullable|exists:users,id',
             'editTaskDueDate'    => 'nullable|date',
             'editTaskWeight'     => 'required|integer|between:1,5',
+            'editTaskSprintId'   => [
+                'nullable',
+                'integer',
+                Rule::exists('sprints', 'id')->where(fn ($query) => $query->where('project_id', $this->project->id)),
+            ],
         ]);
 
         $oldStatus = $task->status;
@@ -171,6 +183,7 @@ class ProjectSprints extends Component
             'assigned_to' => $this->editTaskAssignedTo,
             'due_date'    => $this->editTaskDueDate ?: null,
             'weight'      => $this->editTaskWeight,
+            'sprint_id'   => $this->editTaskSprintId ?: null,
         ]);
 
         if ($this->editTaskStatus === 'done' && $oldStatus !== 'done') {
@@ -188,6 +201,54 @@ class ProjectSprints extends Component
     public function cancelEdit(): void
     {
         $this->editingTask = null;
+        $this->editTaskSprintId = null;
+    }
+
+    public function bulkMoveSelectedTasks(int $sourceSprintId): void
+    {
+        Gate::authorize('manage', $this->project);
+
+        $selectedIds = collect($this->selectedTaskIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->values();
+
+        if ($selectedIds->isEmpty()) {
+            session()->flash('error', 'Select at least one task to move.');
+
+            return;
+        }
+
+        $targetSprintIdRaw = $this->bulkMoveTargetBySprint[$sourceSprintId] ?? null;
+        $targetSprintId = $targetSprintIdRaw !== null && $targetSprintIdRaw !== '' ? (int) $targetSprintIdRaw : null;
+
+        if ($targetSprintId !== null) {
+            $this->validate([
+                "bulkMoveTargetBySprint.$sourceSprintId" => [
+                    'required',
+                    'integer',
+                    Rule::exists('sprints', 'id')->where(fn ($query) => $query->where('project_id', $this->project->id)),
+                ],
+            ]);
+        }
+
+        $query = Task::query()
+            ->where('project_id', $this->project->id)
+            ->whereIn('id', $selectedIds)
+            ->where('sprint_id', $sourceSprintId);
+
+        $movedCount = (int) $query->update([
+            'sprint_id' => $targetSprintId,
+        ]);
+
+        $this->selectedTaskIds = [];
+        $this->bulkMoveTargetBySprint = [];
+
+        if ($movedCount > 0) {
+            session()->flash('success', "$movedCount task(s) moved.");
+        } else {
+            session()->flash('error', 'No tasks were moved.');
+        }
     }
 
     public function openTask(int $taskId): void
@@ -259,6 +320,10 @@ class ProjectSprints extends Component
         $users   = User::orderBy('name')->get(['id', 'name', 'color', 'initials']);
         $columns = KanbanColumn::orderBy('position')->get(['slug', 'name']);
 
-        return view('livewire.project-sprints', compact('sprints', 'canManage', 'users', 'columns'));
+        $allProjectSprints = $this->project->sprints()
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'status']);
+
+        return view('livewire.project-sprints', compact('sprints', 'canManage', 'users', 'columns', 'allProjectSprints'));
     }
 }

@@ -2,11 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\AgentCommentPosted;
+use App\Models\Agent;
+use App\Models\AgentRuntime;
+use App\Models\AgentTaskQueue;
 use App\Models\Task;
 use App\Models\TaskComment;
 use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\TaskCommentNotification;
+use App\Services\AgentTriggerService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class TaskCommentController extends Controller
 {
@@ -25,6 +31,20 @@ class TaskCommentController extends Controller
             'body'    => $data['body'],
         ]);
 
+        $task = Task::with('project.teams')->find($comment->task_id);
+        $workspaceId = $task?->project?->teams?->first()?->id;
+
+        if ($workspaceId) {
+            \App\WebSocket\WebSocketBroadcaster::broadcastCommentCreated($comment, (string) $workspaceId);
+        }
+
+        // Broadcast real-time event via Reverb/Echo
+        broadcast(new AgentCommentPosted(
+            taskId: (int) $task->id,
+            body: $comment->body,
+            authorName: auth()->user()->name,
+        ));
+
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
             $comment->addMedia($file)
@@ -32,25 +52,8 @@ class TaskCommentController extends Controller
                 ->toMediaCollection('attachment');
         }
 
-        if ($request->expectsJson()) {
-            $comment->load('author');
-            $attachment = $comment->getFirstMedia('attachment');
-            return response()->json([
-                'id'         => $comment->id,
-                'body'       => $comment->body,
-                'author'     => $comment->author->name,
-                'color'      => $comment->author->color,
-                'initials'   => $comment->author->initials ?? strtoupper(substr($comment->author->name, 0, 2)),
-                'created_at' => $comment->created_at->diffForHumans(),
-                'attachment' => $attachment ? [
-                    'id'        => $attachment->id,
-                    'file_name' => $attachment->file_name,
-                    'mime_type' => $attachment->mime_type,
-                    'size'      => $attachment->size,
-                    'url'       => route('comment-attachments.destroy', ['task' => $task->id, 'comment' => $comment->id]),
-                ] : null,
-            ]);
-        }
+        // Trigger agent if comment not by agent and task has agent assigned
+        AgentTriggerService::triggerOnComment($task, $comment);
 
         // Notify assignee and previous commenters (excluding commenter)
         $commenter = auth()->user();
@@ -75,6 +78,26 @@ class TaskCommentController extends Controller
         }
 
         SlackNotificationHelper::notifyOnce(new TaskCommentNotification($task->load('project'), $comment, $commenter));
+
+        if ($request->expectsJson()) {
+            $comment->load('author');
+            $attachment = $comment->getFirstMedia('attachment');
+            return response()->json([
+                'id'         => $comment->id,
+                'body'       => $comment->body,
+                'author'     => $comment->author->name,
+                'color'      => $comment->author->color,
+                'initials'   => $comment->author->initials ?? strtoupper(substr($comment->author->name, 0, 2)),
+                'created_at' => $comment->created_at->diffForHumans(),
+                'attachment' => $attachment ? [
+                    'id'        => $attachment->id,
+                    'file_name' => $attachment->file_name,
+                    'mime_type' => $attachment->mime_type,
+                    'size'      => $attachment->size,
+                    'url'       => route('comment-attachments.destroy', ['task' => $task->id, 'comment' => $comment->id]),
+                ] : null,
+            ]);
+        }
 
         return back()->with('success', 'Comment added.');
     }

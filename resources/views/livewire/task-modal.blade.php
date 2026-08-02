@@ -1,6 +1,8 @@
 {{-- Task Detail / New Task Modal — Livewire component --}}
 {{-- Root div required by Livewire; modal visibility controlled by @if($open) --}}
 <div x-data="{
+         panelOpen: false,
+         closing: false,
          guideOpen: false,
          guideMode: 'preview',
          guideAiLoading: false,
@@ -61,11 +63,22 @@
                  }
              } catch(e) {}
              this.commentUploading = false;
+         },
+         requestClose() {
+             if (!this.panelOpen || this.closing) return;
+             this.closing = true;
+             this.panelOpen = false;
+         },
+         finalizeClose(event) {
+             if (!this.closing || event.target !== event.currentTarget) return;
+             this.closing = false;
+             $wire.close();
          }
-     }"
-     x-on:open-task.window="$wire.openTask($event.detail.id)"
-     x-on:new-task.window="$wire.newTask()"
-     x-on:guide-saved.window="guideMode = 'preview'">
+    }"
+    x-init="$nextTick(() => { panelOpen = true })"
+    x-on:open-task.window="closing = false; panelOpen = true; $wire.openTask($event.detail.id)"
+    x-on:new-task.window="closing = false; panelOpen = true; $wire.newTask()"
+    x-on:guide-saved.window="guideMode = 'preview'">
 @php
     $priorityMap = [
         'critical' => ['label' => '↑↑ Critical', 'text' => '#b94040', 'bg' => '#fdf0f0'],
@@ -82,59 +95,130 @@
 @endphp
 
 @if($open)
+<style>
+    .task-modal-shell {
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+    }
+
+    .task-modal-left {
+        width: 100%;
+        flex: none;
+        min-width: 0;
+        min-height: 0;
+    }
+
+    .task-modal-right {
+        width: 100%;
+        flex-shrink: 0;
+    }
+
+    @media (min-width: 900px) {
+        .task-modal-shell {
+            flex-direction: row;
+            overflow-y: hidden;
+        }
+
+        .task-modal-left {
+            width: 0;
+            flex: 1 1 0%;
+            overflow-y: auto;
+        }
+
+        .task-modal-right {
+            width: 320px;
+            border-top-width: 0;
+            border-left-width: 1px;
+            position: sticky;
+            top: 0;
+            align-self: flex-start;
+            max-height: 100vh;
+            overflow-y: auto;
+        }
+    }
+</style>
+
 {{-- Overlay --}}
-<div class="fixed inset-0 z-modal flex items-center justify-center p-4"
-     style="background: rgba(0,0,0,0.45)"
-     wire:click.self="close"
-     x-on:keydown.escape.window="$wire.close()">
+<div class="fixed inset-0 flex items-stretch justify-end overflow-hidden"
+     style="z-index:9999;background: rgba(0,0,0,0.45)"
+    x-cloak
+    x-show="panelOpen"
+    x-transition:enter="transition-opacity duration-200 ease-out"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition-opacity duration-180 ease-in"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    x-on:mousedown.self.prevent="requestClose()"
+    x-on:click.self.prevent
+    x-on:transitionend="finalizeClose($event)"
+    x-on:keydown.escape.window="requestClose()">
 
     {{-- Modal shell: Surface outer + white left panel --}}
-    <div class="relative flex w-full max-w-[820px] max-h-[90vh] rounded-2xl overflow-hidden"
-         style="background:#F5F4EF; box-shadow: 0 20px 60px rgba(0,0,0,0.18)"
-         wire:click.stop>
+        <div class="task-modal-shell h-full w-full max-w-[960px] bg-surface shadow-modal"
+            style="background:#F5F4EF; box-shadow: 0 20px 60px rgba(0,0,0,0.18)"
+           x-show="panelOpen"
+           x-transition:enter="transform transition duration-250 ease-out"
+           x-transition:enter-start="translate-x-full"
+           x-transition:enter-end="translate-x-0"
+           x-transition:leave="transform transition duration-200 ease-in"
+           x-transition:leave-start="translate-x-0"
+           x-transition:leave-end="translate-x-full"
+            wire:click.stop>
 
         {{-- ── LEFT: Content panel ───────────────────────────────────────── --}}
-        <div class="flex flex-col flex-1 min-w-0 bg-white overflow-y-auto">
+        <div class="task-modal-left flex flex-col bg-white pb-28 sm:pb-0">
 
             {{-- Title area --}}
-            <div class="px-7 pt-6 pb-4 border-b border-hairline">
-                @if(($editingTitle || $isNew) && $canEdit['meta'])
-                    <input wire:model="title"
-                           wire:blur="saveField('title')"
-                           wire:keydown.enter="saveField('title')"
-                           autofocus
-                           placeholder="Task title…"
-                           class="w-full text-[19px] font-semibold text-ink bg-transparent outline-none placeholder:text-muted placeholder:font-normal border-b-2 border-accent pb-1 leading-snug">
-                @else
-                    <h2 class="text-[19px] font-semibold text-ink leading-snug {{ $canEdit['meta'] ? 'cursor-text hover:text-accent transition-colors' : '' }}"
-                        @if($canEdit['meta']) wire:click="$set('editingTitle', true)" @endif>{{ $title }}</h2>
-                @endif
+            <div class="sticky top-0 z-20 bg-white px-4 sm:px-7 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-hairline">
+                <div class="flex items-start gap-3">
+                    <div class="flex-1 min-w-0">
+                        @if(($editingTitle || $isNew) && $canEdit['meta'])
+                            <input wire:model="title"
+                                   x-on:blur="if (!closing) $wire.saveField('title')"
+                                   wire:keydown.enter="saveField('title')"
+                                   autofocus
+                                   placeholder="Task title…"
+                                   class="w-full text-[19px] font-semibold text-ink bg-transparent outline-none placeholder:text-muted placeholder:font-normal border-b-2 border-accent pb-1 leading-snug min-h-11">
+                        @else
+                            <h2 class="text-[19px] font-semibold text-ink leading-snug {{ $canEdit['meta'] ? 'cursor-text hover:text-accent transition-colors' : '' }}"
+                                @if($canEdit['meta']) wire:click="$set('editingTitle', true)" @endif>{{ $title }}</h2>
+                        @endif
 
-                {{-- Breadcrumb: project → task --}}
-                @if($task?->project)
-                <p class="text-[12px] text-muted mt-1.5 flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full inline-block shrink-0" style="background:{{ $task->project->color ?? '#D97757' }}"></span>
-                    {{ $task->project->name }}
-                    <span class="text-hairline">›</span>
-                    <span class="text-dim">#{{ $task->id }}</span>
-                </p>
-                @endif
+                        {{-- Breadcrumb: project → task --}}
+                        @if($task?->project)
+                        <p class="text-[12px] text-muted mt-1.5 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full inline-block shrink-0" style="background:{{ $task->project->color ?? '#D97757' }}"></span>
+                            {{ $task->project->name }}
+                            <span class="text-hairline">›</span>
+                            <span class="text-dim">#{{ $task->id }}</span>
+                        </p>
+                        @endif
+                    </div>
+                        <button x-on:click="requestClose()"
+                            class="w-8 h-8 rounded-full flex items-center justify-center text-muted hover:text-ink transition-colors cursor-pointer"
+                            style="background: rgba(0,0,0,0.07)"
+                            title="Close">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
             </div>
 
             {{-- Description --}}
-            <div class="px-7 py-5 border-b border-hairline">
+            <div class="px-4 sm:px-7 py-5 border-b border-hairline">
                 <p class="text-[11px] font-bold uppercase tracking-wider text-muted mb-2">Description</p>
                 @if($editingDescription && $canEdit['meta'])
                     <textarea wire:model="description"
-                              wire:blur="saveField('description')"
+                              x-on:blur="if (!closing) $wire.saveField('description')"
                               rows="4"
                               placeholder="Add a description…"
-                              class="w-full text-[13px] text-dim leading-relaxed bg-surface border border-line rounded-lg px-3 py-2.5 outline-none focus:border-accent focus:bg-white transition-colors resize-none placeholder:text-muted placeholder:italic"></textarea>
+                              class="w-full min-h-11 text-base sm:text-[13px] text-dim leading-relaxed bg-surface border border-line rounded-lg px-3 py-2.5 outline-none focus:border-accent focus:bg-white transition-colors resize-none placeholder:text-muted placeholder:italic"></textarea>
                 @else
                     <div class="min-h-[44px] {{ $canEdit['meta'] ? 'cursor-text group' : '' }}"
                          @if($canEdit['meta']) wire:click="$set('editingDescription', true)" @endif>
                         @if($description)
-                            <p class="text-[13px] text-dim leading-relaxed {{ $canEdit['meta'] ? 'group-hover:bg-surface rounded-lg px-2 py-1.5 -mx-2 transition-colors' : '' }}">{{ $description }}</p>
+                            <div class="prose prose-sm max-w-none text-[13px] text-dim leading-relaxed {{ $canEdit['meta'] ? 'group-hover:bg-surface rounded-lg px-2 py-1.5 -mx-2 transition-colors' : '' }}">{!! Str::markdown($task->description ?? '', ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
                         @else
                             <p class="text-[13px] text-muted italic {{ $canEdit['meta'] ? 'group-hover:bg-surface rounded-lg px-2 py-1.5 -mx-2 transition-colors' : '' }}">{{ $canEdit['meta'] ? 'Click to add a description…' : 'No description.' }}</p>
                         @endif
@@ -143,11 +227,11 @@
             </div>
 
             {{-- Implementation Guide trigger --}}
-            @if(! $isNew)
-            <div class="px-7 py-3 border-b border-hairline flex items-center gap-2">
+            @if(! $isNew && ($task?->guide || $canEdit['meta']))
+            <div class="px-4 sm:px-7 py-3 border-b border-hairline flex items-center gap-2">
                 @if($task?->guide)
                 <button @click="guideOpen = true; guideMode = 'preview'"
-                        class="inline-flex items-center gap-1.5 text-[12px] font-medium text-info-text hover:text-accent transition-colors cursor-pointer">
+                        class="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent hover:text-accent/80 transition-colors cursor-pointer">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.966 8.966 0 0 0-6 2.292m0-14.25v14.25"/>
                     </svg>
@@ -167,7 +251,7 @@
 
             {{-- ── Checklist ────────────────────────────────────────────────────── --}}
             @if($task && (! $isNew))
-            <div class="px-7 py-5 border-b border-hairline">
+            <div class="px-4 sm:px-7 py-5 border-b border-hairline">
                 @php
                     $total   = $task->checklists->count();
                     $checked = $task->checklists->where('is_checked', true)->count();
@@ -192,7 +276,7 @@
 
                 {{-- Items --}}
                 @if($total > 0)
-                <ul class="space-y-0.5 mb-3">
+                <ul class="space-y-0.5 mb-3 max-h-[32vh] overflow-y-auto pr-1 sm:max-h-none sm:overflow-visible">
                     @foreach($task->checklists as $checkItem)
                     <li class="group flex items-center gap-2.5 py-1 rounded-lg hover:bg-canvas px-1.5 -mx-1.5 transition-colors duration-100"
                         wire:key="cl-{{ $checkItem->id }}">
@@ -243,7 +327,7 @@
                            @keydown.enter="if(label.trim()) { $wire.addChecklistItem(label.trim()); label = '' }"
                            type="text"
                            placeholder="Add an item…"
-                           class="flex-1 text-[13px] text-ink bg-surface border border-line rounded-lg px-3 py-1.5 outline-none focus:border-accent focus:bg-white transition-colors placeholder:text-muted placeholder:italic">
+                              class="w-full min-h-11 flex-1 text-base sm:text-[13px] text-ink bg-surface border border-line rounded-lg px-3 py-1.5 outline-none focus:border-accent focus:bg-white transition-colors placeholder:text-muted placeholder:italic">
                     <button @click="if(label.trim()) { $wire.addChecklistItem(label.trim()); label = '' }"
                             class="px-3 py-1.5 text-[12px] font-medium text-dim bg-surface border border-line rounded-lg hover:bg-hairline hover:text-ink transition-colors cursor-pointer">
                         Add
@@ -259,7 +343,7 @@
                 $allMedia   = $task->getMedia('attachments')->merge($task->getMedia('images'));
                 $mediaCount = $allMedia->count();
             @endphp
-            <div class="px-7 py-5 border-b border-hairline">
+            <div class="px-4 sm:px-7 py-5 border-b border-hairline">
                 {{-- Header --}}
                 <div class="flex items-center justify-between mb-3">
                     <div class="flex items-center gap-2">
@@ -351,52 +435,115 @@
             @endif
 
             {{-- Comments --}}
-            <div class="px-7 py-5 flex-1">
+            <div class="px-4 sm:px-7 py-5 flex-1 min-h-0">
                 <p class="text-[11px] font-bold uppercase tracking-wider text-muted mb-4">Comments</p>
 
                 @if($task)
-                <div class="space-y-4 mb-5">
+                <div class="space-y-4 mb-5 max-h-[34vh] overflow-y-auto pr-1 sm:max-h-none sm:overflow-visible">
                     @forelse($task->comments as $comment)
-                    <div class="flex gap-3" wire:key="comment-{{ $comment->id }}">
-                        {{-- Avatar --}}
-                        <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
-                             style="background: {{ $comment->author->color ?? '#D97757' }}">
-                            {{ $comment->author->initials ?? strtoupper(substr($comment->author->name, 0, 2)) }}
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-baseline gap-2 mb-1">
-                                <span class="text-[13px] font-semibold text-ink">{{ $comment->author->name }}</span>
-                                <span class="text-[11px] text-muted">{{ $comment->created_at->diffForHumans() }}</span>
-                                @if($canEdit['deleteComment'])
-                                <button wire:click="deleteComment({{ $comment->id }})"
-                                        wire:confirm="Delete this comment?"
-                                        class="text-[11px] text-muted hover:text-[#b94040] ml-auto transition-colors cursor-pointer">Delete</button>
-                                @endif
-                            </div>
-                            <p class="text-[13px] text-dim leading-relaxed">{{ $comment->body }}</p>
-                            {{-- Comment attachment --}}
-                            @php $comAtt = $comment->getFirstMedia('attachment'); @endphp
-                            @if($comAtt)
-                            @php
-                                $comIsImg = str_starts_with($comAtt->mime_type, 'image/');
-                                $comDlUrl = route('comment-attachments.download', ['task' => $task->id, 'comment' => $comment->id]);
-                                $comSize  = $comAtt->size >= 1048576 ? round($comAtt->size/1048576, 1).'MB' : round($comAtt->size/1024, 1).'KB';
-                            @endphp
-                            <div class="mt-1.5 flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-surface border border-hairline inline-flex max-w-xs">
-                                @if($comIsImg)
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
-                                </svg>
-                                @else
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"/>
-                                </svg>
-                                @endif
-                                <a href="{{ $comDlUrl }}" download="{{ $comAtt->file_name }}"
-                                   class="text-[11px] font-medium text-accent hover:underline truncate max-w-[160px]">{{ $comAtt->file_name }}</a>
-                                <span class="text-[11px] text-muted shrink-0">{{ $comSize }}</span>
-                            </div>
+                    @php
+                        $commentPreview = (string) Str::of($comment->body)->before("\n")->squish()->limit(80);
+                    @endphp
+                    <div class="group rounded-xl border border-hairline"
+                         style="background: {{ $comment->agent_id ? 'rgba(124,58,237,0.03)' : '#ffffff' }}"
+                         wire:key="comment-{{ $comment->id }}"
+                         x-data="{ open: {{ $loop->first ? 'true' : 'false' }} }">
+                        <div class="flex gap-3 px-3 py-2.5 cursor-pointer"
+                             @click="open = !open"
+                             @keydown.enter.prevent="open = !open"
+                             @keydown.space.prevent="open = !open"
+                             role="button"
+                             tabindex="0"
+                             :aria-expanded="open.toString()">
+                            {{-- Avatar --}}
+                            @if($comment->agent_id)
+                                {{-- Agent comment --}}
+                                <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5 bg-[#7c3aed]">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+                                    </svg>
+                                </div>
+                            @else
+                                {{-- User comment --}}
+                                <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
+                                     style="background: {{ $comment->author->color ?? '#D97757' }}">
+                                    {{ $comment->author->initials ?? strtoupper(substr($comment->author->name, 0, 2)) }}
+                                </div>
                             @endif
+
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-start gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            <span class="text-[13px] font-semibold text-ink truncate">
+                                                @if($comment->agent_id)
+                                                    {{ $comment->agent->name ?? 'Agent' }}
+                                                @else
+                                                    {{ $comment->author->name }}
+                                                @endif
+                                            </span>
+                                            @if($comment->agent_id)
+                                                <span class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#ede9fe] text-[#7c3aed] shrink-0">Agent</span>
+                                            @endif
+                                            <span class="text-[11px] text-muted shrink-0">{{ $comment->created_at->diffForHumans() }}</span>
+                                        </div>
+                                        <p x-show="!open" x-cloak class="text-[12px] text-muted mt-0.5 truncate">{{ $commentPreview }}</p>
+                                    </div>
+
+                                    @if($canEdit['deleteComment'])
+                                    <button @click.stop
+                                            wire:click="deleteComment({{ $comment->id }})"
+                                            wire:confirm="Delete this comment?"
+                                            class="text-[11px] text-muted hover:text-[#b94040] transition-colors cursor-pointer"
+                                            :class="open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'">Delete</button>
+                                    @endif
+
+                                    <svg xmlns="http://www.w3.org/2000/svg"
+                                         class="w-4 h-4 text-muted shrink-0 mt-0.5 transition-transform duration-200"
+                                         :class="open ? 'rotate-180' : ''"
+                                         fill="none"
+                                         viewBox="0 0 24 24"
+                                         stroke-width="2"
+                                         stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+                                    </svg>
+                                </div>
+
+                                <div x-show="open"
+                                     x-cloak
+                                     x-transition:enter="transition ease-out duration-200"
+                                     x-transition:enter-start="opacity-0 -translate-y-1"
+                                     x-transition:enter-end="opacity-100 translate-y-0"
+                                     x-transition:leave="transition ease-in duration-150"
+                                     x-transition:leave-start="opacity-100 translate-y-0"
+                                     x-transition:leave-end="opacity-0 -translate-y-1"
+                                     class="mt-2">
+                                    <div class="prose prose-sm max-w-none text-dim leading-relaxed">{!! Str::markdown($comment->body, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
+                                    {{-- Comment attachment --}}
+                                    @php $comAtt = $comment->getFirstMedia('attachment'); @endphp
+                                    @if($comAtt)
+                                    @php
+                                        $comIsImg = str_starts_with($comAtt->mime_type, 'image/');
+                                        $comDlUrl = route('comment-attachments.download', ['task' => $task->id, 'comment' => $comment->id]);
+                                        $comSize  = $comAtt->size >= 1048576 ? round($comAtt->size/1048576, 1).'MB' : round($comAtt->size/1024, 1).'KB';
+                                    @endphp
+                                    <div class="mt-1.5 inline-flex items-center gap-2 py-1.5 px-2.5 rounded-lg bg-surface border border-hairline max-w-xs">
+                                        @if($comIsImg)
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
+                                        </svg>
+                                        @else
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"/>
+                                        </svg>
+                                        @endif
+                                        <a href="{{ $comDlUrl }}" download="{{ $comAtt->file_name }}"
+                                           class="text-[11px] font-medium text-accent hover:underline truncate max-w-[160px]">{{ $comAtt->file_name }}</a>
+                                        <span class="text-[11px] text-muted shrink-0">{{ $comSize }}</span>
+                                    </div>
+                                    @endif
+                                </div>
+                            </div>
                         </div>
                     </div>
                     @empty
@@ -418,7 +565,7 @@
                                       wire:keydown.meta.enter="addComment"
                                       rows="1"
                                       placeholder="Write a comment… (⌘↵ to send)"
-                                      class="flex-1 text-[13px] text-ink bg-surface border border-line rounded-lg px-3 py-2 outline-none focus:border-accent focus:bg-white transition-colors resize-none placeholder:text-muted placeholder:italic"></textarea>
+                                      class="w-full min-h-11 flex-1 text-base sm:text-[13px] text-ink bg-surface border border-line rounded-lg px-3 py-2.5 sm:py-2 outline-none focus:border-accent focus:bg-white transition-colors resize-none placeholder:text-muted placeholder:italic"></textarea>
                             {{-- Paperclip --}}
                             <label class="w-8 h-8 flex items-center justify-center rounded-full text-muted hover:text-ink transition-colors cursor-pointer shrink-0 mt-0.5"
                                    style="background: rgba(0,0,0,0.07)" title="Attach file">
@@ -453,19 +600,9 @@
         </div>
 
         {{-- ── RIGHT: Meta sidebar ───────────────────────────────────────── --}}
-        <div class="w-[240px] shrink-0 flex flex-col border-l border-hairline overflow-y-auto">
+        <div class="task-modal-right flex flex-col border-t border-hairline bg-surface pb-28 sm:pb-0">
 
-            {{-- Close button --}}
-            <div class="flex justify-end px-4 pt-4 pb-2">
-                <button wire:click="close"
-                        class="w-7 h-7 rounded-full flex items-center justify-center text-muted hover:text-ink transition-colors cursor-pointer"
-                        style="background: rgba(0,0,0,0.07)"
-                        title="Close">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-            </div>
-
-            <div class="px-5 pb-6 space-y-0 divide-y divide-hairline">
+            <div class="px-4 sm:px-5 pt-4 sm:pt-0 pb-6 space-y-0 divide-y divide-hairline">
 
                 {{-- Status --}}
                 <div class="py-3.5">
@@ -473,7 +610,7 @@
                     @if($canEdit['status'])
                     <select wire:model.live="status"
                             wire:change="saveField('status')"
-                            class="w-full text-[12px] font-semibold rounded-md px-2 py-1.5 border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors"
+                            class="w-full min-h-11 text-base sm:text-[12px] font-semibold rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors"
                             style="background: {{ $statusMap[$status]['bg'] ?? '#F5F4EF' }}; color: {{ $statusMap[$status]['text'] ?? '#8c8c8a' }}">
                         @foreach($columns as $col)
                         <option value="{{ $col->slug }}" @selected($status === $col->slug)>{{ $col->name }}</option>
@@ -493,7 +630,7 @@
                     @if($canEdit['priority'])
                     <select wire:model.live="priority"
                             wire:change="saveField('priority')"
-                            class="w-full text-[12px] font-semibold rounded-md px-2 py-1.5 border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors"
+                            class="w-full min-h-11 text-base sm:text-[12px] font-semibold rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors"
                             style="background: {{ $priorityMap[$priority]['bg'] ?? '#F5F4EF' }}; color: {{ $priorityMap[$priority]['text'] ?? '#8c8c8a' }}">
                         <option value="critical" @selected($priority==='critical')>↑↑ Critical</option>
                         <option value="high"     @selected($priority==='high')>↑ High</option>
@@ -514,7 +651,7 @@
                     @if($canEdit['project'])
                     <select wire:model.live="projectId"
                             wire:change="saveField('projectId')"
-                            class="w-full text-[12px] font-medium text-ink rounded-md px-2 py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
+                            class="w-full min-h-11 text-base sm:text-[12px] font-medium text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
                         <option value="">No project</option>
                         @foreach($projects as $p)
                         <option value="{{ $p->id }}" @selected($projectId == $p->id)>{{ $p->name }}</option>
@@ -533,7 +670,7 @@
                     @if($canEdit['assignee'])
                     <select wire:model.live="assignedTo"
                             wire:change="saveField('assignedTo')"
-                            class="w-full text-[12px] font-medium text-ink rounded-md px-2 py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
+                            class="w-full min-h-11 text-base sm:text-[12px] font-medium text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
                         <option value="">Unassigned</option>
                         @foreach($users as $u)
                         <option value="{{ $u->id }}" @selected($assignedTo == $u->id)>{{ $u->name }}</option>
@@ -553,6 +690,38 @@
                     @endif
                 </div>
 
+                {{-- Agent --}}
+                <div class="py-3.5">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">Agent</p>
+                    @if($canEdit['assignee'])
+                    <select wire:model.live="agentId"
+                            wire:change="saveField('agentId')"
+                            class="w-full min-h-11 text-base sm:text-[12px] font-medium text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
+                        <option value="">No agent</option>
+                        @foreach($agents as $agent)
+                        <option value="{{ $agent->id }}" @selected($agentId == $agent->id)>{{ $agent->name }} — {{ $agent->runtime?->name ?? 'No runtime' }}</option>
+                        @endforeach
+                    </select>
+                    @endif
+                    @if($task?->agent)
+                    <div class="mt-2 flex items-center gap-2">
+                        <x-agent-avatar :agent="$task->agent" size="6" />
+                        <div class="min-w-0">
+                            <p class="text-[12px] text-dim truncate">{{ $task->agent->name }}</p>
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <x-provider-icon :provider="$task->agent->runtime?->provider ?? 'default'" size="4" />
+                                <span class="text-[11px] text-muted uppercase tracking-wide">{{ strtoupper($task->agent->runtime?->provider ?? 'n/a') }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    @else
+                    <p class="text-[12px] text-muted">No agent assigned</p>
+                    @endif
+                    @if($agents->isEmpty())
+                    <p class="text-[11px] text-muted mt-1">No agents configured. Create one to enable AI execution.</p>
+                    @endif
+                </div>
+
                 {{-- Due date --}}
                 <div class="py-3.5">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">Due Date</p>
@@ -560,7 +729,7 @@
                     <input type="date"
                            wire:model.lazy="dueDate"
                            wire:change="saveField('dueDate')"
-                           class="w-full text-[12px] text-ink rounded-md px-2 py-1.5 bg-surface border border-line outline-none focus:border-accent transition-colors cursor-pointer">
+                              class="w-full min-h-11 text-base sm:text-[12px] text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line outline-none focus:border-accent transition-colors cursor-pointer">
                     @else
                     <p class="text-[12px] text-ink">{{ $dueDate ? \Carbon\Carbon::parse($dueDate)->format('M j, Y') : '—' }}</p>
                     @endif
@@ -578,7 +747,7 @@
                            wire:change="saveField('estimatedHours')"
                            min="0" max="999" step="0.5"
                            placeholder="—"
-                           class="w-full text-[12px] text-ink rounded-md px-2 py-1.5 bg-surface border border-line outline-none focus:border-accent transition-colors placeholder:text-muted">
+                              class="w-full min-h-11 text-base sm:text-[12px] text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line outline-none focus:border-accent transition-colors placeholder:text-muted">
                     @else
                     <p class="text-[12px] text-ink">{{ $estimatedHours ? $estimatedHours . 'h' : '—' }}</p>
                     @endif
@@ -592,20 +761,34 @@
                     <p class="text-[11px] text-muted">{{ $task->created_at->diffForHumans() }}</p>
                 </div>
                 @endif
+
+                {{-- Delete task --}}
+                @if($task && $canEdit['deleteTask'])
+                <div class="py-3.5">
+                    <button wire:click="deleteTask"
+                            wire:confirm="Delete this task? This cannot be undone."
+                            class="w-full text-center px-3 py-2 text-[12px] font-medium rounded-lg border transition-colors cursor-pointer"
+                            style="background:transparent;border-color:#ffd0d0;color:#b94040"
+                            onmouseover="this.style.background='#fff0f0'"
+                            onmouseout="this.style.background='transparent'">
+                        Delete task
+                    </button>
+                </div>
+                @endif
             </div>
 
             {{-- Save button for new tasks --}}
             @if($isNew)
-            <div class="px-5 pb-5">
+            <div class="fixed inset-x-0 bottom-0 z-30 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] bg-white border-t border-hairline sm:static sm:px-5 sm:pt-0 sm:pb-5 sm:bg-transparent sm:border-0">
                 <button wire:click="saveNew"
-                        class="w-full py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition-colors cursor-pointer">
+                        class="w-full min-h-11 py-2 bg-accent hover:bg-accent-hover text-white text-base sm:text-[13px] font-medium rounded-lg transition-colors cursor-pointer">
                     Create Task
                 </button>
             </div>
             @elseif($canClaim)
-            <div class="px-5 pb-5 pt-4 border-t border-hairline">
+            <div class="fixed inset-x-0 bottom-0 z-30 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] bg-white border-t border-hairline sm:static sm:px-5 sm:pt-4 sm:pb-5 sm:bg-transparent">
                 <button wire:click="claimTask"
-                        class="w-full py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5">
+                        class="w-full min-h-11 py-2 bg-accent hover:bg-accent-hover text-white text-base sm:text-[13px] font-medium rounded-lg transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59"/>
                     </svg>
@@ -618,10 +801,9 @@
     </div>
 </div>
 
-{{-- ── Guide Drawer (teleported outside modal overflow) ──────────────── --}}
+{{-- ── Guide Drawer ─────────────────────────────────────────────────── --}}
 @if($task && ! $isNew)
-<template x-teleport="body">
-    {{-- Backdrop (only dims the area behind the drawer, above the modal) --}}
+    {{-- Backdrop --}}
     <div x-show="guideOpen"
          x-cloak
          x-transition:enter="transition-opacity duration-200"
@@ -631,19 +813,18 @@
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
          @click="guideOpen = false"
-         class="fixed inset-0 z-drawer bg-black/20"></div>
+         class="fixed inset-0 bg-black/20" style="z-index:10000"></div>
 
     {{-- Drawer panel --}}
     <div x-show="guideOpen"
          x-cloak
-         x-transition:enter="transition-transform duration-250 ease-out"
+         x-transition:enter="transition-transform duration-200 ease-out"
          x-transition:enter-start="translate-x-full"
          x-transition:enter-end="translate-x-0"
          x-transition:leave="transition-transform duration-200 ease-in"
          x-transition:leave-start="translate-x-0"
          x-transition:leave-end="translate-x-full"
-         class="fixed inset-y-0 right-0 z-drawer-panel flex flex-col bg-white border-l border-line shadow-[0_0_60px_rgba(0,0,0,0.18)]"
-         style="width: 480px">
+         class="fixed inset-y-0 right-0 flex flex-col bg-white border-l border-line shadow-[0_0_60px_rgba(0,0,0,0.18)]" style="z-index:10001;width:480px">
 
         {{-- Drawer header --}}
         <div class="flex items-center justify-between px-5 py-4 border-b border-hairline shrink-0">
@@ -737,7 +918,6 @@
         @endif
 
     </div>
-</template>
 @endif
 
 @endif
@@ -763,4 +943,53 @@
         <img :src="lightboxSrc" class="max-w-full max-h-full rounded-xl object-contain" style="box-shadow: 0 20px 60px rgba(0,0,0,0.5)">
     </div>
 </template>
+
+@if($open && $taskId)
+<script>
+    (() => {
+        const taskId = {{ $taskId }};
+        const channelName = `tasks.${taskId}`;
+        const events = ['.agent.started', '.agent.completed', '.agent.failed', '.agent.comment'];
+
+        const refreshTask = () => {
+            try {
+                const livewireRoot = document.currentScript?.closest('[wire\\:id]');
+                const componentId = livewireRoot?.getAttribute('wire:id');
+                if (!componentId || !window.Livewire?.find) return;
+                window.Livewire.find(componentId)?.call('openTask', taskId);
+            } catch (_) {}
+        };
+
+        const cleanupKey = '__taskModalEchoCleanup';
+        if (typeof window[cleanupKey] === 'function') {
+            window[cleanupKey]();
+        }
+
+        if (!window.Echo?.private) {
+            window[cleanupKey] = () => {};
+            return;
+        }
+
+        const channel = window.Echo.private(channelName);
+        events.forEach((eventName) => channel.listen(eventName, refreshTask));
+
+        const teardown = () => {
+            window.Echo?.leave(channelName);
+            window.removeEventListener('task-modal-closed', onModalClosed);
+            window.removeEventListener('beforeunload', teardown);
+            if (window[cleanupKey] === teardown) {
+                window[cleanupKey] = null;
+            }
+        };
+
+        const onModalClosed = () => {
+            teardown();
+        };
+
+        window.addEventListener('task-modal-closed', onModalClosed);
+        window.addEventListener('beforeunload', teardown);
+        window[cleanupKey] = teardown;
+    })();
+</script>
+@endif
 </div>{{-- /Livewire root --}}

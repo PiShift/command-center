@@ -11,7 +11,7 @@ class TaskComment extends Model implements HasMedia
 {
     use InteractsWithMedia;
 
-    protected $fillable = ['task_id', 'user_id', 'body'];
+    protected $fillable = ['task_id', 'user_id', 'agent_id', 'body'];
 
     public function task(): BelongsTo
     {
@@ -21,6 +21,11 @@ class TaskComment extends Model implements HasMedia
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function agent(): BelongsTo
+    {
+        return $this->belongsTo(Agent::class, 'agent_id');
     }
 
     public function registerMediaCollections(): void

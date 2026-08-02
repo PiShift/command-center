@@ -1,5 +1,6 @@
 <x-layouts.app>
     @php $pageTitle = 'My Profile'; @endphp
+    @php $personalAccessTokenRaw = session('personal_access_token_raw'); @endphp
 
     <div style="max-width:1100px;margin:0 auto;padding:32px 24px">
 
@@ -241,6 +242,122 @@
                     @empty
                         <p style="margin:0;font-size:13px;color:#8c8c8a">No trusted devices.</p>
                     @endforelse
+                </div>
+
+                {{-- Personal Access Tokens Card --}}
+                <div style="background:#fff;border:1px solid #e5e4df;border-radius:14px;padding:28px">
+                    <h2 style="margin:0 0 8px;font-size:16px;font-weight:700;color:#141413">Personal Access Tokens</h2>
+                    <p style="margin:0 0 18px;font-size:13px;color:#5c5c5a">Use these tokens to authenticate daemon runtimes and CLI calls against the API.</p>
+
+                    @if($personalAccessTokenRaw)
+                        <div style="margin-bottom:18px;padding:14px;border:1px solid #d6f0e4;border-radius:10px;background:#edf7f2">
+                            <p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#166534">Copy this token now — it will not be shown again.</p>
+                            <div x-data="{ copied: false }" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                                <code style="display:block;padding:10px 12px;border-radius:8px;background:#fff;border:1px solid #cde9d8;font-size:12px;color:#141413;word-break:break-all;flex:1">{{ $personalAccessTokenRaw }}</code>
+                                <button type="button"
+                                    @click="
+                                        const value = '{{ $personalAccessTokenRaw }}';
+                                        const done = () => { copied = true; setTimeout(() => copied = false, 2000); };
+                                        if (navigator?.clipboard?.writeText) {
+                                            navigator.clipboard.writeText(value).then(done).catch(() => {
+                                                const textarea = document.createElement('textarea');
+                                                textarea.value = value;
+                                                textarea.style.position = 'fixed';
+                                                textarea.style.opacity = '0';
+                                                document.body.appendChild(textarea);
+                                                textarea.focus();
+                                                textarea.select();
+                                                document.execCommand('copy');
+                                                document.body.removeChild(textarea);
+                                                done();
+                                            });
+                                        } else {
+                                            const textarea = document.createElement('textarea');
+                                            textarea.value = value;
+                                            textarea.style.position = 'fixed';
+                                            textarea.style.opacity = '0';
+                                            document.body.appendChild(textarea);
+                                            textarea.focus();
+                                            textarea.select();
+                                            document.execCommand('copy');
+                                            document.body.removeChild(textarea);
+                                            done();
+                                        }
+                                    "
+                                    style="padding:8px 14px;background:#166534;color:#fff;font-size:12px;font-weight:600;border:none;border-radius:8px;cursor:pointer">
+                                    <span x-text="copied ? 'Copied' : 'Copy'"></span>
+                                </button>
+                            </div>
+                        </div>
+                    @endif
+
+                    <form method="POST" action="{{ route('daemon-tokens.store') }}" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px">
+                        @csrf
+                        <div style="flex:1;min-width:220px">
+                            <label style="display:block;font-size:12px;font-weight:600;color:#5c5c5a;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Token name</label>
+                            <input type="text" name="name" placeholder="MacBook Pro"
+                                style="width:100%;padding:9px 12px;border:1px solid #e5e4df;border-radius:8px;background:#F5F4EF;font-size:14px;color:#141413;outline:none;box-sizing:border-box">
+                        </div>
+                        <button type="submit" style="padding:9px 20px;background:#D97757;color:#fff;font-size:14px;font-weight:600;border:none;border-radius:8px;cursor:pointer">
+                            Generate Token
+                        </button>
+                    </form>
+
+                    <div style="border:1px solid #eeeee9;border-radius:10px;overflow:hidden">
+                        <div style="display:grid;grid-template-columns:1.2fr 0.8fr 0.8fr auto;gap:10px;padding:10px 14px;background:#faf9f5;font-size:11px;font-weight:700;color:#8c8c8a;text-transform:uppercase;letter-spacing:.05em">
+                            <div>Name</div>
+                            <div>Created</div>
+                            <div>Last Used</div>
+                            <div>Actions</div>
+                        </div>
+                        @forelse($user->personalAccessTokens as $token)
+                            <div style="display:grid;grid-template-columns:1.2fr 0.8fr 0.8fr auto;gap:10px;padding:12px 14px;border-top:1px solid #eeeee9;align-items:center;font-size:13px;color:#141413">
+                                <div>{{ $token->name }}<br><span style="font-size:11px;color:#8c8c8a">{{ $token->token_prefix }}...</span></div>
+                                <div style="color:#5c5c5a">{{ $token->created_at->format('M j, Y') }}</div>
+                                <div style="color:#5c5c5a">{{ $token->last_used_at ? $token->last_used_at->diffForHumans() : 'Never' }}</div>
+                                <div>
+                                    <form method="POST" action="{{ route('daemon-tokens.destroy', $token) }}" onsubmit="return confirm('Revoke this personal access token?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" style="font-size:12px;color:#dc2626;background:none;border:none;cursor:pointer;padding:0">Revoke</button>
+                                    </form>
+                                </div>
+                            </div>
+                        @empty
+                            <div style="padding:14px;font-size:13px;color:#8c8c8a">No personal access tokens yet.</div>
+                        @endforelse
+                    </div>
+                </div>
+
+                {{-- Agents Card --}}
+                <div style="background:#fff;border:1px solid #e5e4df;border-radius:14px;padding:28px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                        <h2 style="margin:0;font-size:16px;font-weight:700;color:#141413">My Agents</h2>
+                        <a href="{{ url('/api/agents') }}" style="font-size:12px;color:#D97757;text-decoration:none">Create via API</a>
+                    </div>
+                    <p style="margin:0 0 16px;font-size:13px;color:#5c5c5a">Informational list of agents you own. Full management UI will be added later.</p>
+
+                    <div style="border:1px solid #eeeee9;border-radius:10px;overflow:hidden">
+                        <div style="display:grid;grid-template-columns:1.2fr 1fr 0.7fr 0.7fr;gap:10px;padding:10px 14px;background:#faf9f5;font-size:11px;font-weight:700;color:#8c8c8a;text-transform:uppercase;letter-spacing:.05em">
+                            <div>Name</div>
+                            <div>Runtime</div>
+                            <div>Visibility</div>
+                            <div>Status</div>
+                        </div>
+                        @forelse($agents as $agent)
+                            <div style="display:grid;grid-template-columns:1.2fr 1fr 0.7fr 0.7fr;gap:10px;padding:12px 14px;border-top:1px solid #eeeee9;align-items:center;font-size:13px;color:#141413">
+                                <div>
+                                    <div>{{ $agent->name }}</div>
+                                    <div style="font-size:11px;color:#8c8c8a">{{ $agent->team?->name ?? 'No team' }}</div>
+                                </div>
+                                <div style="color:#5c5c5a">{{ $agent->runtime?->name ?? 'Unlinked' }}</div>
+                                <div style="color:#5c5c5a">{{ $agent->visibility }}</div>
+                                <div style="color:#5c5c5a">{{ $agent->status }}</div>
+                            </div>
+                        @empty
+                            <div style="padding:14px;font-size:13px;color:#8c8c8a">No agents yet.</div>
+                        @endforelse
+                    </div>
                 </div>
 
                 {{-- Login History Card --}}

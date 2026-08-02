@@ -9,7 +9,7 @@
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
 {{-- Page header                                                               --}}
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
-<div class="mb-6 flex items-start justify-between gap-4 flex-wrap">
+<div class="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
     <div>
         <h1 class="text-2xl font-semibold text-ink">Dashboard</h1>
         <p class="text-[13px] text-muted mt-0.5">
@@ -59,91 +59,147 @@
 @endphp
 
 {{-- Row 1: Financial --}}
-<div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
+<div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
 
     {{-- Revenue this month --}}
-    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)] flex flex-col">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Revenue this month</p>
-        <p class="text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($revenueThisMonth) }}</p>
+    <div class="bg-white border border-line rounded-xl p-3 sm:p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)] flex flex-col">
+        <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted mb-1">Revenue this month</p>
+        <p class="text-lg sm:text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($revenueThisMonth) }}</p>
         @if($revenueLastMonth > 0)
-        <span class="inline-flex items-center gap-1 text-[11px] font-semibold {{ $revenueGrowth >= 0 ? 'text-[#3d9970]' : 'text-[#b94040]' }}">
+        <span class="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold {{ $revenueGrowth >= 0 ? 'text-[#3d9970]' : 'text-[#b94040]' }}">
             @if($revenueGrowth >= 0)<svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 2l4 5H2z"/></svg>
             @else<svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 10L2 5h8z"/></svg>@endif
             {{ abs($revenueGrowth) }}% vs last month
         </span>
         @else
-        <span class="text-[11px] text-muted">First month</span>
+        <span class="text-[10px] sm:text-[11px] text-muted">First month</span>
         @endif
-        <div class="mt-auto -mx-2 pt-2">
+        <div class="mt-auto -mx-2 pt-2 hidden sm:block">
             <div id="card-sparkline-revenue" style="height:44px"></div>
         </div>
     </div>
 
     {{-- Outstanding --}}
-    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Outstanding</p>
-        <p class="text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($outstandingAmount) }}</p>
-        <p class="text-[11px] text-muted mb-1">{{ $outstandingInvoicesCount }} invoice{{ $outstandingInvoicesCount != 1 ? 's' : '' }} unpaid</p>
+    <div class="bg-white border border-line rounded-xl p-3 sm:p-5 shadow-card">
+        <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted mb-1">Outstanding</p>
+        <p class="text-lg sm:text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($outstandingAmount) }}</p>
+        <p class="text-[10px] sm:text-[11px] text-muted mb-1">{{ $outstandingInvoicesCount }} invoice{{ $outstandingInvoicesCount != 1 ? 's' : '' }} unpaid</p>
         @if($overdueInvoicesCount > 0)
-        <p class="text-[11px] font-semibold text-[#b94040]">{{ $fmt($overdueInvoicesAmount) }} overdue ({{ $overdueInvoicesCount }})</p>
+        <p class="text-[10px] sm:text-[11px] font-semibold text-[#b94040] truncate sm:whitespace-normal">
+            <span class="inline sm:hidden">{{ $overdueInvoicesCount }} overdue</span>
+            <span class="hidden sm:inline">{{ $fmt($overdueInvoicesAmount) }} overdue ({{ $overdueInvoicesCount }})</span>
+        </p>
         @endif
     </div>
 
     {{-- Expenses this month --}}
-    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)] flex flex-col">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Expenses this month</p>
-        <p class="text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($expensesThisMonth) }}</p>
+    <div class="bg-white border border-line rounded-xl p-3 sm:p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)] flex flex-col">
+        <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted mb-1">Expenses this month</p>
+        <p class="text-lg sm:text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($expensesThisMonth) }}</p>
         @if($expGrowthCard !== null)
-        <span class="inline-flex items-center gap-1 text-[11px] font-semibold {{ $expGrowthCard <= 0 ? 'text-[#3d9970]' : 'text-[#b94040]' }}">
+        <span class="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold {{ $expGrowthCard <= 0 ? 'text-[#3d9970]' : 'text-[#b94040]' }}">
             @if($expGrowthCard > 0)<svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 2l4 5H2z"/></svg>
             @else<svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 10L2 5h8z"/></svg>@endif
             {{ abs($expGrowthCard) }}% vs last month
         </span>
         @else
-        <span class="text-[11px] text-muted">First month</span>
+        <span class="text-[10px] sm:text-[11px] text-muted">First month</span>
         @endif
-        <div class="mt-auto -mx-2 pt-2">
+        <div class="mt-auto -mx-2 pt-2 hidden sm:block">
             <div id="card-sparkline-expenses" style="height:44px"></div>
         </div>
     </div>
 
     {{-- Net this month --}}
-    <div class="border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)] {{ $netThisMonth >= 0 ? 'bg-[#edf7f2]' : 'bg-[#fdf0f0]' }}">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Net this month</p>
-        <p class="text-3xl font-bold leading-none mb-1 {{ $netThisMonth >= 0 ? 'text-[#2e7d55]' : 'text-[#b94040]' }}">{{ $fmt($netThisMonth) }}</p>
-        <p class="text-[11px] text-muted">Revenue − Expenses</p>
+    <div class="border border-line rounded-xl p-3 sm:p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)] {{ $netThisMonth >= 0 ? 'bg-[#edf7f2]' : 'bg-[#fdf0f0]' }}">
+        <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted mb-1">Net this month</p>
+        <p class="text-lg sm:text-3xl font-bold leading-none mb-1 {{ $netThisMonth >= 0 ? 'text-[#2e7d55]' : 'text-[#b94040]' }}">{{ $fmt($netThisMonth) }}</p>
+        <p class="text-[10px] sm:text-[11px] text-muted">Revenue − Expenses</p>
+    </div>
+
+    {{-- Bank accounts summary --}}
+    <div class="bg-white border border-line rounded-xl p-3 sm:p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted mb-2">Bank Accounts</p>
+
+        @if($bankAccounts->isEmpty())
+            <p class="text-[11px] text-muted">No company accounts configured.</p>
+        @else
+            <div class="space-y-1.5">
+                @foreach($bankAccounts as $account)
+                    <div class="flex items-center justify-between gap-2 text-[11px] sm:text-[12px]">
+                        <span class="text-dim truncate">{{ $account->name }}</span>
+                        <span class="font-semibold {{ $account->computed_balance >= 0 ? 'text-success-text' : 'text-danger' }}">
+                            {{ $fmt($account->computed_balance) }}
+                        </span>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
+        <div class="mt-3 pt-3 border-t border-hairline space-y-1.5">
+            <div class="flex items-center justify-between gap-2 text-[11px] sm:text-[12px]">
+                <span class="text-dim">Pending Advances</span>
+                <span class="font-semibold text-[#b55a2f]">{{ $fmt($totalPendingAdvances) }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 text-[11px] sm:text-[12px]">
+                <span class="text-dim">Active Loans Balance</span>
+                <span class="font-semibold text-ink">{{ $fmt($totalActiveLoansBalance) }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 text-[11px] sm:text-[12px]">
+                <span class="text-dim">Last Payroll</span>
+                @if($lastPayrollRun)
+                    <span class="font-semibold text-ink">{{ $lastPayrollRun->month->format('F Y') }} · {{ $fmt($lastPayrollRun->total_net) }}</span>
+                @else
+                    <span class="font-semibold text-muted">—</span>
+                @endif
+            </div>
+            @if($pendingPayrollRuns > 0)
+            <div class="pt-1">
+                <span class="inline-flex items-center rounded-[5px] bg-[#fef9ec] px-2 py-0.5 text-[11px] font-semibold text-[#9a7a1a]">
+                    {{ $pendingPayrollRuns }} pending payroll {{ $pendingPayrollRuns === 1 ? 'run' : 'runs' }}
+                </span>
+            </div>
+            @endif
+        </div>
     </div>
 
 </div>
 
 {{-- Row 2: Operational --}}
-<div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
 
     {{-- Active projects --}}
-    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Active Projects</p>
-        <p class="text-2xl font-bold text-ink leading-none mb-1">{{ $projectCounts['active'] }}</p>
-        <p class="text-[11px] leading-relaxed">
+    <div class="bg-white border border-line rounded-xl p-3 sm:p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted mb-1">Active Projects</p>
+        <p class="text-lg sm:text-2xl font-bold text-ink leading-none mb-1">{{ $projectCounts['active'] }}</p>
+        <p class="text-[10px] sm:text-[11px] leading-relaxed">
             <span class="text-[#3d9970]">{{ $projectsByHealth['on_track'] }} on track</span>@if($projectsByHealth['at_risk'] > 0) · <span class="text-[#e07b39]">{{ $projectsByHealth['at_risk'] }} at risk</span>@endif@if($projectsByHealth['blocked'] > 0) · <span class="text-[#b94040]">{{ $projectsByHealth['blocked'] }} blocked</span>@endif
         </p>
     </div>
 
     {{-- Open tasks --}}
-    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Open Tasks</p>
-        <p class="text-2xl font-bold text-ink leading-none mb-1">{{ $openTasksTotal }}</p>
+    <div class="bg-white border border-line rounded-xl p-3 sm:p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted mb-1">Open Tasks</p>
+        <p class="text-lg sm:text-2xl font-bold text-ink leading-none mb-1">{{ $openTasksTotal }}</p>
         @if($overdueTasksCount > 0)
-        <p class="text-[11px] font-semibold text-[#b94040]">{{ $overdueTasksCount }} overdue</p>
+        <p class="text-[10px] sm:text-[11px] font-semibold text-[#b94040]">{{ $overdueTasksCount }} overdue</p>
         @else
-        <p class="text-[11px] text-muted">None overdue</p>
+        <p class="text-[10px] sm:text-[11px] text-muted">None overdue</p>
         @endif
     </div>
 
     {{-- Collection rate --}}
-    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-2">Collection Rate</p>
-        <div class="flex items-center gap-3">
-            <svg width="52" height="52" viewBox="0 0 52 52" class="shrink-0">
+    <div class="bg-white border border-line rounded-xl p-3 sm:p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted mb-2">Collection Rate</p>
+        <div class="flex items-center gap-2 sm:gap-3">
+            <svg width="36" height="36" viewBox="0 0 52 52" class="shrink-0 sm:hidden">
+                <circle cx="26" cy="26" r="{{ $kpiR }}" fill="none" stroke="#eeeee9" stroke-width="4"/>
+                <circle cx="26" cy="26" r="{{ $kpiR }}" fill="none" stroke="#3d9970" stroke-width="4"
+                        stroke-dasharray="{{ $kpiCirc }}" stroke-dashoffset="{{ $kpiOffset }}"
+                        stroke-linecap="round" transform="rotate(-90 26 26)"/>
+                <text x="26" y="30" text-anchor="middle" font-size="10" font-weight="700" fill="#141413">{{ $collectionRate }}%</text>
+            </svg>
+            <svg width="52" height="52" viewBox="0 0 52 52" class="shrink-0 hidden sm:block">
                 <circle cx="26" cy="26" r="{{ $kpiR }}" fill="none" stroke="#eeeee9" stroke-width="4"/>
                 <circle cx="26" cy="26" r="{{ $kpiR }}" fill="none" stroke="#3d9970" stroke-width="4"
                         stroke-dasharray="{{ $kpiCirc }}" stroke-dashoffset="{{ $kpiOffset }}"
@@ -151,18 +207,18 @@
                 <text x="26" y="30" text-anchor="middle" font-size="10" font-weight="700" fill="#141413">{{ $collectionRate }}%</text>
             </svg>
             <div class="min-w-0">
-                <p class="text-xl font-bold text-ink leading-none">{{ $collectionRate }}%</p>
-                <p class="text-[11px] text-muted mt-1">{{ $fmt($totalCollectedThisYear) }} collected</p>
+                <p class="text-lg sm:text-xl font-bold text-ink leading-none">{{ $collectionRate }}%</p>
+                <p class="text-[10px] sm:text-[11px] text-muted mt-1">{{ $fmt($totalCollectedThisYear) }} collected</p>
                 <p class="text-[10px] text-muted">of {{ $fmt($totalInvoicedThisYear) }} invoiced</p>
             </div>
         </div>
     </div>
 
     {{-- Available credits --}}
-    <div class="bg-white border border-line rounded-xl p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-muted mb-1">Available Credits</p>
-        <p class="text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($availableCreditsSum) }}</p>
-        <p class="text-[11px] text-muted">{{ $customersWithCredit }} customer{{ $customersWithCredit != 1 ? 's' : '' }} with credit</p>
+    <div class="bg-white border border-line rounded-xl p-3 sm:p-5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+        <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted mb-1">Available Credits</p>
+        <p class="text-lg sm:text-2xl font-bold text-ink leading-none mb-1">{{ $fmt($availableCreditsSum) }}</p>
+        <p class="text-[10px] sm:text-[11px] text-muted">{{ $customersWithCredit }} customer{{ $customersWithCredit != 1 ? 's' : '' }} with credit</p>
     </div>
 
 </div>
@@ -170,7 +226,7 @@
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
 {{-- SECTION 2 — Financial Charts                                              --}}
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6">
 
     {{-- Revenue vs Expenses bar chart --}}
     <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden">
@@ -203,8 +259,8 @@
 {{-- SECTION 3 — Active Projects Health                                        --}}
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
 <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden mb-6">
-    <div class="px-6 py-4 border-b border-hairline flex items-center justify-between">
-        <h2 class="text-[14px] font-semibold text-ink">Active Projects</h2>
+    <div class="px-4 sm:px-6 py-4 border-b border-hairline flex items-center justify-between">
+        <h2 class="text-base sm:text-lg font-semibold text-ink">Active Projects</h2>
         <a href="{{ route('projects.index') }}" class="text-[12px] text-accent hover:underline">View all →</a>
     </div>
 
@@ -212,7 +268,7 @@
     <div class="px-6 py-12 text-center text-[13px] text-muted">No active projects.</div>
     @else
     <div class="overflow-x-auto">
-        <table class="w-full text-[13px]">
+        <table class="w-full text-[13px]" style="min-width:700px">
             <thead>
                 <tr class="bg-canvas text-[11px] font-bold uppercase tracking-wider text-muted border-b border-hairline">
                     <th class="px-6 py-2.5 text-left">Project</th>
@@ -311,7 +367,7 @@
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
 {{-- SECTION 4 — Tasks Overview                                                --}}
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
-<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6">
 
     {{-- Task pipeline donut --}}
     <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden">
@@ -393,7 +449,7 @@
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
 {{-- SECTION 5 — Alerts & Deadlines                                            --}}
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6">
 
     {{-- Overdue tasks --}}
     <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden">
@@ -412,7 +468,7 @@
             @foreach($overdueTasksList as $t)
             <div class="px-5 py-3 flex items-center justify-between hover:bg-canvas transition-colors">
                 <div class="min-w-0 flex-1">
-                    <a href="{{ route('tasks.show', $t['id']) }}" class="text-[13px] font-medium text-ink hover:text-accent transition-colors block truncate">
+                    <a href="#" onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $t['id'] }} } }))" class="text-[13px] font-medium text-ink hover:text-accent transition-colors block truncate cursor-pointer">
                         {{ $t['title'] }}
                     </a>
                     <div class="flex items-center gap-2 mt-0.5">
@@ -481,13 +537,13 @@
 {{-- SECTION 6 — Team Performance                                              --}}
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
 <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden mb-6">
-    <div class="px-6 py-4 border-b border-hairline">
-        <h2 class="text-[14px] font-semibold text-ink">Team Performance — This Month</h2>
+    <div class="px-4 sm:px-6 py-4 border-b border-hairline">
+        <h2 class="text-base sm:text-lg font-semibold text-ink">Team Performance — This Month</h2>
     </div>
 
     {{-- Top performers --}}
     @if(!empty($topPerformers) && collect($topPerformers)->sum('completed_month') > 0)
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-5 border-b border-hairline">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 p-4 sm:p-5 border-b border-hairline">
         @foreach($topPerformers as $i => $p)
         <div class="bg-canvas border border-line rounded-xl p-4 flex items-center gap-4">
             <div class="w-12 h-12 rounded-full flex items-center justify-center text-white text-[15px] font-bold shrink-0"
@@ -516,7 +572,7 @@
     @if(!empty($teamPerformance))
     @php $maxActive = max(array_column($teamPerformance, 'active_total') ?: [1]); @endphp
     <div class="overflow-x-auto">
-        <table class="w-full text-[13px]">
+        <table class="w-full text-[13px]" style="min-width:600px">
             <thead>
                 <tr class="bg-canvas text-[11px] font-bold uppercase tracking-wider text-muted border-b border-hairline">
                     <th class="px-6 py-2.5 text-left">Developer</th>
@@ -565,7 +621,7 @@
     @if(!empty($teamWorkload))
     <div class="p-5 border-t border-hairline">
         <p class="text-[12px] font-semibold text-muted uppercase tracking-wide mb-3">Workload Distribution</p>
-        <div id="chart-workload" style="min-height:{{ max(80, count($teamWorkload) * 36) }}px"></div>
+        <div id="chart-workload" class="w-full overflow-hidden" style="min-height:{{ max(80, count($teamWorkload) * 36) }}px"></div>
     </div>
     @endif
     @endif
@@ -575,36 +631,38 @@
 {{-- SECTION 7 — Recent Activity                                               --}}
 {{-- ══════════════════════════════════════════════════════════════════════════ --}}
 <div class="bg-white border border-line rounded-xl shadow-[0_1px_3px_rgba(20,20,19,0.04)] overflow-hidden mb-6">
-    <div class="px-6 py-4 border-b border-hairline">
-        <h2 class="text-[14px] font-semibold text-ink">Recent Activity</h2>
+    <div class="px-4 sm:px-6 py-4 border-b border-hairline">
+        <h2 class="text-base sm:text-lg font-semibold text-ink">Recent Activity</h2>
     </div>
     @if(empty($recentActivity))
     <div class="px-6 py-10 text-center text-[13px] text-muted">No recent activity.</div>
     @else
     <div class="divide-y divide-hairline">
         @foreach($recentActivity as $act)
-        <div class="px-6 py-3 flex items-start gap-3 hover:bg-canvas transition-colors">
-            <div class="w-1.5 h-1.5 rounded-full bg-accent mt-2 shrink-0"></div>
-            <div class="min-w-0 flex-1">
-                @php
-                    $actDesc = $act['description'];
-                    $actTitle = $act['subject_title'];
-                    $actProject = $act['project_name'];
-                @endphp
-                <p class="text-[13px] text-dim">
-                    <span class="font-semibold text-ink">{{ $act['causer_name'] }}</span>
-                    @if(str_contains($actDesc, 'claimed') && $actTitle)
-                        claimed <span class="font-medium text-dim">{{ $actTitle }}</span>@if($actProject) <span class="text-muted">· {{ $actProject }}</span>@endif
-                    @elseif(str_contains($actDesc, 'status changed') && $actTitle)
-                        {{ $actDesc }} <span class="font-medium text-dim">{{ $actTitle }}</span>@if($actProject) <span class="text-muted">· {{ $actProject }}</span>@endif
-                    @elseif(str_contains($actDesc, 'comment') && $actTitle)
-                        commented on <span class="font-medium text-dim">{{ $actTitle }}</span>@if($actProject) <span class="text-muted">· {{ $actProject }}</span>@endif
-                    @else
-                        {{ $actDesc }}@if($actTitle) — <span class="font-medium text-dim">{{ $actTitle }}</span>@if($actProject) <span class="text-muted">· {{ $actProject }}</span>@endif@endif
-                    @endif
-                </p>
+        <div class="px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 hover:bg-canvas transition-colors">
+            <div class="flex items-start gap-3 flex-1 min-w-0">
+                <div class="w-1.5 h-1.5 rounded-full bg-accent mt-2 shrink-0"></div>
+                <div class="min-w-0 flex-1">
+                    @php
+                        $actDesc = $act['description'];
+                        $actTitle = $act['subject_title'];
+                        $actProject = $act['project_name'];
+                    @endphp
+                    <p class="text-[13px] text-dim">
+                        <span class="font-semibold text-ink">{{ $act['causer_name'] }}</span>
+                        @if(str_contains($actDesc, 'claimed') && $actTitle)
+                            claimed <span class="font-medium text-dim">{{ $actTitle }}</span>@if($actProject) <span class="text-muted">· {{ $actProject }}</span>@endif
+                        @elseif(str_contains($actDesc, 'status changed') && $actTitle)
+                            {{ $actDesc }} <span class="font-medium text-dim">{{ $actTitle }}</span>@if($actProject) <span class="text-muted">· {{ $actProject }}</span>@endif
+                        @elseif(str_contains($actDesc, 'comment') && $actTitle)
+                            commented on <span class="font-medium text-dim">{{ $actTitle }}</span>@if($actProject) <span class="text-muted">· {{ $actProject }}</span>@endif
+                        @else
+                            {{ $actDesc }}@if($actTitle) — <span class="font-medium text-dim">{{ $actTitle }}</span>@if($actProject) <span class="text-muted">· {{ $actProject }}</span>@endif@endif
+                        @endif
+                    </p>
+                </div>
             </div>
-            <span class="text-[11px] text-muted shrink-0 mt-0.5">{{ $act['time_ago'] }}</span>
+            <span class="text-[11px] text-muted shrink-0 sm:mt-0.5 pl-4 sm:pl-0">{{ $act['time_ago'] }}</span>
         </div>
         @endforeach
     </div>
@@ -660,7 +718,7 @@
 
     // ── Revenue vs Expenses ───────────────────────────────────────────────────
     new ApexCharts(document.getElementById('chart-revenue-expenses'), {
-        chart: { type: 'bar', height: 240, fontFamily: FONT, toolbar: TOOLBAR, animations: { enabled: true, speed: 600 } },
+        chart: { type: 'bar', height: 240, width: '100%', fontFamily: FONT, toolbar: TOOLBAR, animations: { enabled: true, speed: 600 } },
         series: [
             { name: 'Revenue',  data: revenueByMonth },
             { name: 'Expenses', data: expensesByMonth },
@@ -678,7 +736,7 @@
 
     // ── Revenue by Customer ───────────────────────────────────────────────────
     new ApexCharts(document.getElementById('chart-revenue-customer'), {
-        chart: { type: 'bar', height: 240, fontFamily: FONT, toolbar: TOOLBAR, animations: { enabled: true, speed: 600 } },
+        chart: { type: 'bar', height: 240, width: '100%', fontFamily: FONT, toolbar: TOOLBAR, animations: { enabled: true, speed: 600 } },
         series: [{ name: 'Revenue', data: customerRevenues }],
         colors: ['#4a90d9', '#3d9970', '#e07b39', '#7c5cbf', '#D97757'],
         plotOptions: { bar: { horizontal: true, borderRadius: 4, distributed: true, barHeight: '60%' } },
@@ -693,7 +751,7 @@
 
     // ── Task Pipeline Donut ───────────────────────────────────────────────────
     new ApexCharts(document.getElementById('chart-task-pipeline'), {
-        chart: { type: 'donut', height: 250, fontFamily: FONT, animations: { enabled: true, speed: 600 } },
+        chart: { type: 'donut', height: 250, width: '100%', fontFamily: FONT, animations: { enabled: true, speed: 600 } },
         series: pipelineValues,
         labels: pipelineLabels,
         colors: pipelineColors,
@@ -739,9 +797,11 @@
             chart: {
                 type: 'bar',
                 height: Math.max(80, workloadData.length * 36),
+                width: '100%',
                 fontFamily: FONT, toolbar: TOOLBAR,
                 animations: { enabled: true, speed: 600 }
             },
+            responsive: [{ breakpoint: 640, options: { chart: { height: 200 } } }],
             series: [{
                 name: 'Active tasks',
                 data: workloadData.map(m => ({ x: m.name, y: m.active_tasks, fillColor: m.color }))
@@ -757,5 +817,7 @@
     }
 </script>
 @endpush
+
+<livewire:task-modal />
 
 </x-layouts.app>

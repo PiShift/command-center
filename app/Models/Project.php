@@ -23,11 +23,13 @@ class Project extends Model
         'start_date',
         'deadline',
         'health',
+        'repos',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'deadline'   => 'date',
+        'repos'      => 'array',
     ];
 
     public function customer(): BelongsTo
@@ -58,6 +60,20 @@ class Project extends Model
     public function backlogItems(): HasMany
     {
         return $this->hasMany(BacklogItem::class)->orderBy('sort_order');
+    }
+
+    public function projectDocuments(): HasMany
+    {
+        return $this->hasMany(ProjectDocument::class)
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
+    public function resources(): HasMany
+    {
+        return $this->hasMany(ProjectResource::class)
+            ->orderBy('position')
+            ->orderBy('created_at');
     }
 
     public function isOverdue(): bool

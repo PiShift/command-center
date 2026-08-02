@@ -11,6 +11,7 @@ class InvoiceItem extends Model
         'invoice_id', 'type', 'task_id', 'description',
         'quantity', 'unit', 'unit_price',
         'discount_type', 'discount_value', 'subtotal', 'sort_order',
+        'cost_price',
     ];
 
     protected $casts = [
@@ -18,6 +19,7 @@ class InvoiceItem extends Model
         'unit_price'     => 'float',
         'discount_value' => 'float',
         'subtotal'       => 'float',
+        'cost_price'     => 'float',
     ];
 
     // ── Auto-compute subtotal on save ────────────────────────────────────────

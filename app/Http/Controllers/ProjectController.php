@@ -4,11 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\Project;
+use App\Models\Sprint;
 use App\Models\Task;
+use App\Models\Team;
 use App\Models\User;
 use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\ProjectHealthChangedNotification;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
 
 class ProjectController extends Controller
@@ -18,15 +21,15 @@ class ProjectController extends Controller
         $user = auth()->user();
         abort_unless($user->hasPermission('projects.view'), 403);
 
-        $sortable  = ['name', 'status', 'deadline', 'created_at'];
-        $sort      = in_array($request->sort, $sortable) ? $request->sort : null; // null = activity sort
+        $sortable = ['name', 'status', 'deadline', 'created_at'];
+        $sort = in_array($request->sort, $sortable) ? $request->sort : null; // null = activity sort
         $direction = $request->direction === 'desc' ? 'desc' : 'asc';
 
         $query = Project::with([
-                'customer',
-                'sprints:id,project_id,name,status,deadline',
-                'tasks:id,project_id,status',
-            ])
+            'customer',
+            'sprints:id,project_id,name,status,deadline',
+            'tasks:id,project_id,status',
+        ])
             ->withCount(['tasks', 'tasks as open_tasks_count' => fn ($q) => $q->where('status', '!=', 'done')]);
 
         // Developers only see projects where their team is assigned
@@ -35,10 +38,18 @@ class ProjectController extends Controller
             $query->whereHas('teams', fn ($q) => $q->whereIn('teams.id', $userTeamIds));
         }
 
-        if ($request->filled('search'))   $query->where('name', 'like', '%' . $request->search . '%');
-        if ($request->filled('status'))   $query->where('status', $request->status);
-        if ($request->filled('health'))   $query->where('health', $request->health);
-        if ($request->filled('customer')) $query->where('customer_id', $request->customer);
+        if ($request->filled('search')) {
+            $query->where('name', 'like', '%'.$request->search.'%');
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('health')) {
+            $query->where('health', $request->health);
+        }
+        if ($request->filled('customer')) {
+            $query->where('customer_id', $request->customer);
+        }
 
         if ($sort) {
             $query->orderBy($sort, $direction);
@@ -48,17 +59,17 @@ class ProjectController extends Controller
 
         // Fetch all (no pagination yet) to allow collection-level sort by activity state
         $allProjects = $query->get()->map(function ($project) {
-            $sprints      = $project->sprints;
-            $tasks        = $project->tasks;
+            $sprints = $project->sprints;
+            $tasks = $project->tasks;
             $activeSprint = $sprints->firstWhere('status', 'active');
-            $draftSprint  = $sprints->firstWhere('status', 'draft');
+            $draftSprint = $sprints->firstWhere('status', 'draft');
 
             $activeStatuses = ['open', 'todo', 'in-progress', 'in-review'];
             $hasActiveTasks = $tasks->whereIn('status', $activeStatuses)->isNotEmpty();
 
             if ($activeSprint && $hasActiveTasks) {
                 $activityState = 'active_sprint';
-            } elseif ($draftSprint && !$activeSprint) {
+            } elseif ($draftSprint && ! $activeSprint) {
                 $activityState = 'preparing';
             } elseif ($sprints->isEmpty()) {
                 $activityState = 'no_sprints';
@@ -66,38 +77,41 @@ class ProjectController extends Controller
                 $activityState = 'idle';
             }
 
-            $doneCount  = $tasks->where('status', 'done')->count();
+            $doneCount = $tasks->where('status', 'done')->count();
             $totalCount = $tasks->count();
 
-            $project->activity_state              = $activityState;
-            $project->active_sprint_name          = $activeSprint?->name ?? ($activityState === 'preparing' ? $draftSprint?->name : null);
-            $project->active_sprint_is_draft      = !$activeSprint && $activityState === 'preparing';
-            $project->active_sprint_deadline      = $activeSprint?->deadline;
+            $project->activity_state = $activityState;
+            $project->active_sprint_name = $activeSprint?->name ?? ($activityState === 'preparing' ? $draftSprint?->name : null);
+            $project->active_sprint_is_draft = ! $activeSprint && $activityState === 'preparing';
+            $project->active_sprint_deadline = $activeSprint?->deadline;
             $project->active_sprint_days_remaining = $activeSprint?->deadline
                 ? (int) now()->diffInDays($activeSprint->deadline, false)
                 : null;
-            $project->tasks_done_count            = $doneCount;
-            $project->tasks_total_count           = $totalCount;
-            $project->tasks_progress_percent      = $totalCount > 0 ? round($doneCount / $totalCount * 100) : 0;
+            $project->tasks_done_count = $doneCount;
+            $project->tasks_total_count = $totalCount;
+            $project->tasks_progress_percent = $totalCount > 0 ? round($doneCount / $totalCount * 100) : 0;
 
             return $project;
         });
 
         // Sort by activity priority if no manual sort selected
-        if (!$sort) {
+        if (! $sort) {
             $priority = ['active_sprint' => 0, 'preparing' => 1, 'idle' => 2, 'no_sprints' => 3];
             $allProjects = $allProjects->sort(function ($a, $b) use ($priority) {
                 $pa = $priority[$a->activity_state] ?? 9;
                 $pb = $priority[$b->activity_state] ?? 9;
-                if ($pa !== $pb) return $pa <=> $pb;
+                if ($pa !== $pb) {
+                    return $pa <=> $pb;
+                }
+
                 return strcmp($a->name, $b->name);
             })->values();
         }
 
         // Manual paginate the sorted collection
-        $page     = $request->input('page', 1);
-        $perPage  = 25;
-        $projects = new \Illuminate\Pagination\LengthAwarePaginator(
+        $page = $request->input('page', 1);
+        $perPage = 25;
+        $projects = new LengthAwarePaginator(
             $allProjects->forPage($page, $perPage),
             $allProjects->count(),
             $perPage,
@@ -114,6 +128,7 @@ class ProjectController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('projects.create'), 403);
         $customers = Customer::orderBy('name')->get(['id', 'name']);
+
         return view('projects.form', ['project' => null, 'customers' => $customers]);
     }
 
@@ -122,23 +137,24 @@ class ProjectController extends Controller
         abort_unless(auth()->user()->hasPermission('projects.create'), 403);
 
         $data = $request->validate([
-            'name'          => 'required|string|max:255',
-            'customer_id'   => 'nullable|exists:customers,id',
-            'description'   => 'nullable|string',
-            'guide'         => 'nullable|string',
-            'github_repo'   => 'nullable|string|max:255',
-            'website'       => 'nullable|url|max:255',
-            'stack'         => 'nullable|string|max:255',
+            'name' => 'required|string|max:255',
+            'customer_id' => 'nullable|exists:customers,id',
+            'description' => 'nullable|string',
+            'guide' => 'nullable|string',
+            'github_repo' => 'nullable|string|max:255',
+            'website' => 'nullable|url|max:255',
+            'stack' => 'nullable|string|max:255',
             'slack_channel' => 'nullable|string|max:100',
-            'color'         => 'nullable|string|max:20',
-            'status'        => 'required|in:active,paused,complete',
-            'start_date'    => 'nullable|date',
-            'deadline'      => 'nullable|date',
-            'budget'        => 'nullable|numeric|min:0',
-            'health'        => 'required|in:on-track,at-risk,blocked',
+            'color' => 'nullable|string|max:20',
+            'status' => 'required|in:active,paused,complete',
+            'start_date' => 'nullable|date',
+            'deadline' => 'nullable|date',
+            'budget' => 'nullable|numeric|min:0',
+            'health' => 'required|in:on-track,at-risk,blocked',
         ]);
 
         $project = Project::create($data);
+
         return redirect()->route('projects.show', $project)->with('success', 'Project created.');
     }
 
@@ -147,16 +163,16 @@ class ProjectController extends Controller
         $user = auth()->user();
         Gate::authorize('view', $project);
 
-        $project->load(['customer', 'teams.members', 'tasks.assignee']);
+        $project->load(['customer', 'teams.members', 'tasks.assignee', 'projectDocuments']);
 
         $canManage = $user->can('manage', $project);
+        $canViewBilling = $user->hasPermission('invoices.view');
 
-        $allTasks    = $project->tasks;
-        $totalTasks  = $allTasks->count();
-        $doneTasks   = $allTasks->where('status', 'done')->count();
-        $openTasks   = $totalTasks - $doneTasks;
-        $overdueTasks = $allTasks->filter(fn ($t) =>
-            $t->status !== 'done' && $t->due_date && $t->due_date->isPast()
+        $allTasks = $project->tasks;
+        $totalTasks = $allTasks->count();
+        $doneTasks = $allTasks->where('status', 'done')->count();
+        $openTasks = $totalTasks - $doneTasks;
+        $overdueTasks = $allTasks->filter(fn ($t) => $t->status !== 'done' && $t->due_date && $t->due_date->isPast()
         )->count();
 
         $progressPercent = $totalTasks > 0 ? round(($doneTasks / $totalTasks) * 100) : 0;
@@ -171,13 +187,13 @@ class ProjectController extends Controller
 
         $recentTasks = $allTasks->sortByDesc('updated_at')->take(8)->values();
 
-        $allTeams = \App\Models\Team::orderBy('name')->get(['id', 'name']);
+        $allTeams = Team::orderBy('name')->get(['id', 'name']);
 
         // Developer-specific task lists
         $availableTasks = collect();
-        $myTasks        = collect();
+        $myTasks = collect();
         if (! $canManage) {
-            $activeSprintIds = \App\Models\Sprint::where('project_id', $project->id)
+            $activeSprintIds = Sprint::where('project_id', $project->id)
                 ->where('status', 'active')
                 ->pluck('id');
             if ($activeSprintIds->isNotEmpty()) {
@@ -196,10 +212,14 @@ class ProjectController extends Controller
                 ->get();
         }
 
+        $readyToBillCount = $canViewBilling
+            ? Task::query()->whereBelongsTo($project)->readyToBill()->count()
+            : null;
+
         return view('projects.show', compact(
             'project', 'totalTasks', 'openTasks', 'doneTasks', 'overdueTasks',
             'progressPercent', 'teamMembers', 'assignedTeams', 'recentTasks', 'allTeams',
-            'canManage', 'availableTasks', 'myTasks'
+            'canManage', 'availableTasks', 'myTasks', 'canViewBilling', 'readyToBillCount'
         ));
     }
 
@@ -207,6 +227,7 @@ class ProjectController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('projects.edit'), 403);
         $customers = Customer::orderBy('name')->get(['id', 'name']);
+
         return view('projects.form', compact('project', 'customers'));
     }
 
@@ -215,27 +236,27 @@ class ProjectController extends Controller
         abort_unless(auth()->user()->hasPermission('projects.edit'), 403);
 
         $data = $request->validate([
-            'name'          => 'required|string|max:255',
-            'customer_id'   => 'nullable|exists:customers,id',
-            'description'   => 'nullable|string',
-            'guide'         => 'nullable|string',
-            'github_repo'   => 'nullable|string|max:255',
-            'website'       => 'nullable|url|max:255',
-            'stack'         => 'nullable|string|max:255',
+            'name' => 'required|string|max:255',
+            'customer_id' => 'nullable|exists:customers,id',
+            'description' => 'nullable|string',
+            'guide' => 'nullable|string',
+            'github_repo' => 'nullable|string|max:255',
+            'website' => 'nullable|url|max:255',
+            'stack' => 'nullable|string|max:255',
             'slack_channel' => 'nullable|string|max:100',
-            'color'         => 'nullable|string|max:20',
-            'status'        => 'required|in:active,paused,complete',
-            'start_date'    => 'nullable|date',
-            'deadline'      => 'nullable|date',
-            'budget'        => 'nullable|numeric|min:0',
-            'health'        => 'required|in:on-track,at-risk,blocked',
+            'color' => 'nullable|string|max:20',
+            'status' => 'required|in:active,paused,complete',
+            'start_date' => 'nullable|date',
+            'deadline' => 'nullable|date',
+            'budget' => 'nullable|numeric|min:0',
+            'health' => 'required|in:on-track,at-risk,blocked',
         ]);
 
         $oldHealth = $project->health;
         $project->update($data);
 
         if (isset($data['health']) && in_array($data['health'], ['at-risk', 'blocked']) && $data['health'] !== $oldHealth) {
-            $managers = User::whereHas('roleModel', fn($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
+            $managers = User::whereHas('roleModel', fn ($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
             foreach ($managers as $manager) {
                 $manager->notify(new ProjectHealthChangedNotification($project, $data['health']));
             }
@@ -251,7 +272,7 @@ class ProjectController extends Controller
         abort_unless(auth()->user()->hasPermission('projects.edit'), 403);
 
         $data = $request->validate([
-            'teams'   => 'nullable|array',
+            'teams' => 'nullable|array',
             'teams.*' => 'integer|exists:teams,id',
         ]);
 
@@ -264,6 +285,7 @@ class ProjectController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('projects.delete'), 403);
         $project->delete();
+
         return redirect()->route('projects.index')->with('success', 'Project deleted.');
     }
 }

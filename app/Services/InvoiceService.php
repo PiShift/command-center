@@ -50,6 +50,32 @@ class InvoiceService
 
         $invoice->status = 'published';
         $invoice->save();
+
+        // ── Auto-create draft expenses from items with a cost_price ──────────
+        $invoice->loadMissing('items');
+        $suppliedServicesCategoryId = \App\Models\ExpenseCategory::where('name', 'Supplied Services')->value('id');
+
+        foreach ($invoice->items as $item) {
+            if (empty($item->cost_price) || $item->cost_price <= 0) {
+                continue;
+            }
+
+            // Skip if already created from this item (re-publish guard)
+            if (\App\Models\Expense::where('source_invoice_item_id', $item->id)->exists()) {
+                continue;
+            }
+
+            \App\Models\Expense::create([
+                'title'                  => mb_substr($item->description, 0, 255),
+                'amount'                 => $item->cost_price,
+                'category_id'            => $suppliedServicesCategoryId,
+                'project_id'             => $invoice->project_id,
+                'expense_date'           => now()->toDateString(),
+                'status'                 => 'draft',
+                'notes'                  => 'Auto-created from invoice ' . $invoice->invoice_number . ' — item: ' . mb_substr($item->description, 0, 200),
+                'source_invoice_item_id' => $item->id,
+            ]);
+        }
     }
 
     // ── Record payment ────────────────────────────────────────────────────────

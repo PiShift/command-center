@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -12,10 +14,12 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 class Task extends Model implements HasMedia
 {
     use InteractsWithMedia;
+
     protected $fillable = [
         'project_id',
         'sprint_id',
         'assigned_to',
+        'agent_id',
         'title',
         'description',
         'type',
@@ -33,11 +37,11 @@ class Task extends Model implements HasMedia
     ];
 
     protected $casts = [
-        'due_date'             => 'date',
-        'completed_at'         => 'datetime',
-        'overdue_notified_at'  => 'datetime',
-        'labels'               => 'array',
-        'weight'               => 'integer',
+        'due_date' => 'date',
+        'completed_at' => 'datetime',
+        'overdue_notified_at' => 'datetime',
+        'labels' => 'array',
+        'weight' => 'integer',
     ];
 
     public function project(): BelongsTo
@@ -55,9 +59,85 @@ class Task extends Model implements HasMedia
         return $this->belongsTo(User::class, 'assigned_to');
     }
 
+    public function agent(): BelongsTo
+    {
+        return $this->belongsTo(Agent::class, 'agent_id');
+    }
+
+    public function queueEntries(): HasMany
+    {
+        return $this->hasMany(AgentTaskQueue::class, 'task_id');
+    }
+
+    public function latestQueue(): HasOne
+    {
+        return $this->hasOne(AgentTaskQueue::class, 'task_id')->latest('created_at');
+    }
+
+    public function invoiceItems(): HasMany
+    {
+        return $this->hasMany(InvoiceItem::class);
+    }
+
+    public function activeInvoiceItem(): HasOne
+    {
+        return $this->hasOne(InvoiceItem::class)
+            ->where('type', 'task')
+            ->whereHas('invoice', function (Builder $query) {
+                $query->where('status', '!=', 'cancelled')
+                    ->whereNull('invoices.deleted_at');
+            })
+            ->latestOfMany();
+    }
+
+    public function invoiceOverride(): HasOne
+    {
+        return $this->hasOne(TaskInvoiceOverride::class);
+    }
+
+    public function scopeReadyToBill(Builder $query): Builder
+    {
+        return $query
+            ->where('status', 'done')
+            ->whereDoesntHave('invoiceItems', function (Builder $query) {
+                $query->where('type', 'task')
+                    ->whereHas('invoice', function (Builder $query) {
+                        $query->where('status', '!=', 'cancelled')
+                            ->whereNull('invoices.deleted_at');
+                    });
+            })
+            ->whereDoesntHave('invoiceOverride');
+    }
+
     public function isOverdue(): bool
     {
         return $this->due_date && $this->due_date->isPast() && $this->status !== 'done';
+    }
+
+    public function getInvoiceStatusAttribute(): string
+    {
+        if (! $this->relationLoaded('activeInvoiceItem')) {
+            $this->load('activeInvoiceItem.invoice');
+        }
+
+        if (! $this->relationLoaded('invoiceOverride')) {
+            $this->load('invoiceOverride');
+        }
+
+        $realStatus = 'not_invoiced';
+
+        if ($this->activeInvoiceItem) {
+            $this->activeInvoiceItem->loadMissing('invoice');
+            $realStatus = $this->activeInvoiceItem->invoice?->payment_status === 'paid'
+                ? 'paid'
+                : 'invoiced';
+        }
+
+        $overrideStatus = $this->invoiceOverride?->status ?? 'not_invoiced';
+
+        return $this->invoiceStatusRank($overrideStatus) > $this->invoiceStatusRank($realStatus)
+            ? $overrideStatus
+            : $realStatus;
     }
 
     public function comments(): HasMany
@@ -87,5 +167,14 @@ class Task extends Model implements HasMedia
             ->height(200)
             ->nonQueued()
             ->performOnCollections('images');
+    }
+
+    private function invoiceStatusRank(string $status): int
+    {
+        return match ($status) {
+            'paid' => 2,
+            'invoiced' => 1,
+            default => 0,
+        };
     }
 }

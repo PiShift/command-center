@@ -21,6 +21,8 @@
 
         <form method="POST" action="{{ route('login') }}" style="display:flex;flex-direction:column;gap:16px">
             @csrf
+            <input type="hidden" name="cli_callback" value="{{ old('cli_callback', request('cli_callback', session('auth.cli_callback'))) }}">
+            <input type="hidden" name="cli_state" value="{{ old('cli_state', request('cli_state', session('auth.cli_state'))) }}">
 
             {{-- Email --}}
             <div>

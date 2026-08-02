@@ -1,4 +1,45 @@
-<div class="space-y-4">
+@php
+    $completeUrlTemplate = route('sprints.complete', [$project, '__SPRINT__']);
+    $sprintChoices = $sprints->map(fn ($item) => [
+        'id' => (int) $item->id,
+        'name' => $item->name,
+        'status' => $item->status,
+    ])->values();
+@endphp
+
+<div class="space-y-4"
+     x-data="{
+        completeModalOpen: false,
+        completeSprintId: null,
+        completeSprintName: '',
+        unfinishedCount: 0,
+        completeAction: 'move_existing',
+        targetSprintId: '',
+        newSprintName: '',
+        completeUrlTemplate: @js($completeUrlTemplate),
+        sprintChoices: @js($sprintChoices),
+        openCompleteModal(id, name, count) {
+            this.completeSprintId = id;
+            this.completeSprintName = name;
+            this.unfinishedCount = count;
+            this.completeAction = 'move_existing';
+            this.targetSprintId = '';
+            this.newSprintName = '';
+            this.completeModalOpen = true;
+        },
+        availableTargetSprints() {
+            return this.sprintChoices.filter((s) => s.id !== this.completeSprintId && (s.status === 'draft' || s.status === 'active'));
+        },
+        canSubmitCompletion() {
+            if (this.completeAction === 'move_existing') {
+                return this.targetSprintId !== '';
+            }
+            if (this.completeAction === 'create_new') {
+                return this.newSprintName.trim().length > 0;
+            }
+            return this.completeAction === 'complete_anyway';
+        }
+     }">
     {{-- Flash inline (for Livewire actions) --}}
     @if(session('success'))
     <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3500)"
@@ -79,6 +120,7 @@
     @php
         $isExpanded = in_array($sprint->id, $expandedSprints);
         $isEditingSprint = $editingSprint === $sprint->id;
+        $selectedInSprint = collect($selectedTaskIds ?? [])->map(fn ($id) => (int) $id)->intersect($sprint->tasks->pluck('id'))->count();
         $statusColors = [
             'draft'     => ['dot' => '#8c8c8a', 'bg' => '#F5F4EF', 'text' => '#5c5c5a', 'label' => 'Draft'],
             'active'    => ['dot' => '#2e7d55', 'bg' => '#edf7f2', 'text' => '#2e7d55', 'label' => 'Active'],
@@ -87,6 +129,7 @@
         $sc = $statusColors[$sprint->status] ?? $statusColors['draft'];
         $doneTasks = $sprint->tasks->where('status', 'done')->count();
         $totalTasks = $sprint->tasks->count();
+        $unfinishedTasks = $sprint->tasks->where('status', '!=', 'done')->count();
         $progress = $sprint->progress_percent;
     @endphp
     <div class="bg-white border border-line rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
@@ -177,6 +220,14 @@
                         Unpublish
                     </button>
                 </form>
+                @if($unfinishedTasks > 0)
+                <button type="button"
+                        @click="openCompleteModal({{ $sprint->id }}, @js($sprint->name), {{ $unfinishedTasks }})"
+                        class="h-7 px-2 text-[11px] font-semibold rounded-lg text-[#3a6fba] hover:bg-[#eef3fb] transition-colors duration-150 cursor-pointer"
+                        title="Mark as completed">
+                    Complete
+                </button>
+                @else
                 <form action="{{ route('sprints.complete', [$project, $sprint]) }}" method="POST">
                     @csrf
                     <button type="submit"
@@ -185,6 +236,7 @@
                         Complete
                     </button>
                 </form>
+                @endif
                 @endif
                 {{-- Delete --}}
                 <button wire:click="deleteSprint({{ $sprint->id }})"
@@ -231,6 +283,9 @@
             @else
             {{-- Column header --}}
             <div class="flex items-center gap-3 px-5 py-2 bg-canvas border-b border-hairline">
+                @if($canManage)
+                <span class="w-6 flex-shrink-0"></span>
+                @endif
                 <span class="w-7 text-[10px] font-bold uppercase tracking-wider text-muted text-center flex-shrink-0">W</span>
                 <span class="flex-1 text-[10px] font-bold uppercase tracking-wider text-muted">Title</span>
                 <span class="w-16 text-[10px] font-bold uppercase tracking-wider text-muted text-center flex-shrink-0 hidden lg:block">Type</span>
@@ -254,6 +309,13 @@
                                placeholder="Task title">
                         @error('editTaskTitle')<p class="text-[12px] text-[#b94040] mt-0.5">{{ $message }}</p>@enderror
                     </div>
+                    <select wire:model="editTaskSprintId"
+                            class="px-2 py-1.5 text-[12px] text-ink bg-white border border-line rounded-lg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/15 cursor-pointer">
+                        <option value="">No sprint</option>
+                        @foreach($allProjectSprints as $s)
+                        <option value="{{ $s->id }}">{{ $s->name }} ({{ ucfirst($s->status) }})</option>
+                        @endforeach
+                    </select>
                     <select wire:model="editTaskStatus"
                             class="px-2 py-1.5 text-[12px] text-ink bg-white border border-line rounded-lg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/15 cursor-pointer">
                         @foreach($columns as $col)
@@ -312,6 +374,12 @@
                 $checklistTotal = $task->checklists->count();
             @endphp
             <div class="flex items-center gap-3 px-5 py-2.5 hover:bg-canvas transition-colors duration-100 border-b border-hairline last:border-b-0">
+                @if($canManage)
+                <span class="flex-shrink-0 w-6 flex items-center justify-center">
+                    <input type="checkbox" wire:model="selectedTaskIds" value="{{ $task->id }}"
+                           class="h-4 w-4 rounded border-line text-accent focus:ring-accent/30 cursor-pointer">
+                </span>
+                @endif
                 {{-- Weight --}}
                 <span class="flex-shrink-0 w-7 h-6 flex items-center justify-center rounded text-[10px] font-bold bg-surface text-muted border border-hairline text-center">
                     {{ $task->weight ?? '—' }}
@@ -375,6 +443,33 @@
             </div>
             @endif
             @endforeach
+            @endif
+
+            @if($canManage)
+            <div x-data="{ show: {{ $selectedInSprint > 0 ? 'true' : 'false' }} }"
+                 x-show="show" x-cloak
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 translate-y-2"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 translate-y-0"
+                 x-transition:leave-end="opacity-0 translate-y-2"
+                 class="px-5 py-3 bg-canvas border-t border-hairline">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-[12px] font-semibold text-ink">{{ $selectedInSprint }} tasks selected</span>
+                    <select wire:model="bulkMoveTargetBySprint.{{ $sprint->id }}"
+                            class="px-2 py-1.5 text-[12px] text-ink bg-white border border-line rounded-lg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/15 cursor-pointer">
+                        <option value="">Move to sprint...</option>
+                        @foreach($allProjectSprints as $targetSprint)
+                            <option value="{{ $targetSprint->id }}">{{ $targetSprint->name }} ({{ ucfirst($targetSprint->status) }})</option>
+                        @endforeach
+                    </select>
+                    <button wire:click="bulkMoveSelectedTasks({{ $sprint->id }})"
+                            class="px-3 py-1.5 text-[12px] font-medium text-white bg-accent hover:bg-accent-hover rounded-lg transition-colors duration-150 cursor-pointer">
+                        Move
+                    </button>
+                </div>
+            </div>
             @endif
 
             {{-- Quick add task form --}}
@@ -445,6 +540,90 @@
         @endif
     </div>
     @endforelse
+
+    <template x-teleport="body">
+        <div x-show="completeModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4"
+             x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+            <div class="absolute inset-0 bg-black/45" @click="completeModalOpen = false"></div>
+
+            <div class="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-[0_20px_60px_rgba(0,0,0,0.18)]"
+                 x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                 x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+                 @click.stop>
+
+                <div class="flex items-center justify-between border-b border-hairline px-6 py-4">
+                    <h3 class="text-[16px] font-semibold text-ink">Complete Sprint</h3>
+                    <button type="button" @click="completeModalOpen = false" class="w-7 h-7 flex items-center justify-center rounded-full text-muted hover:text-ink hover:bg-hairline transition-colors duration-150 cursor-pointer">&times;</button>
+                </div>
+
+                <form method="POST" :action="completeUrlTemplate.replace('__SPRINT__', completeSprintId)">
+                    @csrf
+                    <input type="hidden" name="completion_action" :value="completeAction">
+
+                    <div class="px-6 py-5 space-y-4">
+                        <p class="text-[14px] font-medium text-ink">This sprint has <span class="text-[#b94040]" x-text="unfinishedCount"></span> unfinished tasks.</p>
+
+                        <div class="space-y-3">
+                            <button type="button" @click="completeAction = 'move_existing'" class="w-full text-left rounded-xl border px-4 py-3 transition-colors duration-150 cursor-pointer"
+                                    :class="completeAction === 'move_existing' ? 'border-accent bg-[#fdf3ee]' : 'border-line bg-white hover:bg-canvas'">
+                                <p class="text-[13px] font-semibold text-ink">Option A — Move to existing sprint</p>
+                                <p class="text-[12px] text-muted mt-0.5">Move all unfinished tasks to another active or draft sprint, then complete this sprint.</p>
+                            </button>
+
+                            <div x-show="completeAction === 'move_existing'" x-cloak class="pl-2">
+                                <label class="block text-[11px] font-bold uppercase tracking-[0.05em] text-muted mb-1.5">Target Sprint</label>
+                                <select name="target_sprint_id" x-model="targetSprintId" class="w-full px-3 py-2 text-[13px] text-ink bg-surface border border-line rounded-lg focus:bg-white focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15 transition-all duration-150">
+                                    <option value="">Select sprint...</option>
+                                    <template x-for="s in availableTargetSprints()" :key="s.id">
+                                        <option :value="s.id" x-text="`${s.name} (${s.status})`"></option>
+                                    </template>
+                                </select>
+                                <p x-show="availableTargetSprints().length === 0" x-cloak class="text-[12px] text-[#b94040] mt-1">No other active or draft sprint is available.</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <button type="button" @click="completeAction = 'create_new'" class="w-full text-left rounded-xl border px-4 py-3 transition-colors duration-150 cursor-pointer"
+                                    :class="completeAction === 'create_new' ? 'border-accent bg-[#fdf3ee]' : 'border-line bg-white hover:bg-canvas'">
+                                <p class="text-[13px] font-semibold text-ink">Option B — Create new sprint</p>
+                                <p class="text-[12px] text-muted mt-0.5">Create a new draft sprint and move all unfinished tasks there before completion.</p>
+                            </button>
+
+                            <div x-show="completeAction === 'create_new'" x-cloak class="pl-2">
+                                <label class="block text-[11px] font-bold uppercase tracking-[0.05em] text-muted mb-1.5">New Sprint Name</label>
+                                <input type="text" name="new_sprint_name" x-model="newSprintName" class="w-full px-3 py-2 text-[13px] text-ink bg-surface border border-line rounded-lg focus:bg-white focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15 transition-all duration-150" placeholder="e.g. Sprint 2 — Remaining Work">
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <button type="button" @click="completeAction = 'complete_anyway'" class="w-full text-left rounded-xl border px-4 py-3 transition-colors duration-150 cursor-pointer"
+                                    :class="completeAction === 'complete_anyway' ? 'border-accent bg-[#fdf3ee]' : 'border-line bg-white hover:bg-canvas'">
+                                <p class="text-[13px] font-semibold text-ink">Option C — Complete anyway</p>
+                                <p class="text-[12px] text-muted mt-0.5">Keep unfinished tasks in this sprint and complete it as-is.</p>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 border-t border-hairline bg-canvas px-6 py-3">
+                        <button type="button" @click="completeModalOpen = false" class="px-3 py-1.5 text-[12px] font-medium text-ink bg-surface border border-line rounded-lg hover:bg-hairline transition-colors duration-150 cursor-pointer">
+                            Cancel
+                        </button>
+
+                        <button type="submit" :disabled="!canSubmitCompletion()" x-show="completeAction === 'move_existing'" x-cloak class="px-3 py-1.5 text-[12px] font-medium text-white bg-accent hover:bg-accent-hover rounded-lg transition-colors duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                            Move tasks and complete
+                        </button>
+                        <button type="submit" :disabled="!canSubmitCompletion()" x-show="completeAction === 'create_new'" x-cloak class="px-3 py-1.5 text-[12px] font-medium text-white bg-accent hover:bg-accent-hover rounded-lg transition-colors duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                            Create sprint, move tasks, and complete
+                        </button>
+                        <button type="submit" :disabled="!canSubmitCompletion()" x-show="completeAction === 'complete_anyway'" x-cloak class="px-3 py-1.5 text-[12px] font-medium text-white bg-accent hover:bg-accent-hover rounded-lg transition-colors duration-150 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                            Complete anyway, keep tasks here.
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
 
     {{-- Livewire loading indicator --}}
     <div wire:loading.delay class="fixed bottom-4 right-4 z-50 flex items-center gap-2 px-3 py-2 bg-white border border-line rounded-lg shadow-lg text-[12px] text-muted">

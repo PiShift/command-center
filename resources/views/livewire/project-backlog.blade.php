@@ -297,8 +297,8 @@
                     <span class="flex-1 text-[13px] font-medium text-ink truncate">{{ $item->title }}</span>
                     <span class="text-[11px] text-muted">{{ $item->promoted_at?->format('M d, Y') }}</span>
                     @if($item->promotedTask)
-                    <a href="{{ route('tasks.show', $item->promotedTask) }}"
-                       class="text-[11px] font-medium text-accent hover:underline flex-shrink-0">
+                    <a href="#" onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $item->promotedTask->id }} } }))"
+                       class="text-[11px] font-medium text-accent hover:underline flex-shrink-0 cursor-pointer">
                         → View Task
                     </a>
                     @endif

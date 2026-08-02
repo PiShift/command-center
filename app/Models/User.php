@@ -24,6 +24,7 @@ class User extends Authenticatable
         'role_id',
         'color',
         'initials',
+        'onboarded_at',
         'notification_preferences',
     ];
 
@@ -59,9 +60,24 @@ class User extends Authenticatable
         return $this->hasOne(UserTwoFactor::class);
     }
 
+    public function employeeProfile(): HasOne
+    {
+        return $this->hasOne(EmployeeProfile::class);
+    }
+
     public function devices(): HasMany
     {
         return $this->hasMany(UserDevice::class);
+    }
+
+    public function personalAccessTokens(): HasMany
+    {
+        return $this->hasMany(PersonalAccessToken::class);
+    }
+
+    public function agents(): HasMany
+    {
+        return $this->hasMany(Agent::class, 'owner_id');
     }
 
     public function loginHistory(): HasMany
@@ -129,6 +145,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at'        => 'datetime',
+            'onboarded_at'             => 'datetime',
             'password'                 => 'hashed',
             'notification_preferences' => 'array',
         ];

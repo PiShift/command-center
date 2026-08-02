@@ -94,7 +94,7 @@
             $projectIds = $projects->pluck('id')->toArray();
             $allProjectTasks = \App\Models\Task::where('status', 'done')
                 ->whereIn('project_id', $projectIds)
-                ->with('sprint:id,name')
+                ->with(['sprint:id,name', 'activeInvoiceItem.invoice', 'invoiceOverride'])
                 ->get(['id', 'project_id', 'sprint_id', 'title', 'estimated_hours'])
                 ->groupBy('project_id')
                 ->map(fn($ts) => $ts->map(fn($t) => [
@@ -102,18 +102,24 @@
                     'title'           => $t->title,
                     'sprint_name'     => $t->sprint?->name,
                     'estimated_hours' => $t->estimated_hours,
+                    'invoice_status'  => $t->invoiceStatus,
                 ])->values()->all())
                 ->all();
             $allProjectSprints = \App\Models\Sprint::whereIn('project_id', $projectIds)
                 ->whereIn('status', ['active', 'completed'])
-                ->with('tasks:id,sprint_id,title')
+                ->with(['tasks' => fn($query) => $query
+                    ->select(['id', 'sprint_id', 'title', 'status'])
+                    ->with(['activeInvoiceItem.invoice', 'invoiceOverride'])])
                 ->get(['id', 'project_id', 'name', 'status'])
                 ->groupBy('project_id')
                 ->map(fn($ss) => $ss->map(fn($s) => [
                     'id'     => $s->id,
                     'name'   => $s->name,
                     'status' => $s->status,
-                    'tasks'  => $s->tasks->pluck('title')->values()->all(),
+                    'tasks'  => $s->tasks->map(fn($task) => [
+                        'title'          => $task->title,
+                        'invoice_status' => $task->invoiceStatus,
+                    ])->values()->all(),
                 ])->values()->all())
                 ->all();
         @endphp
@@ -124,6 +130,12 @@
                     <button type="button" @click="addItem()"
                             style="font-size:12px;font-weight:500;color:#D97757;background:none;border:none;cursor:pointer">+ Add line</button>
 
+                    <button type="button" @click="showCost = !showCost"
+                            :style="showCost
+                                ? 'font-size:12px;font-weight:500;color:#fff;background:#5c5c5a;border:1px solid #5c5c5a;cursor:pointer;border-radius:6px;padding:3px 10px'
+                                : 'font-size:12px;font-weight:500;color:#5c5c5a;background:none;border:1px solid #e5e4df;cursor:pointer;border-radius:6px;padding:3px 10px'"
+                    >Cost</button>
+
                     <template x-if="currentProjectId">
                         <button type="button"
                                 @click="showTaskPanel = !showTaskPanel; showSprintSelect = false"
@@ -131,6 +143,14 @@
                                     ? 'font-size:12px;font-weight:500;color:#fff;background:#D97757;border:1px solid #D97757;cursor:pointer;border-radius:6px;padding:3px 10px'
                                     : 'font-size:12px;font-weight:500;color:#5c5c5a;background:none;border:1px solid #e5e4df;cursor:pointer;border-radius:6px;padding:3px 10px'"
                                 >+ From Tasks</button>
+                    </template>
+
+                    <template x-if="currentProjectId">
+                        <label class="inline-flex items-center gap-2 text-[12px] text-dim">
+                            <input type="checkbox" x-model="showInvoicedTasks"
+                                   style="accent-color:#D97757;width:14px;height:14px;cursor:pointer">
+                            Show already-invoiced tasks
+                        </label>
                     </template>
 
                     <template x-if="currentProjectId">
@@ -173,6 +193,7 @@
                         <th class="px-3 py-2.5 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;width:10%">Qty</th>
                         <th class="px-3 py-2.5 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;width:15%">Unit Price</th>
                         <th class="px-3 py-2.5 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;width:10%">Disc</th>
+                        <th x-show="showCost" class="px-3 py-2.5 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;width:10%">Cost</th>
                         <th class="px-3 py-2.5 text-right" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;width:12%">Subtotal</th>
                         <th class="px-2 py-2.5" style="width:5%"></th>
                     </tr>
@@ -181,6 +202,7 @@
                     <template x-for="(item, idx) in items" :key="idx">
                     <tr style="border-bottom:1px solid #eeeee9">
                         <td class="px-4 py-2">
+                            <input type="hidden" :name="`items[${idx}][task_id]`" :value="item.task_id || ''">
                             <textarea :name="`items[${idx}][description]`" x-model="item.description" placeholder="Description"
                                       rows="1"
                                       class="w-full rounded text-[12.5px] px-2 py-1.5"
@@ -211,6 +233,12 @@
                                    style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none">
                             <input type="hidden" :name="`items[${idx}][discount_type]`" :value="item.discount_value > 0 ? 'percent' : ''">
                         </td>
+                        <td x-show="showCost" class="px-3 py-2">
+                            <input type="number" :name="`items[${idx}][cost_price]`" x-model.number="item.cost_price" step="0.01" min="0"
+                                   placeholder="0.00"
+                                   class="w-full rounded text-[12.5px] px-2 py-1.5 text-right"
+                                   style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none">
+                        </td>
                         <td class="px-3 py-2 text-right" style="color:#141413;font-weight:500" x-text="item.subtotal.toFixed(2)"></td>
                         <td class="px-2 py-2 text-center">
                             <button type="button" @click="items.splice(idx,1)" style="color:#b94040;background:none;border:none;cursor:pointer;font-size:14px">&times;</button>
@@ -237,10 +265,15 @@
                                         <input type="checkbox" :value="task.id" x-model="selectedTaskIds"
                                                style="accent-color:#D97757;width:14px;height:14px;flex-shrink:0;cursor:pointer">
                                         <div style="flex:1;min-width:0">
-                                            <p style="font-size:12.5px;color:#141413;font-weight:500" x-text="task.title"></p>
-                                            <p style="font-size:11px;color:#8c8c8a">
-                                                <span x-text="task.sprint_name || 'No sprint'"></span>
-                                                <template x-if="task.estimated_hours">
+                                           <div class="flex items-center justify-between gap-3">
+                                               <p style="font-size:12.5px;color:#141413;font-weight:500" x-text="task.title"></p>
+                                               <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                                                     :style="invoiceStatusStyle(task.invoice_status)"
+                                                     x-text="invoiceStatusLabel(task.invoice_status)"></span>
+                                           </div>
+                                           <p style="font-size:11px;color:#8c8c8a">
+                                               <span x-text="task.sprint_name || 'No sprint'"></span>
+                                               <template x-if="task.estimated_hours">
                                                     <span> &middot; <span x-text="task.estimated_hours"></span>h estimated</span>
                                                 </template>
                                             </p>
@@ -262,9 +295,61 @@
         </div>
 
         {{-- Notes --}}
-        <div class="rounded-xl p-6" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)">
-            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:6px">Payment Info / Notes</label>
-            <textarea name="notes" rows="4" placeholder="Bank account details, payment instructions..."
+        <div class="rounded-xl p-6" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)"
+             x-data="{
+                 accountMenuOpen: false,
+                 companyAccounts: {{ Js::from(($companyAccounts ?? collect())->map(fn($account) => [
+                     'name' => $account->name,
+                     'bank_name' => $account->bank_name,
+                     'account_number' => $account->account_number,
+                 ])->values()) }},
+                 insertAccount(account) {
+                     const lines = [
+                         `Payment: ${account.name}`,
+                         ...(account.bank_name ? [`Bank: ${account.bank_name}`] : []),
+                         ...(account.account_number ? [`Account: ${account.account_number}`] : []),
+                     ];
+                     const block = lines.join('\n');
+                     const current = this.$refs.notesField.value.trimEnd();
+
+                     this.$refs.notesField.value = current ? `${current}\n${block}` : block;
+                     this.$refs.notesField.dispatchEvent(new Event('input', { bubbles: true }));
+                     this.accountMenuOpen = false;
+                 },
+             }">
+            <div class="mb-1.5 flex items-center justify-between gap-3">
+                <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block">Payment Info / Notes</label>
+                @if(($companyAccounts ?? collect())->isNotEmpty())
+                <div class="relative" @click.outside="accountMenuOpen = false">
+                    <button type="button"
+                            @click="accountMenuOpen = !accountMenuOpen"
+                            class="rounded-lg border border-line bg-surface px-3 py-1.5 text-dim hover:border-muted hover:bg-hairline hover:text-ink transition-colors cursor-pointer"
+                            style="font-size:12px;font-weight:500">
+                        ＋ Insert account
+                    </button>
+
+                    <div x-show="accountMenuOpen"
+                         x-cloak
+                         x-transition
+                         class="absolute right-0 top-full z-20 mt-2 w-72 rounded-xl border border-line bg-white p-1.5 shadow-[0_4px_20px_rgba(20,20,19,0.10)]">
+                        <template x-for="(account, index) in companyAccounts" :key="index">
+                            <button type="button"
+                                    @click="insertAccount(account)"
+                                    class="block w-full rounded-lg px-3 py-2 text-left hover:bg-canvas transition-colors cursor-pointer">
+                                <span class="block text-[13px] font-medium text-ink" x-text="account.name"></span>
+                                <template x-if="account.bank_name">
+                                    <span class="mt-0.5 block text-[12px] text-dim" x-text="account.bank_name"></span>
+                                </template>
+                                <template x-if="account.account_number">
+                                    <span class="mt-0.5 block text-[12px] text-muted" x-text="account.account_number"></span>
+                                </template>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+                @endif
+            </div>
+            <textarea x-ref="notesField" name="notes" rows="4" placeholder="Bank account details, payment instructions..."
                       class="w-full rounded-lg text-[13px] px-3 py-2"
                       style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none;resize:vertical;line-height:1.5"
                       onfocus="this.style.borderColor='#D97757';this.style.background='#fff'"
@@ -340,6 +425,8 @@
 @php
     $existingItems = (isset($invoice) && $invoice->relationLoaded('items') && $invoice->items->isNotEmpty())
         ? $invoice->items->map(fn($i) => [
+            'type'           => $i->type,
+            'task_id'        => $i->task_id,
             'description'    => $i->description,
             'quantity'       => $i->quantity,
             'unit'           => $i->unit,
@@ -347,6 +434,7 @@
             'discount_value' => $i->discount_value,
             'discount_type'  => $i->discount_type,
             'subtotal'       => $i->subtotal,
+            'cost_price'     => $i->cost_price,
         ])->values()->all()
         : [];
 @endphp
@@ -356,10 +444,12 @@ const _allProjectSprints = @json($allProjectSprints);
 
 function itemsManager() {
     return {
-        items: @json($existingItems).map(i => ({ isMultiline: false, ...i })),
+        items: @json($existingItems).map(i => ({ isMultiline: false, type: 'manual', task_id: null, cost_price: null, ...i })),
         currentProjectId: '{{ old('project_id', $invoice->project_id ?? '') }}',
         showTaskPanel:    false,
         showSprintSelect: false,
+        showCost:         @json($existingItems) && @json($existingItems).some(i => i.cost_price > 0),
+        showInvoicedTasks: false,
         selectedTaskIds:  [],
         selectedSprintId: '',
         discountType:  '{{ old('discount_type', $invoice->discount_type ?? '') }}',
@@ -394,19 +484,42 @@ function itemsManager() {
 
         get projectTasks() {
             if (!this.currentProjectId) return [];
-            return _allProjectTasks[this.currentProjectId] ?? [];
+            return (_allProjectTasks[this.currentProjectId] ?? []).filter((task) => {
+                return this.showInvoicedTasks || task.invoice_status === 'not_invoiced';
+            });
         },
 
         get projectSprints() {
             if (!this.currentProjectId) return [];
-            return _allProjectSprints[this.currentProjectId] ?? [];
+            return (_allProjectSprints[this.currentProjectId] ?? [])
+                .map((sprint) => ({
+                    ...sprint,
+                    tasks: sprint.tasks.filter((task) => this.showInvoicedTasks || task.invoice_status === 'not_invoiced'),
+                }))
+                .filter((sprint) => sprint.tasks.length > 0);
+        },
+
+        invoiceStatusLabel(status) {
+            return {
+                not_invoiced: 'Not invoiced',
+                invoiced: 'Invoiced',
+                paid: 'Paid',
+            }[status] ?? 'Not invoiced';
+        },
+
+        invoiceStatusStyle(status) {
+            return {
+                not_invoiced: 'background:#f3f2ee;color:#5c5c5a',
+                invoiced: 'background:#fef9ec;color:#9a7a1a',
+                paid: 'background:#edf7f2;color:#2e7d55',
+            }[status] ?? 'background:#f3f2ee;color:#5c5c5a';
         },
 
         addItem() {
             this.items.push({
                 isMultiline: false, type: 'manual', task_id: null,
                 description: '', quantity: 1, unit: 'units',
-                unit_price: 0, discount_value: null, discount_type: '', subtotal: 0,
+                unit_price: 0, discount_value: null, discount_type: '', subtotal: 0, cost_price: null,
             });
         },
 
@@ -419,10 +532,10 @@ function itemsManager() {
                     const unit = t.estimated_hours ? 'hours' : 'fixed';
                     this.items.push({
                         isMultiline: false,
-                        type: 'manual', task_id: null,
+                        type: 'task', task_id: t.id,
                         description: t.title,
                         quantity: qty, unit: unit,
-                        unit_price: 0, discount_value: null, discount_type: '', subtotal: 0,
+                        unit_price: 0, discount_value: null, discount_type: '', subtotal: 0, cost_price: null,
                     });
                 });
             this.selectedTaskIds = [];
@@ -433,14 +546,14 @@ function itemsManager() {
             if (!this.selectedSprintId) return;
             const sprint = this.projectSprints.find(s => String(s.id) === String(this.selectedSprintId));
             if (!sprint) return;
-            const taskLines  = sprint.tasks.map(t => '\u00b7 ' + t).join('\n');
+            const taskLines  = sprint.tasks.map(t => '\u00b7 ' + t.title).join('\n');
             const desc       = sprint.name + '\n\n' + taskLines;
             this.items.push({
                 isMultiline: true,
                 type: 'manual', task_id: null,
                 description: desc,
                 quantity: 1, unit: 'fixed',
-                unit_price: 0, discount_value: null, discount_type: '', subtotal: 0,
+                unit_price: 0, discount_value: null, discount_type: '', subtotal: 0, cost_price: null,
             });
             this.selectedSprintId = '';
             this.showSprintSelect = false;

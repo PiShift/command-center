@@ -16,7 +16,7 @@ class WarRoomController extends Controller
 
         $can = [
             'viewAll'      => $user->hasPermission('tasks.view_all'),
-            'create'       => $user->hasPermission('tasks.create'),
+            'create'       => $user->hasPermission('tasks.edit_any') || $user->hasPermission('tasks.create'),
             'editAny'      => $user->hasPermission('tasks.edit_any'),
             'delete'       => $user->hasPermission('tasks.delete'),
             'reassign'     => $user->hasPermission('tasks.reassign'),

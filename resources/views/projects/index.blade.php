@@ -59,19 +59,20 @@
 </form>
 
 {{-- Table --}}
-<div class="rounded-xl overflow-hidden" style="background:#fff; border:1px solid #e5e4df; box-shadow:0 1px 3px rgba(20,20,19,0.04)">
+<div class="rounded-xl" style="background:#fff; border:1px solid #e5e4df; box-shadow:0 1px 3px rgba(20,20,19,0.04)">
+<div class="overflow-x-auto">
     @if($projects->isEmpty())
         <div class="py-16 text-center" style="color:#8c8c8a; font-size:13px">No projects yet.</div>
     @else
-    <table class="w-full" style="font-size:13.5px">
+    <table class="w-full" style="font-size:13.5px; min-width:700px">
         <thead>
             <tr style="background:#faf9f5; border-bottom:1px solid #e5e4df">
                 @php
                     $headers = [
                         ['col' => 'name',       'label' => 'Project',        'cls' => 'px-6 py-3 text-left'],
-                        ['col' => null,         'label' => 'Customer',       'cls' => 'px-4 py-3 text-left'],
-                        ['col' => null,         'label' => 'Activity',       'cls' => 'px-4 py-3 text-left'],
-                        ['col' => null,         'label' => 'Current Sprint', 'cls' => 'px-4 py-3 text-left'],
+                        ['col' => null,         'label' => 'Customer',       'cls' => 'px-4 py-3 text-left hidden sm:table-cell'],
+                        ['col' => null,         'label' => 'Activity',       'cls' => 'px-4 py-3 text-left hidden sm:table-cell'],
+                        ['col' => null,         'label' => 'Current Sprint', 'cls' => 'px-4 py-3 text-left hidden sm:table-cell'],
                         ['col' => null,         'label' => 'Progress',       'cls' => 'px-4 py-3 text-left'],
                         ['col' => null,         'label' => 'Health',         'cls' => 'px-4 py-3 text-left'],
                         ['col' => 'deadline',   'label' => 'Deadline',       'cls' => 'px-4 py-3 text-left'],
@@ -102,9 +103,9 @@
                         <a href="{{ route('projects.show', $project) }}" style="font-weight:500;color:#141413;text-decoration:none" onmouseover="this.style.color='#D97757'" onmouseout="this.style.color='#141413'">{{ $project->name }}</a>
                     </div>
                 </td>
-                <td class="px-4 py-3" style="color:#5c5c5a">{{ $project->customer?->name ?? '-' }}</td>
+                <td class="px-4 py-3 hidden sm:table-cell" style="color:#5c5c5a">{{ $project->customer?->name ?? '-' }}</td>
                 {{-- Activity state --}}
-                <td class="px-4 py-3">
+                <td class="px-4 py-3 hidden sm:table-cell">
                     @php
                         $actState = $project->activity_state ?? 'no_sprints';
                         $actConfig = match($actState) {
@@ -126,7 +127,7 @@
                 </td>
 
                 {{-- Current Sprint --}}
-                <td class="px-4 py-3">
+                <td class="px-4 py-3 hidden sm:table-cell">
                     @php
                         $sprintName    = $project->active_sprint_name ?? null;
                         $isDraft       = $project->active_sprint_is_draft ?? false;
@@ -191,13 +192,14 @@
             @endforeach
         </tbody>
     </table>
-    <div class="px-6 py-4 flex items-center justify-between" style="border-top:1px solid #eeeee9">
+    @endif
+</div>
+<div class="mt-4 px-4 pb-4 flex items-center justify-between" style="border-top:1px solid #eeeee9">
         <div>{{ $projects->links() }}</div>
         @if(!$sort)
         <span style="font-size:11px;color:#8c8c8a">Sorted by activity</span>
         @endif
     </div>
-    @endif
 </div>
 
 </x-layouts.app>

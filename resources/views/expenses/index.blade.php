@@ -130,13 +130,14 @@
     @endif
 
     {{-- Expenses table --}}
-    <div style="background:#fff;border:1px solid #e5e4df;border-radius:12px;overflow:hidden">
-        <table style="width:100%;border-collapse:collapse">
+    <div style="background:#fff;border:1px solid #e5e4df;border-radius:12px">
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:640px">
             <thead>
                 <tr style="border-bottom:1px solid #eeeee9">
                     <th style="text-align:left;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a">Title</th>
-                    <th style="text-align:left;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a">Category</th>
-                    <th style="text-align:left;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a">Date</th>
+                    <th class="hidden sm:table-cell" style="text-align:left;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a">Category</th>
+                    <th class="hidden sm:table-cell" style="text-align:left;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a">Date</th>
                     <th style="text-align:right;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a">Amount</th>
                     <th style="text-align:center;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a">Status</th>
                     <th style="text-align:right;padding:12px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a">Actions</th>
@@ -153,7 +154,7 @@
                                 <div style="font-size:11px;color:#8c8c8a;margin-top:2px">↻ {{ $expense->recurringCharge->name }}</div>
                             @endif
                         </td>
-                        <td style="padding:13px 16px">
+                        <td class="hidden sm:table-cell" style="padding:13px 16px">
                             @if($expense->category)
                                 <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#5c5c5a">
                                     <span style="width:8px;height:8px;border-radius:50%;background:{{ $expense->category->color }};display:inline-block;flex-shrink:0"></span>
@@ -163,7 +164,7 @@
                                 <span style="font-size:12px;color:#c0bfba">—</span>
                             @endif
                         </td>
-                        <td style="padding:13px 16px;font-size:13px;color:#5c5c5a">
+                        <td class="hidden sm:table-cell" style="padding:13px 16px;font-size:13px;color:#5c5c5a">
                             {{ $expense->expense_date->format('d M Y') }}
                         </td>
                         <td style="padding:13px 16px;text-align:right;font-size:14px;font-weight:600;color:#141413">
@@ -220,6 +221,7 @@
                 </tfoot>
             @endif
         </table>
+        </div>
     </div>
 
     {{-- Pagination --}}

@@ -43,10 +43,11 @@
         @endif
 
         {{-- TOTP / OTP Form --}}
-        <div x-data="{ useRecovery: false }">
+        @php
+            $showRecovery = ($panel ?? null) === 'recovery';
+        @endphp
 
-            {{-- Standard code form --}}
-            <div x-show="!useRecovery">
+        @if(! $showRecovery)
                 <form method="POST" action="{{ route('login.verify.submit') }}">
                     @csrf
                     <input type="hidden" name="mode" value="{{ $mode === 'totp' ? 'totp' : 'otp' }}">
@@ -57,8 +58,11 @@
                             name="code"
                             inputmode="numeric"
                             autocomplete="one-time-code"
-                            maxlength="{{ $mode === 'totp' ? 6 : 6 }}"
+                            maxlength="6"
+                            minlength="6"
+                            pattern="\d{6}"
                             placeholder="000000"
+                            required
                             autofocus
                             style="width:100%;padding:14px 16px;font-size:28px;letter-spacing:0.25em;text-align:center;border:1px solid #e5e4df;border-radius:10px;background:#F5F4EF;color:#141413;outline:none;box-sizing:border-box"
                         >
@@ -78,9 +82,9 @@
 
                 {{-- Recovery code link (TOTP only) --}}
                 @if($mode === 'totp')
-                    <button @click="useRecovery = true" style="background:none;border:none;width:100%;text-align:center;margin-top:16px;font-size:13px;color:#D97757;cursor:pointer">
+                    <a href="{{ route('login.verify', ['panel' => 'recovery']) }}" style="display:block;width:100%;text-align:center;margin-top:16px;font-size:13px;color:#D97757;text-decoration:none;cursor:pointer">
                         Use a recovery code instead →
-                    </button>
+                    </a>
                 @endif
 
                 {{-- Resend link (OTP only) --}}
@@ -92,10 +96,8 @@
                         </button>
                     </form>
                 @endif
-            </div>
-
+        @else
             {{-- Recovery code form --}}
-            <div x-show="useRecovery" x-cloak>
                 <form method="POST" action="{{ route('login.verify.submit') }}">
                     @csrf
                     <input type="hidden" name="mode" value="recovery">
@@ -122,12 +124,10 @@
                     </button>
                 </form>
 
-                <button @click="useRecovery = false" style="background:none;border:none;width:100%;text-align:center;margin-top:16px;font-size:13px;color:#D97757;cursor:pointer">
+                <a href="{{ route('login.verify') }}" style="display:block;width:100%;text-align:center;margin-top:16px;font-size:13px;color:#D97757;text-decoration:none;cursor:pointer">
                     ← Use authenticator app
-                </button>
-            </div>
-
-        </div>
+                </a>
+        @endif
 
         <div style="margin-top:20px;text-align:center">
             <form method="POST" action="{{ route('logout') }}">

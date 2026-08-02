@@ -1,0 +1,1378 @@
+<?php
+
+namespace App\Livewire;
+
+use App\Models\AiConversation;
+use App\Models\AiConversationMessage;
+use App\Models\BacklogItem;
+use App\Models\Project;
+use App\Models\ProjectDocument;
+use App\Models\Sprint;
+use App\Models\Task;
+use App\Models\TaskChecklist;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
+use Throwable;
+use Livewire\Component;
+
+class AiChatPanel extends Component
+{
+    public bool $isOpen = false;
+    public ?int $projectId = null;
+    public ?int $conversationId = null;
+    public array $messages = [];
+    public string $input = '';
+    public $projects;
+
+    // Context properties
+    public int $documentsCount = 0;
+    public int $activeSprintsCount = 0;
+    public int $backlogCount = 0;
+    public int $tasksCount = 0;
+    public array $projectDocuments = [];      // [{id, title, type, content}]
+    public array $selectedDocumentIds = [];   // checked document IDs
+    public array $activeSprints = [];         // [{id, name, description}] active only — for action card sprint selector
+    public array $selectedSprintIds = [];     // checked sprint IDs
+    public array $selectedTaskIds = [];       // checked task IDs
+    public array $selectedBacklogIds = [];    // checked backlog item IDs
+    public array $availableSprints = [];      // [{id, name, status, task_count}] all sprints
+    public array $availableTasks = [];        // [{id, title, status, priority, description, assignee_name}]
+    public array $availableBacklogItems = []; // [{id, title, status, description}]
+    public string $additionalContext = '';    // content from uploaded file
+    public string $contextSummary = '';       // built before AI call
+    public string $statusSnapshot = '';       // auto-injected into every AI call (not shown in UI)
+    public array $activePresets = [];         // active bulk-context preset names
+    public bool $isStreaming = false;
+    public array $recentConversations = [];
+    public ?array $pendingParsedActions = null;
+
+    protected $listeners = [
+        'open-ai-chat'     => 'handleOpenEvent',
+        'ai-project-hint'  => 'handleProjectHint',
+        'quick-capture-ai-seed' => 'handleQuickCaptureSeed',
+    ];
+
+    public function mount(): void
+    {
+        $user = auth()->user();
+
+        if ($user->hasPermission('projects.view_all')) {
+            $this->projects = Project::where('status', 'active')
+                ->orderBy('name')
+                ->get(['id', 'name', 'color']);
+        } else {
+            $this->projects = Project::where('status', 'active')
+                ->whereHas('teams.members', fn ($q) => $q->where('users.id', $user->id))
+                ->orderBy('name')
+                ->get(['id', 'name', 'color']);
+        }
+
+        $this->projectId = null;
+    }
+
+    public function toggle(): void
+    {
+        $this->isOpen = ! $this->isOpen;
+    }
+
+    public function handleOpenEvent(?int $projectId = null): void
+    {
+        if (! $this->isOpen) {
+            $this->isOpen = true;
+        }
+
+        if ($projectId) {
+            $this->selectProject($projectId);
+        }
+    }
+
+    /**
+     * Pre-select a project when the page hints at one (does not open the panel).
+     */
+    public function handleProjectHint(int $projectId): void
+    {
+        if (! $this->projectId) {
+            $this->selectProject($projectId);
+        }
+    }
+
+    /**
+     * Open AI chat from quick capture with selected project and prefilled text.
+     */
+    public function handleQuickCaptureSeed(?int $projectId = null, string $text = ''): void
+    {
+        if (! $this->isOpen) {
+            $this->isOpen = true;
+        }
+
+        if ($projectId) {
+            $this->selectProject((int) $projectId);
+        }
+
+        $this->input = trim($text);
+    }
+
+    public function selectProject(int $projectId): void
+    {
+        $project = Project::with(['projectDocuments', 'sprints', 'backlogItems', 'tasks'])->findOrFail($projectId);
+        Gate::authorize('view', $project);
+
+        $this->projectId = $projectId;
+
+        // Load context counts and data
+        $this->documentsCount     = $project->projectDocuments->count();
+        $this->activeSprintsCount = $project->sprints->where('status', 'active')->count();
+        $this->backlogCount       = $project->backlogItems->where('status', 'pending')->count();
+        $this->tasksCount         = $project->tasks->count();
+
+        $this->projectDocuments = $project->projectDocuments
+            ->values()
+            ->map(fn ($doc) => [
+                'id' => $doc->id,
+                'title' => (string) $doc->title,
+                'type' => (string) ($doc->type ?? ''),
+                'content' => (string) ($doc->content ?? ''),
+            ])
+            ->toArray();
+
+        $this->activeSprints = $project->sprints
+            ->where('status', 'active')
+            ->values()
+            ->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'description' => (string) ($s->description ?? '')])
+            ->toArray();
+
+        $this->selectedDocumentIds = [];
+        $this->selectedSprintIds  = [];
+        $this->selectedTaskIds    = [];
+        $this->selectedBacklogIds = [];
+        $this->additionalContext  = '';
+        $this->contextSummary    = '';
+        $this->activePresets     = [];
+        $this->statusSnapshot    = '';
+
+        // All sprints with task counts (for context section)
+        $this->availableSprints = Sprint::where('project_id', $projectId)
+            ->withCount('tasks')
+            ->orderByRaw("CASE WHEN status = 'active' THEN 0 WHEN status = 'draft' THEN 1 ELSE 2 END")
+            ->orderBy('sort_order')
+            ->get()
+            ->map(fn ($s) => [
+                'id'         => $s->id,
+                'name'       => $s->name,
+                'status'     => $s->status,
+                'task_count' => $s->tasks_count,
+            ])
+            ->toArray();
+
+        // All tasks with assignee (for context section)
+        $this->availableTasks = Task::where('project_id', $projectId)
+            ->with('assignee:id,name')
+            ->orderBy('title')
+            ->get(['id', 'title', 'status', 'priority', 'description', 'assigned_to'])
+            ->map(fn ($t) => [
+                'id'            => $t->id,
+                'title'         => $t->title,
+                'status'        => $t->status,
+                'priority'      => $t->priority ?? 'medium',
+                'description'   => (string) ($t->description ?? ''),
+                'assignee_name' => $t->assignee?->name ?? '',
+            ])
+            ->toArray();
+
+        // All unpromoted backlog items (for context section)
+        $this->availableBacklogItems = BacklogItem::where('project_id', $projectId)
+            ->where('promoted', false)
+            ->orderBy('title')
+            ->get(['id', 'title', 'status', 'description'])
+            ->map(fn ($b) => [
+                'id'          => $b->id,
+                'title'       => $b->title,
+                'status'      => $b->status,
+                'description' => (string) ($b->description ?? ''),
+            ])
+            ->toArray();
+
+        // Compute status snapshot — silently injected into every AI call, never shown in UI
+        $activeSprintsForSnapshot = $project->sprints()
+            ->withCount([
+                'tasks as total_tasks',
+                'tasks as done_tasks'    => fn ($q) => $q->where('status', 'done'),
+                'tasks as overdue_tasks' => fn ($q) => $q->where('status', '!=', 'done')
+                    ->whereNotNull('due_date')
+                    ->where('due_date', '<', now()),
+            ])
+            ->where('status', 'active')
+            ->orderBy('sort_order')
+            ->get();
+
+        $totalTasks      = $project->tasks()->count();
+        $doneTasks       = $project->tasks()->where('status', 'done')->count();
+        $overallProgress = $totalTasks > 0 ? round(($doneTasks / $totalTasks) * 100) : 0;
+        $pendingBacklog  = $project->backlogItems()->where('promoted', false)->count();
+
+        $snapshot  = "PROJECT STATUS SNAPSHOT:\n";
+        $snapshot .= "Overall: {$overallProgress}% complete ({$doneTasks}/{$totalTasks} tasks done)\n";
+        $snapshot .= "Health: " . ($project->health ?? 'N/A') . " | Status: {$project->status}\n\n";
+        $snapshot .= "Active sprints:\n";
+
+        foreach ($activeSprintsForSnapshot as $sp) {
+            $pct = $sp->total_tasks > 0 ? round(($sp->done_tasks / $sp->total_tasks) * 100) : 0;
+            $snapshot .= "- {$sp->name}: {$pct}% done ({$sp->done_tasks}/{$sp->total_tasks} tasks)";
+            if ($sp->overdue_tasks > 0) {
+                $snapshot .= " ⚠️ {$sp->overdue_tasks} overdue";
+            }
+            $snapshot .= "\n";
+        }
+
+        $snapshot .= "\nBacklog: {$pendingBacklog} items pending\n";
+        $this->statusSnapshot = $snapshot;
+
+        $conversation = AiConversation::where('project_id', $projectId)
+            ->where('user_id', auth()->id())
+            ->latest()
+            ->first();
+
+        if (! $conversation) {
+            $conversation = AiConversation::create([
+                'project_id' => $projectId,
+                'user_id'    => auth()->id(),
+            ]);
+        }
+
+        $this->conversationId = $conversation->id;
+        $this->loadConversation($conversation->id);
+        $this->loadRecentConversations();
+    }
+
+    public function loadConversation(int $conversationId): void
+    {
+        $conversation = AiConversation::where('id', $conversationId)
+            ->where('user_id', auth()->id())
+            ->firstOrFail();
+
+        $this->conversationId = $conversation->id;
+        $this->projectId      = $conversation->project_id;
+
+        $this->messages = $conversation->messages()
+            ->get(['id', 'role', 'content', 'actions', 'created_at'])
+            ->map(function ($m) {
+                $actions = null;
+
+                if (is_array($m->actions)) {
+                    if (($m->actions['type'] ?? null) === 'sprint_with_tasks') {
+                        $actions = $this->normalizeSprintWithTasksAction($m->actions);
+                    } elseif (($m->actions['type'] ?? null) === 'clarification') {
+                        $actions = $this->normalizeClarificationAction($m->actions);
+                    } elseif (($m->actions['type'] ?? null) === 'question') {
+                        $actions = $this->normalizeQuestionAction($m->actions);
+                    } else {
+                        $actions = $this->normalizeActions($m->actions);
+                    }
+                }
+
+                return [
+                    'id'         => $m->id,
+                    'role'       => $m->role,
+                    'content'    => $m->content,
+                    'actions'    => $actions,
+                    'created_at' => $m->created_at->toISOString(),
+                ];
+            })
+            ->toArray();
+
+        $this->loadRecentConversations();
+    }
+
+    /**
+     * Start a brand-new conversation for the current project.
+     */
+    public function newChat(): void
+    {
+        if (! $this->projectId) {
+            return;
+        }
+
+        $conversation = AiConversation::create([
+            'project_id' => $this->projectId,
+            'user_id'    => auth()->id(),
+        ]);
+
+        $this->conversationId = $conversation->id;
+        $this->messages       = [];
+        $this->isStreaming     = false;
+        $this->loadRecentConversations();
+    }
+
+    /**
+     * Switch to an existing conversation from the history list.
+     */
+    public function switchConversation(int $conversationId): void
+    {
+        $this->loadConversation($conversationId);
+    }
+
+    /**
+     * Fill the input with a suggested prompt and send immediately.
+     */
+    public function quickPrompt(string $text): void
+    {
+        $this->input = $text;
+        $this->sendMessage();
+    }
+
+    /**
+     * Inject a sample interactive question card for local/manual testing.
+     */
+    public function insertTestQuestion(string $inputType = 'pills'): void
+    {
+        if (! $this->conversationId || (! app()->isLocal() && ! config('app.debug'))) {
+            return;
+        }
+
+        $actions = match ($inputType) {
+            'text' => [
+                'type'       => 'question',
+                'question'   => 'What is the most important outcome for this sprint?',
+                'input_type' => 'text',
+            ],
+            'multiselect' => [
+                'type'       => 'question',
+                'question'   => 'Which constraints should we optimize for?',
+                'input_type' => 'multiselect',
+                'options'    => ['Speed', 'Quality', 'Scope', 'Cost'],
+            ],
+            'form' => [
+                'type'       => 'question',
+                'question'   => 'Please provide the planning inputs:',
+                'input_type' => 'form',
+                'form'       => [
+                    ['name' => 'goal', 'label' => 'Primary Goal', 'type' => 'text'],
+                    ['name' => 'deadline', 'label' => 'Deadline', 'type' => 'text'],
+                    ['name' => 'priority', 'label' => 'Priority', 'type' => 'select', 'options' => ['low', 'medium', 'high']],
+                ],
+            ],
+            default => [
+                'type'         => 'question',
+                'question'     => 'Which direction should we take first?',
+                'input_type'   => 'pills',
+                'options'      => ['Backlog cleanup', 'Sprint planning', 'Risk review'],
+                'allow_custom' => true,
+            ],
+        };
+
+        $message = AiConversationMessage::create([
+            'conversation_id' => $this->conversationId,
+            'role'            => 'assistant',
+            'content'         => 'I need one quick input before I continue.',
+            'actions'         => $actions,
+        ]);
+
+        $this->messages[] = [
+            'id'         => $message->id,
+            'role'       => 'assistant',
+            'content'    => $message->content,
+            'actions'    => $actions,
+            'created_at' => now()->toISOString(),
+        ];
+    }
+
+    public function removeSprintContext(int $id): void
+    {
+        $this->selectedSprintIds = array_values(array_filter($this->selectedSprintIds, fn ($v) => (int) $v !== $id));
+    }
+
+    public function removeDocumentContext(int $id): void
+    {
+        $this->selectedDocumentIds = array_values(array_filter($this->selectedDocumentIds, fn ($v) => (int) $v !== $id));
+    }
+
+    public function removeTaskContext(int $id): void
+    {
+        $this->selectedTaskIds = array_values(array_filter($this->selectedTaskIds, fn ($v) => (int) $v !== $id));
+    }
+
+    public function removeBacklogContext(int $id): void
+    {
+        $this->selectedBacklogIds = array_values(array_filter($this->selectedBacklogIds, fn ($v) => (int) $v !== $id));
+    }
+
+    public function clearInput(): void
+    {
+        $this->input = '';
+    }
+
+    public function setAdditionalContext(string $content): void
+    {
+        $this->additionalContext = $content;
+    }
+
+    public function removeAdditionalContext(): void
+    {
+        $this->additionalContext = '';
+    }
+
+    public function sendMessage(): void
+    {
+        $this->validate(['input' => 'required|string|max:10000']);
+
+        if (! $this->conversationId) {
+            return;
+        }
+
+        // Build context summary from selected sprints + uploaded file.
+        $parts = [];
+
+        if (! empty($this->selectedDocumentIds)) {
+            $documents = ProjectDocument::whereIn('id', $this->selectedDocumentIds)
+                ->where('project_id', $this->projectId)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get(['title', 'type', 'content']);
+
+            $documentSections = $documents->map(function ($doc) {
+                $heading = '### ' . $doc->title;
+                if (! empty($doc->type)) {
+                    $heading .= ' (' . $doc->type . ')';
+                }
+
+                return $heading . "\n" . $doc->content;
+            })->join("\n\n");
+
+            if ($documentSections !== '') {
+                $parts[] = "## Selected Documents\n" . $documentSections;
+            }
+        }
+
+        if (! empty($this->selectedSprintIds)) {
+            // Legacy — kept for backward compat but no longer exposed in UI
+        }
+
+        // Preset-based context — replaces individual sprint/task/backlog checkboxes
+        if (in_array('current_sprint', $this->activePresets)) {
+            $sprint = Sprint::where('project_id', $this->projectId)
+                ->where('status', 'active')
+                ->with(['tasks' => fn ($q) => $q->with('assignee:id,name')])
+                ->orderBy('sort_order')
+                ->first();
+            if ($sprint) {
+                $taskLines = $sprint->tasks->map(fn ($t) =>
+                    "  - {$t->title} [{$t->status}]" . ($t->assignee ? " @{$t->assignee->name}" : '')
+                )->join("\n");
+                $parts[] = "## Current Sprint: {$sprint->name}\n" . ($taskLines ?: '  (no tasks yet)');
+            }
+        }
+
+        if (in_array('active_sprints', $this->activePresets)) {
+            $sprints = Sprint::where('project_id', $this->projectId)
+                ->where('status', 'active')
+                ->with(['tasks' => fn ($q) => $q->with('assignee:id,name')])
+                ->orderBy('sort_order')
+                ->get();
+            $text = $sprints->map(fn ($sprint) => "**{$sprint->name}**\n" . ($sprint->tasks->map(fn ($t) =>
+                "  - {$t->title} [{$t->status}]" . ($t->assignee ? " @{$t->assignee->name}" : '')
+            )->join("\n") ?: '  (no tasks)'))->join("\n\n");
+            if ($text !== '') {
+                $parts[] = "## Active Sprints\n" . $text;
+            }
+        }
+
+        if (in_array('backlog', $this->activePresets)) {
+            $backlogItems = BacklogItem::where('project_id', $this->projectId)
+                ->where('status', 'pending')
+                ->orderBy('title')
+                ->get(['title', 'description', 'status']);
+            $backlogLines = $backlogItems->map(fn ($b) =>
+                "- **{$b->title}**" . ($b->description ? ': ' . Str::limit($b->description, 200) : '') . " [{$b->status}]"
+            )->join("\n");
+            if ($backlogLines !== '') {
+                $parts[] = "## Backlog\n" . $backlogLines;
+            }
+        }
+
+        if (in_array('full_project', $this->activePresets)) {
+            $allSprints = Sprint::where('project_id', $this->projectId)
+                ->with(['tasks' => fn ($q) => $q->with('assignee:id,name')])
+                ->orderBy('sort_order')
+                ->get();
+            $sprintText = $allSprints->map(fn ($sprint) => "**{$sprint->name}** ({$sprint->status})\n" . ($sprint->tasks->map(fn ($t) =>
+                "  - {$t->title} [{$t->status}]" . ($t->assignee ? " @{$t->assignee->name}" : '')
+            )->join("\n") ?: '  (no tasks)'))->join("\n\n");
+            $allBacklog = BacklogItem::where('project_id', $this->projectId)
+                ->where('promoted', false)
+                ->orderBy('title')
+                ->get(['title', 'description', 'status']);
+            $backlogText = $allBacklog->map(fn ($b) =>
+                "- **{$b->title}**" . ($b->description ? ': ' . Str::limit($b->description, 150) : '') . " [{$b->status}]"
+            )->join("\n");
+            $fullText = '';
+            if ($sprintText !== '') $fullText .= "### All Sprints\n" . $sprintText . "\n\n";
+            if ($backlogText !== '') $fullText .= "### Backlog\n" . $backlogText;
+            if ($fullText !== '') {
+                $parts[] = "## Full Project Context\n" . trim($fullText);
+            }
+        }
+
+        if (! empty($this->selectedTaskIds)) {
+            // Legacy — kept for backward compat but no longer exposed in UI
+        }
+
+        if (! empty($this->selectedBacklogIds)) {
+            // Legacy — kept for backward compat but no longer exposed in UI
+        }
+
+        if ($this->additionalContext !== '') {
+            $parts[] = "## Additional Context\n" . $this->additionalContext;
+        }
+
+        $this->contextSummary = implode("\n\n", $parts);
+
+        $text = trim($this->input);
+
+        // Save user message to DB.
+        $userMsg = AiConversationMessage::create([
+            'conversation_id' => $this->conversationId,
+            'role'            => 'user',
+            'content'         => $text,
+        ]);
+
+        AiConversation::where('id', $this->conversationId)
+            ->update(['last_message_at' => now()]);
+
+        // Append to local messages array for immediate display.
+        $this->messages[] = [
+            'id'         => $userMsg->id,
+            'role'       => 'user',
+            'content'    => $text,
+            'actions'    => null,
+            'created_at' => now()->toISOString(),
+        ];
+
+        $this->isStreaming = true;
+        $this->clearInput();
+
+        // Tell Alpine.js to start the SSE fetch.
+        $this->dispatch('begin-stream',
+            projectId:      $this->projectId,
+            conversationId: $this->conversationId,
+            message:        $text,
+            context:        $this->contextSummary,
+            statusSnapshot: $this->statusSnapshot,
+        );
+    }
+
+    /**
+     * Answer an interactive assistant question and continue the conversation.
+     */
+    public function answerQuestion(int $messageId, string $answer): void
+    {
+        $answer = trim($answer);
+
+        if ($answer === '' || ! $this->conversationId || $this->isStreaming) {
+            return;
+        }
+
+        foreach ($this->messages as $msgIdx => $msg) {
+            if (($msg['id'] ?? null) !== $messageId) {
+                continue;
+            }
+
+            if (($msg['actions']['type'] ?? null) !== 'question') {
+                return;
+            }
+
+            $this->messages[$msgIdx]['actions']['answered'] = true;
+            $this->messages[$msgIdx]['actions']['answer']   = $answer;
+            break;
+        }
+
+        $dbMessage = AiConversationMessage::where('id', $messageId)
+            ->where('conversation_id', $this->conversationId)
+            ->first();
+
+        if ($dbMessage && is_array($dbMessage->actions)) {
+            $actions             = $dbMessage->actions;
+            $actions['answered'] = true;
+            $actions['answer']   = $answer;
+            $dbMessage->update(['actions' => $actions]);
+        }
+
+        // Reuse existing message pipeline so answer is saved as a user message
+        // and immediately streamed to the assistant.
+        $this->input = $answer;
+        $this->sendMessage();
+    }
+
+    /**
+     * Capture parsed actions emitted by the stream endpoint final parse pass.
+     */
+    public function captureParsedActions(?array $actions = null): void
+    {
+        $this->pendingParsedActions = is_array($actions) ? $actions : null;
+    }
+
+    /**
+     * Submit a full clarification answer set and continue the conversation.
+     *
+     * @param  array<string, mixed>  $answers
+     */
+    public function submitClarificationAnswers(int $messageId, array $answers): void
+    {
+        if (! $this->conversationId || $this->isStreaming) {
+            return;
+        }
+
+        $targetIndex = null;
+        $questions = [];
+
+        foreach ($this->messages as $idx => $msg) {
+            if (($msg['id'] ?? null) !== $messageId) {
+                continue;
+            }
+
+            if (($msg['actions']['type'] ?? null) !== 'clarification') {
+                return;
+            }
+
+            $targetIndex = $idx;
+            $questions = is_array($msg['actions']['questions'] ?? null)
+                ? $msg['actions']['questions']
+                : [];
+            break;
+        }
+
+        if ($targetIndex === null || empty($questions)) {
+            return;
+        }
+
+        $segments = [];
+        $normalizedAnswers = [];
+
+        foreach ($questions as $i => $question) {
+            $qid = (string) ($question['id'] ?? ('q' . ($i + 1)));
+            $raw = $answers[$qid] ?? null;
+
+            if (is_array($raw)) {
+                $raw = collect($raw)
+                    ->map(fn ($v) => trim((string) $v))
+                    ->filter(fn ($v) => $v !== '')
+                    ->values()
+                    ->implode(', ');
+            }
+
+            $answerText = trim((string) $raw);
+            if ($answerText === '') {
+                $answerText = 'Skipped';
+            }
+
+            $segments[] = '[Q' . ($i + 1) . ']: ' . $answerText;
+            $normalizedAnswers[$qid] = $answerText;
+        }
+
+        $compiled = 'Here are my answers: ' . implode(' / ', $segments);
+
+        $this->messages[$targetIndex]['actions']['answered'] = true;
+        $this->messages[$targetIndex]['actions']['answers'] = $normalizedAnswers;
+
+        $dbMessage = AiConversationMessage::where('id', $messageId)
+            ->where('conversation_id', $this->conversationId)
+            ->first();
+
+        if ($dbMessage && is_array($dbMessage->actions)) {
+            $actions = $dbMessage->actions;
+            $actions['answered'] = true;
+            $actions['answers'] = $normalizedAnswers;
+            $dbMessage->update(['actions' => $actions]);
+        }
+
+        $this->input = $compiled;
+        $this->sendMessage();
+    }
+
+    /**
+     * Called by Alpine.js when the SSE stream completes.
+     * Extracts any <actions> block, persists clean content + structured actions.
+     */
+    public function saveAssistantMessage(string $content): void
+    {
+        if (! $this->conversationId || trim($content) === '') {
+            $this->isStreaming = false;
+            return;
+        }
+
+        // Extract <actions>…</actions> block if present.
+        $actions      = null;
+        $cleanContent = $content;
+
+        if (is_array($this->pendingParsedActions)) {
+            $actions = $this->normalizeAnyAction($this->pendingParsedActions);
+            $this->pendingParsedActions = null;
+        }
+
+        if ($actions === null && preg_match('/<actions>(.*?)<\/actions>/s', $content, $matches)) {
+            $jsonStr = trim($matches[1]);
+            // Strip markdown code fences the model may have added.
+            $jsonStr = preg_replace('/^```(?:json)?\s*/m', '', $jsonStr);
+            $jsonStr = preg_replace('/```\s*$/m', '', $jsonStr);
+            $jsonStr = trim($jsonStr);
+
+            $decoded = json_decode($jsonStr, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $actions = $this->normalizeAnyAction($decoded);
+            }
+
+            $cleanContent = trim(preg_replace('/<actions>.*?<\/actions>/s', '', $content));
+        }
+
+        if (($actions['type'] ?? null) === 'clarification') {
+            $cleanContent = $this->clarificationIntroLine($cleanContent);
+        } elseif (($actions['type'] ?? null) === 'sprint_with_tasks') {
+            $cleanContent = $this->sprintWithTasksSummaryLine($cleanContent, $actions);
+        }
+
+        $message = AiConversationMessage::create([
+            'conversation_id' => $this->conversationId,
+            'role'            => 'assistant',
+            'content'         => $cleanContent,
+            'actions'         => $actions,
+        ]);
+
+        AiConversation::where('id', $this->conversationId)
+            ->update(['last_message_at' => now()]);
+
+        $this->messages[] = [
+            'id'         => $message->id,
+            'role'       => 'assistant',
+            'content'    => $cleanContent,
+            'actions'    => $actions,
+            'created_at' => now()->toISOString(),
+        ];
+
+        $this->isStreaming = false;
+    }
+
+    /**
+     * Save artifact content as a project document.
+     *
+     * @return array{ok: bool, error?: string, link?: string}
+     */
+    public function saveAsDocument(string $content, string $title, string $type): array
+    {
+        if (! $this->projectId) {
+            return ['ok' => false, 'error' => 'Select a project first'];
+        }
+
+        $content = trim($content);
+        $title   = trim($title) !== '' ? trim($title) : 'AI Response';
+        $type    = trim($type);
+
+        if ($content === '') {
+            return ['ok' => false, 'error' => 'Nothing to save'];
+        }
+
+        try {
+            $project = Project::findOrFail($this->projectId);
+
+            if (! auth()->user()?->hasPermission('projects.manage')) {
+                return ['ok' => false, 'error' => 'You do not have permission to save documents'];
+            }
+
+            Gate::authorize('view', $project);
+
+            $document = ProjectDocument::create([
+                'project_id'  => $this->projectId,
+                'title'       => Str::limit(strip_tags($title), 255, ''),
+                'content'     => $content,
+                'type'        => $type !== '' ? Str::limit(strip_tags($type), 50, '') : null,
+                'sort_order'  => (int) ProjectDocument::where('project_id', $this->projectId)->max('sort_order') + 1,
+            ]);
+
+            $this->projectDocuments[] = [
+                'id'      => $document->id,
+                'title'   => (string) $document->title,
+                'type'    => (string) ($document->type ?? ''),
+                'content' => (string) $document->content,
+            ];
+            $this->documentsCount = count($this->projectDocuments);
+
+            return [
+                'ok'   => true,
+                'link' => route('projects.show', $project) . '#guide',
+            ];
+        } catch (Throwable) {
+            return ['ok' => false, 'error' => 'Failed to save document'];
+        }
+    }
+
+    /**
+     * Confirm a single AI-suggested action (create the item in the project).
+     */
+    public function confirmAction(int $messageId, int $actionIndex, array $data): void
+    {
+        if (! $this->projectId) {
+            return;
+        }
+
+        $title        = substr(strip_tags((string) ($data['title'] ?? '')), 0, 255);
+        $description  = substr(strip_tags((string) ($data['description'] ?? '')), 0, 5000);
+        $targetAction = (string) ($data['targetAction'] ?? 'backlog');
+        $actionType   = (string) ($data['actionType'] ?? 'backlog');
+        $itemType     = (string) ($data['type'] ?? 'feature');
+        $priority     = (string) ($data['priority'] ?? 'medium');
+        $weight       = (int) ($data['weight'] ?? 2);
+        $checklistRaw = is_array($data['checklist'] ?? null) ? $data['checklist'] : [];
+        $sprintId     = isset($data['sprintId']) && $data['sprintId'] !== '' ? (int) $data['sprintId'] : null;
+
+        if (empty($title)) {
+            return;
+        }
+
+        Gate::authorize('view', Project::findOrFail($this->projectId));
+
+        if ($targetAction === 'sprint_create') {
+            Sprint::create([
+                'project_id'  => $this->projectId,
+                'name'        => $title,
+                'description' => $description ?: null,
+                'status'      => 'draft',
+                'sort_order'  => 0,
+            ]);
+        } elseif ($actionType === 'tasks') {
+            $task = Task::create([
+                'project_id'   => $this->projectId,
+                'sprint_id'    => ($targetAction === 'sprint' && $sprintId) ? $sprintId : null,
+                'title'        => $title,
+                'description'  => $description ?: null,
+                'type'         => in_array($itemType, ['feature', 'bug', 'change'], true) ? $itemType : 'feature',
+                'priority'     => in_array($priority, ['low', 'medium', 'high'], true) ? $priority : 'medium',
+                'status'       => 'todo',
+                'weight'       => max(1, min(5, $weight)),
+                'source'       => 'ai-chat',
+                'original_input' => null,
+            ]);
+
+            $checklist = collect($checklistRaw)
+                ->map(fn ($item) => trim(strip_tags((string) $item)))
+                ->filter(fn ($item) => $item !== '')
+                ->values();
+
+            foreach ($checklist as $idx => $label) {
+                TaskChecklist::create([
+                    'task_id'    => $task->id,
+                    'label'      => Str::limit($label, 255, ''),
+                    'is_checked' => false,
+                    'sort_order' => $idx,
+                ]);
+            }
+        } else {
+            BacklogItem::create([
+                'project_id'  => $this->projectId,
+                'sprint_id'   => ($targetAction === 'sprint' && $sprintId) ? $sprintId : null,
+                'title'       => $title,
+                'description' => $description ?: null,
+                'status'      => ($targetAction === 'sprint' && $sprintId) ? 'refined' : 'raw',
+                'promoted'    => false,
+                'sort_order'  => 0,
+            ]);
+        }
+
+        // Mark confirmed in the local messages array for UI feedback.
+        foreach ($this->messages as $msgIdx => $msg) {
+            if (($msg['id'] ?? null) === $messageId) {
+                $this->messages[$msgIdx]['actions']['items'][$actionIndex]['confirmed'] = true;
+                break;
+            }
+        }
+    }
+
+    /**
+     * Confirm a grouped sprint_with_tasks action card.
+     */
+    public function confirmSprintWithTasks(int $messageId, array $payload): void
+    {
+        if (! $this->projectId) {
+            return;
+        }
+
+        $project = Project::findOrFail($this->projectId);
+        Gate::authorize('view', $project);
+
+        $sprintsRaw = is_array($payload['sprints'] ?? null)
+            ? $payload['sprints']
+            : [];
+
+        if (empty($sprintsRaw)) {
+            return;
+        }
+
+        $sprints = collect($sprintsRaw)
+            ->map(function ($sprint): array {
+                $tasks = collect(is_array($sprint['tasks'] ?? null) ? $sprint['tasks'] : [])
+                    ->map(function ($task): array {
+                        $checklist = collect(is_array($task['checklist'] ?? null) ? $task['checklist'] : [])
+                            ->map(fn ($item) => trim(strip_tags((string) $item)))
+                            ->filter(fn ($item) => $item !== '')
+                            ->values()
+                            ->all();
+
+                        return [
+                            'title'       => Str::limit(strip_tags(trim((string) ($task['title'] ?? ''))), 255, ''),
+                            'description' => Str::limit(strip_tags(trim((string) ($task['description'] ?? ''))), 5000, ''),
+                            'type'        => in_array(($task['type'] ?? ''), ['feature', 'bug', 'change'], true) ? $task['type'] : 'feature',
+                            'priority'    => in_array(($task['priority'] ?? ''), ['low', 'medium', 'high'], true) ? $task['priority'] : 'medium',
+                            'weight'      => max(1, min(5, (int) ($task['weight'] ?? 2))),
+                            'checklist'   => $checklist,
+                        ];
+                    })
+                    ->filter(fn ($task) => $task['title'] !== '')
+                    ->values()
+                    ->all();
+
+                return [
+                    'name'        => Str::limit(strip_tags(trim((string) ($sprint['name'] ?? ''))), 255, ''),
+                    'description' => Str::limit(strip_tags(trim((string) ($sprint['description'] ?? ''))), 5000, ''),
+                    'tasks'       => $tasks,
+                ];
+            })
+            ->filter(fn ($sprint) => $sprint['name'] !== '' && ! empty($sprint['tasks']))
+            ->values();
+
+        if ($sprints->isEmpty()) {
+            return;
+        }
+
+        DB::transaction(function () use ($sprints, $messageId): void {
+            $createdSprintNames = [];
+
+            foreach ($sprints as $sprintData) {
+                $sprint = Sprint::create([
+                    'project_id'  => $this->projectId,
+                    'name'        => $sprintData['name'],
+                    'description' => $sprintData['description'] !== '' ? $sprintData['description'] : null,
+                    'status'      => 'draft',
+                    'sort_order'  => 0,
+                ]);
+
+                $createdSprintNames[] = $sprint->name;
+
+                foreach ($sprintData['tasks'] as $taskData) {
+                    $task = Task::create([
+                        'project_id'      => $this->projectId,
+                        'sprint_id'       => $sprint->id,
+                        'title'           => $taskData['title'],
+                        'description'     => $taskData['description'] !== '' ? $taskData['description'] : null,
+                        'type'            => $taskData['type'],
+                        'priority'        => $taskData['priority'],
+                        'status'          => 'todo',
+                        'weight'          => $taskData['weight'],
+                        'source'          => 'ai-chat',
+                        'original_input'  => null,
+                    ]);
+
+                    foreach ($taskData['checklist'] as $idx => $label) {
+                        TaskChecklist::create([
+                            'task_id'    => $task->id,
+                            'label'      => Str::limit($label, 255, ''),
+                            'is_checked' => false,
+                            'sort_order' => $idx,
+                        ]);
+                    }
+                }
+            }
+
+            foreach ($this->messages as $msgIdx => $msg) {
+                if (($msg['id'] ?? null) !== $messageId) {
+                    continue;
+                }
+
+                $this->messages[$msgIdx]['actions']['confirmed'] = true;
+                break;
+            }
+
+            $msg = AiConversationMessage::where('id', $messageId)
+                ->where('conversation_id', $this->conversationId)
+                ->first();
+
+            if ($msg && is_array($msg->actions)) {
+                $actions = $msg->actions;
+                $actions['confirmed'] = true;
+                $msg->update(['actions' => $actions]);
+            }
+
+            $sprintCount = $sprints->count();
+            $taskCount = $sprints->sum(fn ($sprint) => count($sprint['tasks']));
+            $confirmationText = $sprintCount === 1
+                ? "Sprint created with {$taskCount} tasks."
+                : "{$sprintCount} sprints created with {$taskCount} tasks.";
+
+            $assistantMessage = AiConversationMessage::create([
+                'conversation_id' => $this->conversationId,
+                'role'            => 'assistant',
+                'content'         => $confirmationText,
+                'actions'         => null,
+            ]);
+
+            $this->messages[] = [
+                'id'         => $assistantMessage->id,
+                'role'       => 'assistant',
+                'content'    => $confirmationText,
+                'actions'    => null,
+                'created_at' => now()->toISOString(),
+            ];
+        });
+    }
+
+    /**
+     * Skip (dismiss) a single AI-suggested action card.
+     */
+    public function skipAction(int $messageId, int $actionIndex): void
+    {
+        foreach ($this->messages as $msgIdx => $msg) {
+            if (($msg['id'] ?? null) === $messageId) {
+                $this->messages[$msgIdx]['actions']['items'][$actionIndex]['skipped'] = true;
+                break;
+            }
+        }
+    }
+
+    /**
+     * Skip a grouped sprint_with_tasks action card.
+     */
+    public function skipSprintWithTasks(int $messageId): void
+    {
+        foreach ($this->messages as $msgIdx => $msg) {
+            if (($msg['id'] ?? null) !== $messageId) {
+                continue;
+            }
+
+            $this->messages[$msgIdx]['actions']['skipped'] = true;
+            break;
+        }
+
+        $dbMessage = AiConversationMessage::where('id', $messageId)
+            ->where('conversation_id', $this->conversationId)
+            ->first();
+
+        if ($dbMessage && is_array($dbMessage->actions)) {
+            $actions = $dbMessage->actions;
+            $actions['skipped'] = true;
+            $dbMessage->update(['actions' => $actions]);
+        }
+    }
+
+    /**
+     * Confirm all remaining (non-confirmed, non-skipped) action items for a message.
+     */
+    public function confirmAllActions(int $messageId): void
+    {
+        if (! $this->projectId) {
+            return;
+        }
+
+        Gate::authorize('view', Project::findOrFail($this->projectId));
+
+        foreach ($this->messages as $msgIdx => $msg) {
+            if (($msg['id'] ?? null) !== $messageId) {
+                continue;
+            }
+
+            $actionType = $msg['actions']['type'] ?? 'backlog';
+
+            foreach ($msg['actions']['items'] as $aIdx => $item) {
+                if (! empty($item['confirmed']) || ! empty($item['skipped'])) {
+                    continue;
+                }
+
+                $title       = substr(strip_tags((string) ($item['title'] ?? '')), 0, 255);
+                $description = substr(strip_tags((string) ($item['description'] ?? '')), 0, 5000);
+
+                if (empty($title)) {
+                    continue;
+                }
+
+                if ($actionType === 'sprints') {
+                    Sprint::create([
+                        'project_id'  => $this->projectId,
+                        'name'        => $title,
+                        'description' => $description ?: null,
+                        'status'      => 'draft',
+                        'sort_order'  => 0,
+                    ]);
+                } elseif ($actionType === 'tasks') {
+                    $task = Task::create([
+                        'project_id'      => $this->projectId,
+                        'sprint_id'       => null,
+                        'title'           => $title,
+                        'description'     => $description ?: null,
+                        'type'            => in_array(($item['type'] ?? ''), ['feature', 'bug', 'change'], true) ? $item['type'] : 'feature',
+                        'priority'        => in_array(($item['priority'] ?? ''), ['low', 'medium', 'high'], true) ? $item['priority'] : 'medium',
+                        'status'          => 'todo',
+                        'weight'          => max(1, min(5, (int) ($item['weight'] ?? 2))),
+                        'source'          => 'ai-chat',
+                        'original_input'  => null,
+                    ]);
+
+                    $checklist = collect(is_array($item['checklist'] ?? null) ? $item['checklist'] : [])
+                        ->map(fn ($entry) => trim(strip_tags((string) $entry)))
+                        ->filter(fn ($entry) => $entry !== '')
+                        ->values();
+
+                    foreach ($checklist as $idx => $label) {
+                        TaskChecklist::create([
+                            'task_id'    => $task->id,
+                            'label'      => Str::limit($label, 255, ''),
+                            'is_checked' => false,
+                            'sort_order' => $idx,
+                        ]);
+                    }
+                } else {
+                    BacklogItem::create([
+                        'project_id'  => $this->projectId,
+                        'sprint_id'   => null,
+                        'title'       => $title,
+                        'description' => $description ?: null,
+                        'status'      => 'raw',
+                        'promoted'    => false,
+                        'sort_order'  => 0,
+                    ]);
+                }
+
+                $this->messages[$msgIdx]['actions']['items'][$aIdx]['confirmed'] = true;
+            }
+
+            break;
+        }
+    }
+
+    /**
+     * Load the 5 most-recent conversations for the current project into the history list.
+     */
+    private function loadRecentConversations(): void
+    {
+        if (! $this->projectId) {
+            $this->recentConversations = [];
+            return;
+        }
+
+        $this->recentConversations = AiConversation::where('project_id', $this->projectId)
+            ->where('user_id', auth()->id())
+            ->latest('last_message_at')
+            ->take(5)
+            ->get()
+            ->map(function ($conv) {
+                $firstMsg = $conv->messages()->where('role', 'user')->first(['content', 'created_at']);
+                return [
+                    'id'        => $conv->id,
+                    'preview'   => $firstMsg
+                        ? \Illuminate\Support\Str::limit($firstMsg->content, 60)
+                        : 'New conversation',
+                    'timestamp' => ($conv->last_message_at ?? $conv->created_at)->diffForHumans(),
+                    'active'    => $conv->id === $this->conversationId,
+                ];
+            })
+            ->toArray();
+    }
+
+    /**
+     * Ensure every action item has confirmed/skipped tracking flags.
+     */
+    private function normalizeActions(array $decoded): array
+    {
+        $decoded['items'] = array_map(function (array $item): array {
+            $item['checklist'] = collect(is_array($item['checklist'] ?? null) ? $item['checklist'] : [])
+                ->map(fn ($entry) => trim((string) $entry))
+                ->filter(fn ($entry) => $entry !== '')
+                ->values()
+                ->all();
+
+            return array_merge(['confirmed' => false, 'skipped' => false], $item);
+        }, $decoded['items'] ?? []);
+
+        return $decoded;
+    }
+
+    /**
+     * Normalize clarification payload from AI responses.
+     */
+    private function normalizeClarificationAction(array $decoded): array
+    {
+        $questions = collect(is_array($decoded['questions'] ?? null) ? $decoded['questions'] : [])
+            ->map(function ($q, $idx): array {
+                $id = trim((string) ($q['id'] ?? 'q' . ($idx + 1)));
+                $type = (string) ($q['type'] ?? 'text');
+                $type = in_array($type, ['pills', 'text', 'multiselect'], true) ? $type : 'text';
+
+                return [
+                    'id' => $id !== '' ? $id : ('q' . ($idx + 1)),
+                    'text' => (string) ($q['text'] ?? ''),
+                    'type' => $type,
+                    'options' => collect(is_array($q['options'] ?? null) ? $q['options'] : [])
+                        ->map(fn ($v) => (string) $v)
+                        ->values()
+                        ->all(),
+                    'allow_other' => (bool) ($q['allow_other'] ?? false),
+                    'required' => (bool) ($q['required'] ?? true),
+                ];
+            })
+            ->filter(fn ($q) => trim((string) $q['text']) !== '')
+            ->values()
+            ->all();
+
+        return [
+            'type' => 'clarification',
+            'questions' => $questions,
+            'answered' => (bool) ($decoded['answered'] ?? false),
+            'answers' => is_array($decoded['answers'] ?? null) ? $decoded['answers'] : [],
+        ];
+    }
+
+    /**
+     * Normalize sprint_with_tasks payload from AI responses.
+     */
+    private function normalizeSprintWithTasksAction(array $decoded): array
+    {
+        $normalizeTask = function (array $task): array {
+            return [
+                'title'       => (string) ($task['title'] ?? ''),
+                'description' => (string) ($task['description'] ?? ''),
+                'type'        => in_array(($task['type'] ?? ''), ['feature', 'bug', 'change'], true) ? $task['type'] : 'feature',
+                'priority'    => in_array(($task['priority'] ?? ''), ['low', 'medium', 'high'], true) ? $task['priority'] : 'medium',
+                'weight'      => max(1, min(5, (int) ($task['weight'] ?? 2))),
+                'checklist'   => collect(is_array($task['checklist'] ?? null) ? $task['checklist'] : [])
+                    ->map(fn ($entry) => trim((string) $entry))
+                    ->filter(fn ($entry) => $entry !== '')
+                    ->values()
+                    ->all(),
+            ];
+        };
+
+        $sprints = collect(is_array($decoded['sprints'] ?? null) ? $decoded['sprints'] : [])
+            ->map(function ($sprint) use ($normalizeTask): array {
+                $tasks = collect(is_array($sprint['tasks'] ?? null) ? $sprint['tasks'] : [])
+                    ->map(fn ($task) => $normalizeTask(is_array($task) ? $task : []))
+                    ->filter(fn ($task) => trim($task['title']) !== '')
+                    ->values()
+                    ->all();
+
+                return [
+                    'name'        => trim((string) ($sprint['name'] ?? '')),
+                    'description' => trim((string) ($sprint['description'] ?? '')),
+                    'tasks'       => $tasks,
+                ];
+            })
+            ->filter(fn ($sprint) => $sprint['name'] !== '' && ! empty($sprint['tasks']))
+            ->values()
+            ->all();
+
+        // Backward compatibility with the old single-sprint payload shape.
+        if (empty($sprints)) {
+            $legacyTasks = collect(is_array($decoded['tasks'] ?? null) ? $decoded['tasks'] : [])
+                ->map(fn ($task) => $normalizeTask(is_array($task) ? $task : []))
+                ->filter(fn ($task) => trim($task['title']) !== '')
+                ->values()
+                ->all();
+
+            if (! empty($legacyTasks)) {
+                $sprints = [[
+                    'name'        => trim((string) ($decoded['sprint_name'] ?? 'Sprint 1')),
+                    'description' => trim((string) ($decoded['sprint_description'] ?? '')),
+                    'tasks'       => $legacyTasks,
+                ]];
+            }
+        }
+
+        return [
+            'type'               => 'sprint_with_tasks',
+            'sprints'            => $sprints,
+            'sprint_name'        => (string) ($decoded['sprint_name'] ?? ($sprints[0]['name'] ?? '')),
+            'sprint_description' => (string) ($decoded['sprint_description'] ?? ($sprints[0]['description'] ?? '')),
+            'tasks'              => $sprints[0]['tasks'] ?? [],
+            'confirmed'          => (bool) ($decoded['confirmed'] ?? false),
+            'skipped'            => (bool) ($decoded['skipped'] ?? false),
+        ];
+    }
+
+    /**
+     * Keep sprint proposal prose concise when a structured sprint form is present.
+     */
+    private function sprintWithTasksSummaryLine(string $content, array $actions): string
+    {
+        $sprints = collect(is_array($actions['sprints'] ?? null) ? $actions['sprints'] : [])
+            ->filter(fn ($s) => is_array($s) && trim((string) ($s['name'] ?? '')) !== '')
+            ->values();
+
+        if ($sprints->isEmpty()) {
+            $trimmed = trim($content);
+            return $trimmed !== '' ? $trimmed : 'I drafted a sprint proposal below. Please review and confirm.';
+        }
+
+        $sprintCount = $sprints->count();
+        $names = $sprints->take(3)->map(fn ($s) => (string) $s['name'])->all();
+        $nameText = implode(', ', $names);
+        $suffix = $sprintCount > 3 ? ', and more' : '';
+
+        return $sprintCount === 1
+            ? "I drafted 1 sprint proposal ({$nameText}). Review and edit the details below, then confirm."
+            : "I drafted {$sprintCount} sprint proposals ({$nameText}{$suffix}). Review and edit the details below, then confirm.";
+    }
+
+    /**
+     * Normalize question action payload from AI responses.
+     */
+    private function normalizeQuestionAction(array $decoded): array
+    {
+        $options = isset($decoded['options']) && is_array($decoded['options'])
+            ? array_values(array_map(fn ($v) => (string) $v, $decoded['options']))
+            : [];
+
+        return [
+            'type'         => 'question',
+            'question'     => (string) ($decoded['question'] ?? $decoded['text'] ?? ''),
+            'input_type'   => (string) ($decoded['input_type'] ?? 'pills'),
+            'options'      => $options,
+            'form'         => isset($decoded['form']) && is_array($decoded['form']) ? $decoded['form'] : [],
+            'allow_custom' => (bool) ($decoded['allow_custom'] ?? false),
+            'answered'     => (bool) ($decoded['answered'] ?? false),
+            'answer'       => (string) ($decoded['answer'] ?? ''),
+        ];
+    }
+
+    /**
+     * Normalize any supported action payload.
+     */
+    private function normalizeAnyAction(array $decoded): ?array
+    {
+        return match ($decoded['type'] ?? null) {
+            'question' => $this->normalizeQuestionAction($decoded),
+            'clarification' => $this->normalizeClarificationAction($decoded),
+            'sprint_with_tasks' => $this->normalizeSprintWithTasksAction($decoded),
+            default => (isset($decoded['items']) && is_array($decoded['items']))
+                ? $this->normalizeActions($decoded)
+                : null,
+        };
+    }
+
+    /**
+     * Keep only the introductory line for clarification prompts in chat flow.
+     */
+    private function clarificationIntroLine(string $content): string
+    {
+        $trimmed = trim($content);
+        if ($trimmed === '') {
+            return 'I need a few clarifications before I can structure this.';
+        }
+
+        $firstLine = trim((string) preg_split('/\R/', $trimmed)[0]);
+
+        if ($firstLine !== '') {
+            return $firstLine;
+        }
+
+        return 'I need a few clarifications before I can structure this.';
+    }
+
+    public function render()
+    {
+        return view('livewire.ai-chat-panel');
+    }
+}

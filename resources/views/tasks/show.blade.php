@@ -1,6 +1,12 @@
 <x-layouts.app :title="$task->title">
 
 <div class="max-w-3xl mx-auto space-y-5">
+    @php
+        $canViewBilling = auth()->user()->hasPermission('invoices.view');
+        $canManageBilling = auth()->user()->hasPermission('invoices.manage');
+        $billingInvoice = $task->activeInvoiceItem?->invoice;
+    @endphp
+
     <div class="flex items-center gap-3 text-[13px] mb-2">
         <a href="{{ route('tasks.index') }}" class="text-muted hover:text-ink">Tasks</a>
         <span class="text-muted">/</span>
@@ -18,6 +24,15 @@
                     @include('components.badge', ['type' => 'priority', 'value' => $task->priority])
                     @include('components.badge', ['type' => 'type',     'value' => $task->type])
                     @include('components.badge', ['type' => 'source',   'value' => $task->source])
+                    @if($canViewBilling)
+                        @if($billingInvoice)
+                            <a href="{{ route('invoices.show', $billingInvoice) }}" class="hover:opacity-90 transition-opacity">
+                                @include('components.badge', ['type' => 'invoice_status', 'value' => $task->invoiceStatus])
+                            </a>
+                        @else
+                            @include('components.badge', ['type' => 'invoice_status', 'value' => $task->invoiceStatus])
+                        @endif
+                    @endif
                 </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
@@ -70,6 +85,24 @@
                 @endif
             </div>
             <div>
+                <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-0.5">Agent</p>
+                @if($task->agent)
+                    <div class="flex items-center gap-2">
+                        <x-agent-avatar :agent="$task->agent" size="6" />
+                        <div class="flex items-center gap-1.5">
+                            <p class="text-ink">{{ $task->agent->name }}</p>
+                            <x-provider-icon :provider="$task->agent->runtime?->provider ?? 'default'" size="4" />
+                        </div>
+                    </div>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-hairline text-dim mt-1">{{ $task->agent->status }}</span>
+                    @if($task->latestQueue)
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface text-dim mt-1">Queue: {{ $task->latestQueue->status }}</span>
+                    @endif
+                @else
+                    <p class="text-dim">No agent assigned <a href="{{ route('tasks.edit', $task) }}" class="text-accent hover:underline">Assign one</a></p>
+                @endif
+            </div>
+            <div>
                 <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-0.5">Due Date</p>
                 <p class="{{ $task->isOverdue() ? 'text-red-600 font-medium' : 'text-ink' }}">
                     {{ $task->due_date?->format('M d, Y') ?? '—' }}
@@ -90,6 +123,63 @@
             </div>
             @endif
         </div>
+
+        @if($canManageBilling)
+        <div class="mt-5 border-t border-hairline pt-4">
+            <div class="flex items-center justify-between gap-4 mb-3">
+                <div>
+                    <p class="text-[11px] font-medium text-muted uppercase tracking-wider">Manual Billing Override</p>
+                    <p class="text-[13px] text-dim mt-1">Backfill historical invoiced or paid work without linking a new invoice line item.</p>
+                </div>
+                @if($task->invoiceOverride)
+                <form method="POST" action="{{ route('task-invoice-overrides.destroy', $task) }}">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit"
+                            class="inline-flex items-center gap-1 px-3 py-1.5 text-[12px] border border-line rounded-lg text-dim hover:bg-hairline">
+                        Remove override
+                    </button>
+                </form>
+                @endif
+            </div>
+
+            @if($task->invoiceOverride)
+            <p class="text-[12px] text-muted mb-3">
+                Currently marked as <span class="font-medium text-ink">{{ ucfirst($task->invoiceOverride->status) }}</span>
+                @if($task->invoiceOverride->markedBy)
+                    by {{ $task->invoiceOverride->markedBy->name }}
+                @endif
+                @if($task->invoiceOverride->marked_at)
+                    on {{ $task->invoiceOverride->marked_at->format('M d, Y H:i') }}
+                @endif
+            </p>
+            @endif
+
+            <form method="POST" action="{{ route('task-invoice-overrides.store', $task) }}" class="space-y-3">
+                @csrf
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                        <label class="text-[11px] font-medium text-muted uppercase tracking-wider mb-1 block">Status</label>
+                        <select name="status"
+                                class="w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] text-ink">
+                            <option value="invoiced" @selected(old('status', $task->invoiceOverride?->status ?? 'invoiced') === 'invoiced')>Invoiced</option>
+                            <option value="paid" @selected(old('status', $task->invoiceOverride?->status) === 'paid')>Paid</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[11px] font-medium text-muted uppercase tracking-wider mb-1 block">Note</label>
+                    <textarea name="note" rows="3"
+                              class="w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] text-ink"
+                              placeholder="Optional context for this manual override">{{ old('note', $task->invoiceOverride?->note) }}</textarea>
+                </div>
+                <button type="submit"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium border border-line rounded-lg text-dim hover:bg-hairline">
+                    Mark as invoiced
+                </button>
+            </form>
+        </div>
+        @endif
 
         @if($task->description)
         <div class="mt-5 border-t border-hairline pt-4">
@@ -348,10 +438,11 @@
             $canDeleteComment = auth()->user()->hasPermission('tasks.comments.delete');
         @endphp
         <div class="mt-5 border-t border-hairline pt-4">
+            <div id="agent-status-badge" class="mb-3"></div>
             <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-4">Comments</p>
 
             @if($comments->isNotEmpty())
-            <div class="space-y-4 mb-5">
+            <div id="comments-list" class="space-y-4 mb-5">
                 @foreach($comments as $comment)
                 <div class="flex gap-3">
                     <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
@@ -449,5 +540,73 @@
         </div>
     </div>
 </div>
+
+<script>
+window.addEventListener('load', function () {
+    if (!window.Echo) return;
+
+    const taskId = {{ $task->id }};
+
+    // Agent working indicator
+    const agentBadge = document.getElementById('agent-status-badge');
+    const commentsList = document.getElementById('comments-list');
+
+    window.Echo.channel('tasks.' + taskId)
+        .listen('.agent.started', (e) => {
+            // Show animated loader on task
+            if (agentBadge) {
+                agentBadge.innerHTML = `
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 animate-pulse">
+                        <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        ${e.agentName} working...
+                    </span>`;
+            }
+        })
+        .listen('.agent.completed', (e) => {
+            // Update status badge and reload status section
+            if (agentBadge) {
+                agentBadge.innerHTML = `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        ✅ Agent completed
+                    </span>`;
+            }
+            // Auto-reload the page after 1 second to show new status
+            setTimeout(() => window.location.reload(), 1000);
+        })
+        .listen('.agent.failed', (e) => {
+            if (agentBadge) {
+                agentBadge.innerHTML = `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        ❌ Agent failed: ${e.error}
+                    </span>`;
+            }
+        })
+        .listen('.agent.comment', (e) => {
+            // Append new comment without page reload
+            if (commentsList) {
+                const div = document.createElement('div');
+                div.className = 'border rounded p-3 bg-gray-50 animate-pulse-once flex gap-3';
+                div.innerHTML = `
+                    <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
+                         style="background: #D97757">
+                        ${e.authorName.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="font-medium text-sm">${e.authorName}</span>
+                            <span class="text-xs text-gray-400">just now</span>
+                        </div>
+                        <div class="text-sm text-gray-700 prose max-w-none">${e.body}</div>
+                    </div>`;
+                commentsList.prepend(div);
+                // Remove pulse after animation
+                setTimeout(() => div.classList.remove('animate-pulse-once'), 2000);
+            }
+        });
+});
+</script>
 
 </x-layouts.app>

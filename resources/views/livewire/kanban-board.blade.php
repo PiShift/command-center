@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between gap-4 mb-6 flex-wrap">
 
         {{-- Tab switcher --}}
-        <div class="flex items-center gap-0.5 rounded-lg p-1" style="background:#F5F4EF">
+        <div class="flex items-center gap-0.5 rounded-lg p-1 flex-wrap" style="background:#F5F4EF">
             @foreach([['board','Board'],['projects', $scopedToUser ? 'My Projects' : 'Projects'],['team', $scopedToUser ? 'My Teams' : 'Team']] as [$tab,$label])
             <button wire:click="$set('activeTab', '{{ $tab }}')"
                     class="px-4 py-1.5 text-[13px] rounded-md transition-all duration-150 cursor-pointer"
@@ -20,50 +20,71 @@
 
         {{-- Filters + primary action (board only) --}}
         @if($activeTab === 'board')
-        <div class="flex items-center gap-2">
-            <div class="relative">
-                <select wire:model.live="filterProject"
-                        class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer transition-colors"
-                        style="background: #F5F4EF; border: 1px solid #e5e4df; color: #141413; outline: none">
-                    <option value="">All Projects</option>
-                    @foreach($projects as $p)
-                        <option value="{{ $p->id }}">{{ $p->name }}</option>
-                    @endforeach
-                </select>
-                <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style="color: #8c8c8a">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                </span>
+        <div
+            class="flex items-center gap-2 flex-wrap"
+            x-data
+            x-init="
+                const storageKey = 'cc.board.projects.{{ auth()->id() }}';
+                const hasUrlSelection = @js($projectFilter !== '');
+                if (!hasUrlSelection) {
+                    const stored = localStorage.getItem(storageKey);
+                    if (stored) {
+                        $wire.applyStoredProjectSelection(stored);
+                    }
+                }
+
+                $wire.$watch('projectIds', (value) => {
+                    if (Array.isArray(value) && value.length > 0) {
+                        localStorage.setItem(storageKey, value.join(','));
+                    } else {
+                        localStorage.removeItem(storageKey);
+                    }
+                });
+            "
+        >
+            <div class="w-56 shrink-0">
+                <x-searchable-select
+                    multiple
+                    livewireModel="projectIds"
+                    placeholder="All Projects"
+                    :selected="$projectIds"
+                    :options="$projects->map(fn ($project) => [
+                        'id' => $project->id,
+                        'label' => $project->name,
+                        'color' => $project->color,
+                    ])->values()->all()"
+                />
             </div>
-            <div class="relative">
-                <select wire:model.live="filterAssignee"
-                        class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer transition-colors"
-                        style="background: #F5F4EF; border: 1px solid #e5e4df; color: #141413; outline: none">
-                    <option value="">All Members</option>
-                    @foreach($teamMembers as $m)
-                        <option value="{{ $m->id }}">{{ $m->name }}</option>
-                    @endforeach
-                </select>
-                <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style="color: #8c8c8a">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                </span>
+
+            <div class="w-48 shrink-0">
+                <x-searchable-select
+                    livewireModel="filterAssignee"
+                    placeholder="All Members"
+                    :selected="$filterAssignee"
+                    :options="$teamMembers->map(fn ($member) => [
+                        'id' => $member->id,
+                        'label' => $member->name,
+                    ])->values()->all()"
+                />
             </div>
-            <div class="relative">
-                <select wire:model.live="filterPriority"
-                        class="appearance-none text-[13px] pl-3 pr-8 py-2 rounded-lg cursor-pointer transition-colors"
-                        style="background: #F5F4EF; border: 1px solid #e5e4df; color: #141413; outline: none">
-                    <option value="">All Priorities</option>
-                    <option value="critical">Critical</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                </select>
-                <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" style="color: #8c8c8a">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                </span>
+
+            <div class="w-44 shrink-0">
+                <x-searchable-select
+                    livewireModel="filterPriority"
+                    placeholder="All Priorities"
+                    :selected="$filterPriority"
+                    :options="[
+                        ['id' => 'critical', 'label' => 'Critical'],
+                        ['id' => 'high', 'label' => 'High'],
+                        ['id' => 'medium', 'label' => 'Medium'],
+                        ['id' => 'low', 'label' => 'Low'],
+                    ]"
+                />
             </div>
+
             <button type="button"
                     x-on:click="$wire.dispatch('new-task', {})"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors whitespace-nowrap cursor-pointer">
+                    class="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors whitespace-nowrap cursor-pointer shrink-0">
                 + Add Task
             </button>
         </div>
@@ -107,8 +128,22 @@
                      x-on:mouseleave="$el.style.borderColor='#eeeee9'"
                      x-on:click="$wire.dispatch('open-task', { id: {{ $task->id }} })">
                     <div class="p-3.5">
+                        @php
+                            $isQueueActive = $task->agent && $task->latestQueue && in_array($task->latestQueue->status, $activeQueueStatuses, true);
+                            $isWaitingLocalDirectory = $isQueueActive && $task->latestQueue->status === 'waiting_local_directory';
+                        @endphp
+
                         {{-- Title --}}
                         <p class="text-[13.5px] font-medium text-ink leading-snug mb-1 line-clamp-2">{{ $task->title }}</p>
+
+                        {{-- Agent working banner --}}
+                        @if($isQueueActive)
+                        <div class="flex items-center gap-1.5 mt-1.5 mb-1 px-2 py-1 rounded-[6px] text-[11px] font-medium"
+                             style="background: rgba(124,58,237,0.08); color: #7c3aed; border: 1px solid rgba(124,58,237,0.15)">
+                            <span class="w-1.5 h-1.5 rounded-full animate-pulse shrink-0" style="background:#7c3aed"></span>
+                            {{ $task->agent->name }} is {{ $isWaitingLocalDirectory ? 'Waiting...' : 'working...' }}
+                        </div>
+                        @endif
 
                         {{-- "View & Claim" button — unassigned tasks only; opens modal so dev reads before claiming --}}
                         @if(! $task->assigned_to && \Illuminate\Support\Facades\Gate::allows('claim', $task))
@@ -209,8 +244,23 @@
                             </x-tooltip>
                             @endif
 
-                            {{-- Assignee avatar --}}
-                            @if($task->assignee)
+                            {{-- Agent working indicator --}}
+                            @if($isQueueActive)
+                            <x-tooltip :text="$task->agent->name . ' is ' . ($isWaitingLocalDirectory ? 'Waiting...' : 'working...')" position="top">
+                                <div class="relative w-6 h-6 shrink-0">
+                                    {{-- Pulsing ring --}}
+                                    <span class="absolute inset-0 rounded-full animate-ping opacity-60"
+                                          style="background: rgba(124,58,237,0.3)"></span>
+                                    <x-agent-avatar :agent="$task->agent" size="6" />
+                                </div>
+                            </x-tooltip>
+                            {{-- Agent avatar (idle) --}}
+                            @elseif($task->agent)
+                            <x-tooltip :text="$task->agent->name . ' (agent)'" position="top">
+                                <x-agent-avatar :agent="$task->agent" size="6" />
+                            </x-tooltip>
+                            {{-- Human assignee avatar --}}
+                            @elseif($task->assignee)
                             <x-tooltip :text="$task->assignee->name" position="top">
                                 <span class="w-5 h-5 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
                                       style="background:{{ $task->assignee->color ?? '#D97757' }}">
@@ -327,7 +377,7 @@
                         $dotColors = ['critical'=>'#b94040','high'=>'#D97757','medium'=>'#4a90d9','low'=>'#8c8c8a'];
                     @endphp
                     <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:{{ $dotColors[$t->priority] ?? '#8c8c8a' }}"></span>
-                    <a href="{{ route('tasks.show', $t) }}" class="text-[12px] text-ink hover:underline truncate flex-1">{{ $t->title }}</a>
+                    <a href="#" onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $t->id }} } }))" class="text-[12px] text-ink hover:underline truncate flex-1 cursor-pointer">{{ $t->title }}</a>
                     @if($project->is_team_project && $t->assignee)
                     <span class="text-[11px] text-muted shrink-0">{{ $t->assignee->name }}</span>
                     @endif
@@ -470,7 +520,7 @@
                 @forelse($myTasks->take(5) as $t)
                 <div class="flex items-center gap-2">
                     <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background: {{ $t->project->color ?? '#e5e4df' }}"></span>
-                    <a href="{{ route('tasks.show', $t) }}" class="text-[13px] text-ink hover:underline truncate flex-1">{{ $t->title }}</a>
+                    <a href="#" onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $t->id }} } }))" class="text-[13px] text-ink hover:underline truncate flex-1 cursor-pointer">{{ $t->title }}</a>
                     @include('components.badge', ['type' => 'priority', 'value' => $t->priority])
                 </div>
                 @empty
