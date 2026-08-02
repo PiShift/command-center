@@ -1,9 +1,9 @@
 {{-- Usage: @include('invoices.form', ['invoice' => $invoice, 'customers' => $customers, 'projects' => $projects]) --}}
 
-<div class="grid grid-cols-3 gap-6" x-data="itemsManager()">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6" x-data="itemsManager()">
 
     {{-- Left: main form --}}
-    <div class="col-span-2 flex flex-col gap-5">
+    <div class="lg:col-span-2 flex flex-col gap-5">
 
         {{-- Header / customer / project --}}
         <div class="rounded-xl p-6" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)"
@@ -22,9 +22,9 @@
                  }
              }">
             <p style="font-size:13px;font-weight:600;color:#141413;margin-bottom:16px">Invoice Details</p>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {{-- Customer --}}
-                <div class="col-span-2">
+                <div class="sm:col-span-2">
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Customer *</label>
                     <div class="relative">
                         <select name="customer_id" required class="w-full appearance-none rounded-lg text-[13px] pl-3 pr-8 py-2"
@@ -42,7 +42,7 @@
                     </div>
                 </div>
                 {{-- Project --}}
-                <div class="col-span-2">
+                <div class="sm:col-span-2">
                     <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8c8c8a;display:block;margin-bottom:4px">Project (optional)</label>
                     <div class="relative">
                         <select name="project_id" class="w-full appearance-none rounded-lg text-[13px] pl-3 pr-8 py-2"
@@ -164,7 +164,8 @@
                     </template>
                 </div>
             </div>
-            <table class="w-full" style="font-size:12.5px">
+            <div class="overflow-x-auto">
+            <table class="w-full min-w-[760px]" style="font-size:12.5px">
                 <thead>
                     <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
                         <th class="px-4 py-2.5 text-left" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8c8c8a;width:35%">Description</th>
@@ -218,6 +219,7 @@
                     </template>
                 </tbody>
             </table>
+            </div>
 
             {{-- From Tasks panel --}}
             <div x-show="showTaskPanel" style="border-top:1px solid #eeeee9;background:#faf9f5">
@@ -272,7 +274,7 @@
     </div>
 
     {{-- Right: discount & tax --}}
-    <div style="position:sticky;top:24px;align-self:start">
+    <div class="lg:sticky lg:top-6 self-start">
         <div class="rounded-xl p-5" style="background:#fff;border:1px solid #e5e4df;box-shadow:0 1px 3px rgba(20,20,19,0.04)">
             <p style="font-size:13px;font-weight:600;color:#141413;margin-bottom:14px">Discount & Tax</p>
             <div class="flex flex-col gap-4">
