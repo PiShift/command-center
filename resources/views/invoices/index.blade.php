@@ -32,7 +32,7 @@
         <form id="pay-form" method="POST" enctype="multipart/form-data" style="padding:20px 22px 22px">
             @csrf
             <div style="display:grid;gap:14px">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="grid grid-cols-1 sm:grid-cols-2" style="gap:12px">
                     <div>
                         <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;display:block;margin-bottom:5px">Amount *</label>
                         <input type="number" name="amount" id="pay-amount" step="0.01" min="0.01" required
@@ -95,9 +95,10 @@
 </div>
 
 {{-- ── Page header ─────────────────────────────────────────────────────────── --}}
-<div class="flex items-center justify-between mb-5">
+<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
     <h1 style="font-size:24px;font-weight:600;color:#141413">Invoices</h1>
     <a href="{{ route('invoices.create') }}"
+       class="w-full sm:w-auto justify-center"
        style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font-size:13px;font-weight:500;background:#D97757;color:#fff;border-radius:8px;text-decoration:none"
        onmouseover="this.style.background='#c4684a'" onmouseout="this.style.background='#D97757'">
         + New invoice
@@ -112,8 +113,8 @@
     <input type="hidden" name="direction" value="{{ $direction }}">
 
     <input type="text" name="search" value="{{ request('search') }}" placeholder="Search invoices…"
-           class="text-[13px] pl-3 pr-3 py-2 rounded-lg"
-           style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none;width:200px">
+           class="w-full sm:w-auto text-[13px] pl-3 pr-3 py-2 rounded-lg"
+           style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413;outline:none;max-width:280px">
 
     <div class="relative">
         <select name="status" onchange="this.form.submit()"
@@ -185,10 +186,10 @@
         <div class="py-16 text-center" style="color:#8c8c8a;font-size:13px">No invoices found.</div>
     @else
     <div class="overflow-x-auto">
-    <table class="w-full" style="font-size:13.5px;min-width:600px">
+    <table class="w-full min-w-[860px] sm:min-w-0" style="font-size:13.5px">
         <thead>
             <tr style="background:#faf9f5;border-bottom:1px solid #e5e4df">
-                <th class="p-0" style="width:44px">
+                <th class="p-0 hidden sm:table-cell" style="width:44px">
                     <label class="flex items-center justify-center min-h-[44px] min-w-[44px] cursor-pointer">
                         <input type="checkbox" id="select-all" onchange="toggleAll(this)"
                                style="width:15px;height:15px;cursor:pointer;accent-color:#D97757">
@@ -202,7 +203,7 @@
                     ['col'=>'due_date',      'label'=>'Due',     'cls'=>'px-4 py-3 text-left hidden sm:table-cell'],
                     ['col'=>'total',         'label'=>'Total',   'cls'=>'px-4 py-3 text-right hidden sm:table-cell'],
                     ['col'=>null,            'label'=>'Due Amt', 'cls'=>'px-4 py-3 text-right hidden sm:table-cell'],
-                    ['col'=>null,            'label'=>'',        'cls'=>'px-4 py-3'],
+                    ['col'=>null,            'label'=>'',        'cls'=>'px-4 py-3 hidden sm:table-cell'],
                 ]; @endphp
                 @foreach($cols as $th)
                 <th class="{{ $th['cls'] }}" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8c8c8a;white-space:nowrap">
@@ -226,7 +227,7 @@
                 onmouseover="this.style.background='#faf9f5'" onmouseout="this.style.background=this.dataset.bg"
                 onclick="handleRowClick(event,'{{ route('invoices.show', $invoice) }}')">
 
-                <td class="p-0" style="width:44px">
+                <td class="p-0 hidden sm:table-cell" style="width:44px">
                     <label class="flex items-center justify-center min-h-[44px] min-w-[44px] cursor-pointer">
                         <input type="checkbox" class="row-check" value="{{ $invoice->id }}" onchange="onRowCheck()"
                                style="width:15px;height:15px;cursor:pointer;accent-color:#D97757">
@@ -237,6 +238,12 @@
                     <a href="{{ route('invoices.show', $invoice) }}" style="font-weight:500;color:#141413;text-decoration:none"
                        onmouseover="this.style.color='#D97757'" onmouseout="this.style.color='#141413'">{{ $invoice->invoice_number }}</a>
                     @if($invoice->project)<p style="font-size:11px;color:#8c8c8a;margin-top:2px">{{ $invoice->project->name }}</p>@endif
+                    <div class="sm:hidden" style="font-size:11px;color:#5c5c5a;margin-top:6px;line-height:1.45">
+                        <div>Issued: {{ $invoice->issue_date->format('M d, Y') }}</div>
+                        <div style="color:{{ $overdue?'#b94040':'#5c5c5a' }};font-weight:{{ $overdue?'500':'400' }}">Due: {{ $invoice->due_date->format('M d, Y') }}</div>
+                        <div style="color:#141413;font-weight:500">Total: {{ $invoice->currency }} {{ number_format($invoice->total,2) }}</div>
+                        <div style="color:{{ $invoice->amount_due>0?'#b94040':'#2e7d55' }};font-weight:500">Due Amount: {{ $invoice->amount_due>0 ? $invoice->currency.' '.number_format($invoice->amount_due,2) : 'Paid' }}</div>
+                    </div>
                 </td>
 
                 <td class="px-4 py-3 hidden sm:table-cell" style="color:#5c5c5a">{{ $invoice->customer->name }}</td>
@@ -263,7 +270,7 @@
                 </td>
 
                 {{-- ⋮ dropdown --}}
-                <td class="px-3 py-3" style="text-align:right;white-space:nowrap">
+                <td class="px-3 py-3 hidden sm:table-cell" style="text-align:right;white-space:nowrap">
                     <div style="position:relative;display:inline-block">
                         <button onclick="toggleMenu(this)" title="Actions"
                                 style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:7px;border:1px solid #e5e4df;background:#fff;cursor:pointer;color:#5c5c5a"
