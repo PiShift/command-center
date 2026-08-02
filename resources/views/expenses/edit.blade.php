@@ -21,7 +21,7 @@
     }
 </style>
 
-<div style="max-width:720px;margin:0 auto;padding:32px 24px">
+<div style="max-width:720px;margin:0 auto;padding:32px 0">
 
     <div style="margin-bottom:24px">
         <a href="{{ route('expenses.monthly-overview') }}"

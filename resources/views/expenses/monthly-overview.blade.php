@@ -67,10 +67,17 @@
             display: inline-flex;
         }
     }
+
+    @media (max-width: 768px) {
+        .expenses-overview-container {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+    }
 </style>
 
-<div x-data="{ tab: '{{ request('tab', 'overview') }}', month: '{{ $month->format('Y-m') }}' }"
-     style="max-width:1200px;margin:0 auto;padding:32px 24px">
+<div class="expenses-overview-container" x-data="{ tab: '{{ request('tab', 'overview') }}', month: '{{ $month->format('Y-m') }}' }"
+     style="max-width:1200px;margin:0 auto;padding:32px 0">
 
     {{-- Header --}}
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:14px">

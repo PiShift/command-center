@@ -24,7 +24,7 @@ class ExpenseService
         $today = Carbon::today();
 
         RecurringCharge::active()->dueInMonth($month)
-            ->with(['category'])
+            ->with(['category', 'companyAccount'])
             ->get()
             ->each(function (RecurringCharge $charge) use ($start, $today, &$count) {
                 // Stop: end_date has passed
@@ -48,15 +48,7 @@ class ExpenseService
                     return;
                 }
 
-                Expense::create([
-                    'title'               => $charge->name,
-                    'category_id'         => $charge->category_id,
-                    'project_id'          => $charge->project_id,
-                    'recurring_charge_id' => $charge->id,
-                    'amount'              => $charge->amount,
-                    'expense_date'        => $charge->next_due_date->toDateString(),
-                    'status'              => 'draft',
-                ]);
+                Expense::create($this->buildRecurringExpenseAttributes($charge));
 
                 $charge->increment('occurrences_count');
                 $charge->computeNextDueDate();
@@ -64,6 +56,48 @@ class ExpenseService
             });
 
         return $count;
+    }
+
+    /**
+     * @return array<string, int|float|string|null>
+     */
+    private function buildRecurringExpenseAttributes(RecurringCharge $charge): array
+    {
+        $amount = (float) $charge->amount;
+        $account = $charge->companyAccount;
+        $currency = strtoupper((string) ($account?->currency ?? $charge->currency));
+
+        if ($currency === 'USD') {
+            $rate = (float) ($account?->usd_weighted_average_rate ?: 0);
+
+            return [
+                'title'               => $charge->name,
+                'category_id'         => $charge->category_id,
+                'project_id'          => $charge->project_id,
+                'company_account_id'  => $charge->company_account_id,
+                'recurring_charge_id' => $charge->id,
+                'amount'              => $charge->amount,
+                'amount_mru'          => round($amount * $rate, 2),
+                'currency'            => 'USD',
+                'exchange_rate_used'  => $rate,
+                'expense_date'        => $charge->next_due_date->toDateString(),
+                'status'              => 'draft',
+            ];
+        }
+
+        return [
+            'title'               => $charge->name,
+            'category_id'         => $charge->category_id,
+            'project_id'          => $charge->project_id,
+            'company_account_id'  => $charge->company_account_id,
+            'recurring_charge_id' => $charge->id,
+            'amount'              => $charge->amount,
+            'amount_mru'          => round($amount, 2),
+            'currency'            => 'MRU',
+            'exchange_rate_used'  => 1,
+            'expense_date'        => $charge->next_due_date->toDateString(),
+            'status'              => 'draft',
+        ];
     }
 
     /**

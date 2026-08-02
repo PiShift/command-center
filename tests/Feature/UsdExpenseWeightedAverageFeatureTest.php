@@ -6,9 +6,11 @@ use App\Http\Middleware\RequiresTwoFactor;
 use App\Models\CompanyBankAccount;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\RecurringCharge;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\ExpenseService;
+use Carbon\Carbon;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -212,6 +214,39 @@ class UsdExpenseWeightedAverageFeatureTest extends TestCase
 
         $summary = app(ExpenseService::class)->getMonthlySummary(now()->startOfMonth());
         $this->assertSame(1400.0, round((float) $summary['totals']['actual_amount'], 2));
+    }
+
+    public function test_recurring_drafts_keep_usd_currency_and_use_account_weighted_rate(): void
+    {
+        $month = Carbon::create(2026, 8, 1);
+        $category = ExpenseCategory::query()->create(['name' => 'Operations']);
+        $usdAccount = CompanyBankAccount::query()->create([
+            'name' => 'USD Wallet',
+            'currency' => 'USD',
+            'usd_weighted_average_rate' => 40.5,
+        ]);
+
+        $charge = RecurringCharge::query()->create([
+            'name' => 'Cloud hosting',
+            'category_id' => $category->id,
+            'company_account_id' => $usdAccount->id,
+            'amount' => 19.00,
+            'currency' => 'USD',
+            'frequency' => 'monthly',
+            'start_date' => $month->toDateString(),
+            'next_due_date' => $month->toDateString(),
+            'is_active' => true,
+        ]);
+
+        $created = app(ExpenseService::class)->generateRecurringDrafts($month);
+
+        $this->assertSame(1, $created);
+
+        $expense = Expense::query()->where('recurring_charge_id', $charge->id)->firstOrFail();
+        $this->assertSame($usdAccount->id, $expense->company_account_id);
+        $this->assertSame('USD', $expense->currency);
+        $this->assertSame(40.5, round((float) $expense->exchange_rate_used, 2));
+        $this->assertSame(769.5, round((float) $expense->amount_mru, 2));
     }
 
     private function createManager(): User

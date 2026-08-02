@@ -108,6 +108,7 @@ class ExpenseController extends Controller
                 'name'            => $expense->title,
                 'category_id'     => $expense->category_id,
                 'project_id'      => $expense->project_id,
+                'company_account_id' => $expense->company_account_id,
                 'amount'          => $expense->amount,
                 'frequency'       => $recFrequency,
                 'start_date'      => $recStartDate,
@@ -115,7 +116,7 @@ class ExpenseController extends Controller
                 'end_date'        => $recEndDate,
                 'max_occurrences' => $recMaxOccurrences,
                 'is_active'       => true,
-                'currency'        => 'MRU',
+                'currency'        => $expense->currency,
             ]);
             $expense->update(['recurring_charge_id' => $charge->id]);
         }
@@ -183,18 +184,21 @@ class ExpenseController extends Controller
                     'name'            => $expense->title,
                     'category_id'     => $expense->category_id,
                     'project_id'      => $expense->project_id,
+                    'company_account_id' => $expense->company_account_id,
                     'amount'          => $expense->amount,
                     'frequency'       => $recFrequency,
                     'start_date'      => $recStartDate,
                     'end_date'        => $recEndDate,
                     'max_occurrences' => $recMaxOccurrences,
                     'is_active'       => true,
+                    'currency'        => $expense->currency,
                 ]);
             } else {
                 $charge = \App\Models\RecurringCharge::create([
                     'name'            => $expense->title,
                     'category_id'     => $expense->category_id,
                     'project_id'      => $expense->project_id,
+                    'company_account_id' => $expense->company_account_id,
                     'amount'          => $expense->amount,
                     'frequency'       => $recFrequency,
                     'start_date'      => $recStartDate,
@@ -202,7 +206,7 @@ class ExpenseController extends Controller
                     'end_date'        => $recEndDate,
                     'max_occurrences' => $recMaxOccurrences,
                     'is_active'       => true,
-                    'currency'        => 'MRU',
+                    'currency'        => $expense->currency,
                 ]);
                 $expense->update(['recurring_charge_id' => $charge->id]);
             }
