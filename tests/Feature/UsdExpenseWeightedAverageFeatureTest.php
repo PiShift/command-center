@@ -190,7 +190,25 @@ class UsdExpenseWeightedAverageFeatureTest extends TestCase
             ->get(route('expenses.index'))
             ->assertOk()
             ->assertSee('1,400.00')
-            ->assertSee('($10.00)');
+            ->assertSee('($10.00)')
+            ->assertSee('expenses-header-actions');
+
+        $expense = Expense::query()->where('title', 'USD Expense')->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('expenses.create'))
+            ->assertOk()
+            ->assertSee('expense-form-two-col');
+
+        $this->actingAs($user)
+            ->get(route('expenses.edit', $expense))
+            ->assertOk()
+            ->assertSee('expense-form-recurring-grid');
+
+        $this->actingAs($user)
+            ->get(route('expenses.monthly-overview'))
+            ->assertOk()
+            ->assertSee('expenses-overview-tabs');
 
         $summary = app(ExpenseService::class)->getMonthlySummary(now()->startOfMonth());
         $this->assertSame(1400.0, round((float) $summary['totals']['actual_amount'], 2));
