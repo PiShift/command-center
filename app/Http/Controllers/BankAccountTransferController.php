@@ -21,21 +21,66 @@ class BankAccountTransferController extends Controller
         $validated = $request->validate([
             'from_account_id' => ['required', 'integer', 'exists:company_bank_accounts,id'],
             'to_account_id' => ['required', 'integer', 'exists:company_bank_accounts,id', 'different:from_account_id'],
-            'amount' => ['required', 'numeric', 'gt:0'],
+            'amount' => ['nullable', 'numeric', 'gt:0'],
+            'amount_sent' => ['nullable', 'numeric', 'gt:0'],
+            'amount_received' => ['nullable', 'numeric', 'gt:0'],
+            'exchange_rate' => ['nullable', 'numeric', 'gt:0'],
             'date' => ['required', 'date'],
             'reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string'],
         ]);
 
         $fromAccount = CompanyBankAccount::query()->findOrFail((int) $validated['from_account_id']);
+        $toAccount = CompanyBankAccount::query()->findOrFail((int) $validated['to_account_id']);
+        $isCrossCurrency = strtoupper((string) $fromAccount->currency) !== strtoupper((string) $toAccount->currency);
+
+        $supportsCrossCurrencyPair = collect([$fromAccount->currency, $toAccount->currency])
+            ->map(fn (?string $currency): string => strtoupper((string) $currency))
+            ->sort()
+            ->values()
+            ->all() === ['MRU', 'USD'];
+
+        if ($isCrossCurrency && ! $supportsCrossCurrencyPair) {
+            return back()->withErrors([
+                'exchange_rate' => 'Cross-currency transfers currently support only MRU ↔ USD.',
+            ])->withInput();
+        }
+
+        if ($isCrossCurrency) {
+            if (
+                ! isset($validated['amount_sent'], $validated['amount_received'], $validated['exchange_rate'])
+                || (float) $validated['amount_sent'] <= 0
+                || (float) $validated['amount_received'] <= 0
+                || (float) $validated['exchange_rate'] <= 0
+            ) {
+                return back()->withErrors([
+                    'amount_sent' => 'Amount sent, amount received, and rate are required for cross-currency transfers.',
+                ])->withInput();
+            }
+        } elseif (! isset($validated['amount']) || (float) $validated['amount'] <= 0) {
+            return back()->withErrors([
+                'amount' => 'Amount is required for same-currency transfers.',
+            ])->withInput();
+        }
+
+        $amountSent = $isCrossCurrency
+            ? (float) $validated['amount_sent']
+            : (float) ($validated['amount'] ?? 0);
+        $amountReceived = $isCrossCurrency
+            ? (float) $validated['amount_received']
+            : $amountSent;
+        $exchangeRate = $isCrossCurrency ? (float) $validated['exchange_rate'] : null;
+
         $fromBalance = (float) $fromAccount->balance;
-        $transferAmount = (float) $validated['amount'];
-        $willBeNegative = $fromBalance < $transferAmount;
+        $willBeNegative = $fromBalance < $amountSent;
 
         BankAccountTransfer::create([
             'from_account_id' => (int) $validated['from_account_id'],
             'to_account_id' => (int) $validated['to_account_id'],
-            'amount' => $transferAmount,
+            'amount' => $amountSent,
+            'amount_sent' => $amountSent,
+            'amount_received' => $amountReceived,
+            'exchange_rate' => $exchangeRate,
             'date' => $validated['date'],
             'reference' => $validated['reference'] ?? null,
             'notes' => $validated['notes'] ?? null,
