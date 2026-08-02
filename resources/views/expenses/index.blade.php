@@ -62,7 +62,7 @@
     }
 </style>
 
-<div style="max-width:1200px;margin:0 auto;padding:32px 24px">
+<div style="max-width:1200px;margin:0 auto;padding:32px 0">
 
     {{-- Header --}}
     <div class="expenses-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:12px">

@@ -14,7 +14,7 @@ class RecurringCharge extends Model
     protected $fillable = [
         'name', 'category_id', 'project_id', 'amount', 'frequency',
         'start_date', 'next_due_date', 'end_date', 'max_occurrences', 'occurrences_count',
-        'is_active', 'notes',
+        'is_active', 'notes', 'currency', 'company_account_id',
     ];
 
     protected $casts = [
@@ -35,6 +35,11 @@ class RecurringCharge extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function companyAccount(): BelongsTo
+    {
+        return $this->belongsTo(CompanyBankAccount::class, 'company_account_id');
     }
 
     /**

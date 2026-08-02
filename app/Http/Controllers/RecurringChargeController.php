@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\CompanyBankAccount;
 use App\Models\Project;
 use App\Models\RecurringCharge;
 use Carbon\Carbon;
@@ -29,8 +30,9 @@ class RecurringChargeController extends Controller
 
         $categories = ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
         $projects   = Project::orderBy('name')->get();
+        $companyAccounts = CompanyBankAccount::orderByDesc('is_default')->orderBy('name')->get();
 
-        return view('recurring-charges.create', compact('categories', 'projects'));
+        return view('recurring-charges.create', compact('categories', 'projects', 'companyAccounts'));
     }
 
     public function store(Request $request)
@@ -41,6 +43,7 @@ class RecurringChargeController extends Controller
             'name'             => 'required|string|max:255',
             'category_id'      => 'nullable|exists:expense_categories,id',
             'project_id'       => 'nullable|exists:projects,id',
+            'company_account_id' => 'nullable|exists:company_bank_accounts,id',
             'amount'           => 'required|numeric|min:0',
             'frequency'        => 'required|in:monthly,quarterly,annual',
             'start_date'       => 'required|date',
@@ -52,8 +55,10 @@ class RecurringChargeController extends Controller
         ]);
 
         $validated['is_active'] = $request->boolean('is_active', true);
-        // Currency is always MRU
-        $validated['currency'] = 'MRU';
+        $companyAccount = isset($validated['company_account_id'])
+            ? CompanyBankAccount::query()->find($validated['company_account_id'])
+            : null;
+        $validated['currency'] = strtoupper((string) ($companyAccount?->currency ?: 'MRU'));
 
         RecurringCharge::create($validated);
 
@@ -73,8 +78,9 @@ class RecurringChargeController extends Controller
 
         $categories = ExpenseCategory::orderBy('sort_order')->orderBy('name')->get();
         $projects   = Project::orderBy('name')->get();
+        $companyAccounts = CompanyBankAccount::orderByDesc('is_default')->orderBy('name')->get();
 
-        return view('recurring-charges.edit', compact('recurringCharge', 'categories', 'projects'));
+        return view('recurring-charges.edit', compact('recurringCharge', 'categories', 'projects', 'companyAccounts'));
     }
 
     public function update(Request $request, RecurringCharge $recurringCharge)
@@ -85,6 +91,7 @@ class RecurringChargeController extends Controller
             'name'             => 'required|string|max:255',
             'category_id'      => 'nullable|exists:expense_categories,id',
             'project_id'       => 'nullable|exists:projects,id',
+            'company_account_id' => 'nullable|exists:company_bank_accounts,id',
             'amount'           => 'required|numeric|min:0',
             'frequency'        => 'required|in:monthly,quarterly,annual',
             'start_date'       => 'required|date',
@@ -96,7 +103,10 @@ class RecurringChargeController extends Controller
         ]);
 
         $validated['is_active'] = $request->boolean('is_active');
-        $validated['currency']  = 'MRU';
+        $companyAccount = isset($validated['company_account_id'])
+            ? CompanyBankAccount::query()->find($validated['company_account_id'])
+            : null;
+        $validated['currency'] = strtoupper((string) ($companyAccount?->currency ?: 'MRU'));
 
         $recurringCharge->update($validated);
 

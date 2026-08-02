@@ -67,10 +67,11 @@
             display: inline-flex;
         }
     }
+
 </style>
 
 <div x-data="{ tab: '{{ request('tab', 'overview') }}', month: '{{ $month->format('Y-m') }}' }"
-     style="max-width:1200px;margin:0 auto;padding:32px 24px">
+     style="max-width:1200px;margin:0 auto;padding:32px 0">
 
     {{-- Header --}}
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:14px">
