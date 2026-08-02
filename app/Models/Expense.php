@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -18,10 +19,13 @@ class Expense extends Model implements HasMedia
         'title', 'category_id', 'project_id', 'company_account_id', 'recurring_charge_id',
         'source_invoice_item_id',
         'amount', 'expense_date', 'status', 'notes',
+        'currency', 'exchange_rate_used', 'amount_mru',
     ];
 
     protected $casts = [
         'amount'       => 'decimal:2',
+        'amount_mru'   => 'decimal:2',
+        'exchange_rate_used' => 'decimal:6',
         'expense_date' => 'date',
         'month'        => 'date',
     ];
@@ -32,8 +36,24 @@ class Expense extends Model implements HasMedia
             if ($expense->expense_date) {
                 $expense->month = Carbon::parse($expense->expense_date)->startOfMonth()->toDateString();
             }
-            // Currency is always MRU — never accept from request
-            $expense->currency = 'MRU';
+
+            $accountCurrency = strtoupper((string) (
+                $expense->companyAccount?->currency
+                ?? CompanyBankAccount::query()->whereKey($expense->company_account_id)->value('currency')
+            ));
+
+            if ($accountCurrency === 'MRU' || $accountCurrency === '') {
+                $expense->currency = 'MRU';
+            }
+
+            if (strtoupper((string) $expense->currency) === 'MRU') {
+                $expense->exchange_rate_used = $expense->exchange_rate_used ?? 1;
+            }
+
+            if (is_null($expense->amount_mru) && ! is_null($expense->amount)) {
+                $rate = (float) ($expense->exchange_rate_used ?? 1);
+                $expense->amount_mru = round((float) $expense->amount * $rate, 2);
+            }
         });
     }
 
@@ -79,8 +99,22 @@ class Expense extends Model implements HasMedia
         return $query->where('status', 'confirmed');
     }
 
+    public function scopeSumMruAmount(Builder $query): Builder
+    {
+        return $query->selectRaw('COALESCE(SUM(amount_mru), 0) as total_mru');
+    }
+
     public function scopeForMonth($query, Carbon $month)
     {
         return $query->where('month', $month->copy()->startOfMonth()->toDateString());
+    }
+
+    public function originalCurrencyLabel(): string
+    {
+        if (strtoupper((string) $this->currency) === 'USD') {
+            return '$'.number_format((float) $this->amount, 2);
+        }
+
+        return number_format((float) $this->amount, 2).' '.strtoupper((string) $this->currency);
     }
 }

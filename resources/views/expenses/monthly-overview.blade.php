@@ -151,7 +151,12 @@
                             <span style="font-size:12px;color:#8c8c8a">{{ $d->expense_date->format('d M') }}</span>
                         </div>
                         <div style="display:flex;align-items:center;gap:12px">
-                            <span style="font-size:14px;font-weight:600;color:#141413">{{ number_format($d->amount, 2) }} MRU</span>
+                            <span style="font-size:14px;font-weight:600;color:#141413">
+                                {{ number_format((float) $d->amount_mru, 2) }} MRU
+                                @if(strtoupper((string) $d->currency) !== 'MRU')
+                                    <span style="font-size:12px;color:#8c8c8a">({{ $d->originalCurrencyLabel() }})</span>
+                                @endif
+                            </span>
                             <form method="POST" action="{{ route('expenses.confirm', $d) }}">
                                 @csrf @method('PATCH')
                                 <button type="submit"
@@ -329,7 +334,10 @@
                             </td>
                             <td style="padding:13px 16px;font-size:13px;color:#5c5c5a">{{ $expense->expense_date->format('d M Y') }}</td>
                             <td style="padding:13px 16px;text-align:right;font-size:14px;font-weight:600;color:#141413">
-                                {{ number_format($expense->amount, 2) }} <span style="font-size:11px;color:#8c8c8a">MRU</span>
+                                {{ number_format((float) $expense->amount_mru, 2) }} <span style="font-size:11px;color:#8c8c8a">MRU</span>
+                                @if(strtoupper((string) $expense->currency) !== 'MRU')
+                                    <span style="font-size:11px;color:#8c8c8a">({{ $expense->originalCurrencyLabel() }})</span>
+                                @endif
                             </td>
                             <td style="padding:13px 16px;text-align:center">
                                 <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;{{ $statusStyles[$expense->status] ?? '' }}">
@@ -375,7 +383,7 @@
                                 {{ $allExpenses->total() }} expense(s)
                             </td>
                             <td style="padding:12px 16px;text-align:right;font-size:14px;font-weight:700;color:#141413">
-                                {{ number_format($allExpenses->getCollection()->sum('amount'), 2) }}
+                                {{ number_format($allExpenses->getCollection()->sum('amount_mru'), 2) }}
                                 <span style="font-size:11px;color:#8c8c8a">MRU</span>
                             </td>
                             <td colspan="2"></td>

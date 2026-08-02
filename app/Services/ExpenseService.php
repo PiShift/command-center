@@ -74,6 +74,10 @@ class ExpenseService
         $expense->status = 'confirmed';
         $expense->save();
 
+        if (strtoupper((string) $expense->currency) === 'USD' && $expense->companyAccount) {
+            app(UsdCostBasisService::class)->recalculateForAccount($expense->companyAccount);
+        }
+
         activity()
             ->performedOn($expense)
             ->log('Expense confirmed: ' . $expense->title);
@@ -105,12 +109,12 @@ class ExpenseService
             $recurringAmount = Expense::where('category_id', $category->id)
                 ->where('month', $startOfMonth)
                 ->whereNotNull('recurring_charge_id')
-                ->sum('amount');
+                ->sum('amount_mru');
 
             $actualAmount = Expense::where('category_id', $category->id)
                 ->where('month', $startOfMonth)
                 ->where('status', 'confirmed')
-                ->sum('amount');
+                ->sum('amount_mru');
 
             $recurringAmount = (float) $recurringAmount;
             $actualAmount    = (float) $actualAmount;

@@ -4,13 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\BankAccountTransfer;
 use App\Models\CompanyBankAccount;
+use App\Services\UsdCostBasisService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
 class BankAccountTransferController extends Controller
 {
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, UsdCostBasisService $usdCostBasisService): RedirectResponse
     {
         abort_unless(auth()->user()?->hasPermission('finance.manage'), 403);
 
@@ -75,7 +76,7 @@ class BankAccountTransferController extends Controller
         $fromBalance = (float) $fromAccount->balance;
         $willBeNegative = $fromBalance < $amountSent;
 
-        BankAccountTransfer::create([
+        $transfer = BankAccountTransfer::create([
             'from_account_id' => (int) $validated['from_account_id'],
             'to_account_id' => (int) $validated['to_account_id'],
             'amount' => $amountSent,
@@ -88,6 +89,8 @@ class BankAccountTransferController extends Controller
             'created_by' => auth()->id(),
         ]);
 
+        $this->recalculateUsdCostBasis($usdCostBasisService, $transfer);
+
         $message = 'Transfer recorded successfully.';
         if ($willBeNegative) {
             $message .= ' Warning: source account balance is now negative.';
@@ -96,7 +99,7 @@ class BankAccountTransferController extends Controller
         return redirect()->route('bank-accounts.index')->with('success', $message);
     }
 
-    public function destroy(BankAccountTransfer $transfer): RedirectResponse
+    public function destroy(BankAccountTransfer $transfer, UsdCostBasisService $usdCostBasisService): RedirectResponse
     {
         abort_unless(auth()->user()?->hasPermission('finance.manage'), 403);
 
@@ -109,6 +112,7 @@ class BankAccountTransferController extends Controller
         }
 
         $transfer->delete();
+        $this->recalculateUsdCostBasis($usdCostBasisService, $transfer);
 
         return back()->with('success', 'Transfer deleted successfully.');
     }
@@ -124,5 +128,20 @@ class BankAccountTransferController extends Controller
         }
 
         return (float) $usdAccount->usd_exchange_rate;
+    }
+
+    private function recalculateUsdCostBasis(UsdCostBasisService $usdCostBasisService, BankAccountTransfer $transfer): void
+    {
+        $transfer->loadMissing(['fromAccount:id,currency', 'toAccount:id,currency']);
+
+        foreach ([$transfer->fromAccount, $transfer->toAccount] as $account) {
+            if (! $account) {
+                continue;
+            }
+
+            if (strtoupper((string) $account->currency) === 'USD') {
+                $usdCostBasisService->recalculateForAccount($account);
+            }
+        }
     }
 }
