@@ -200,12 +200,14 @@ class UsdExpenseWeightedAverageFeatureTest extends TestCase
         $this->actingAs($user)
             ->get(route('expenses.create'))
             ->assertOk()
-            ->assertSee('expense-form-two-col');
+            ->assertSee('expense-form-two-col')
+            ->assertSee('x-show.important="recurring"', false);
 
         $this->actingAs($user)
             ->get(route('expenses.edit', $expense))
             ->assertOk()
-            ->assertSee('expense-form-recurring-grid');
+            ->assertSee('expense-form-recurring-grid')
+            ->assertSee('x-show.important="recurring"', false);
 
         $this->actingAs($user)
             ->get(route('expenses.monthly-overview'))
