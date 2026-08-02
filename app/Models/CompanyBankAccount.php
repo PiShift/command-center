@@ -54,7 +54,10 @@ class CompanyBankAccount extends Model
 
         // Money IN from transfers
         $transfersIn = Schema::hasTable('bank_account_transfers')
-            ? (float) BankAccountTransfer::where('to_account_id', $this->id)->sum('amount')
+            ? (float) BankAccountTransfer::query()
+                ->where('to_account_id', $this->id)
+                ->selectRaw('COALESCE(SUM(COALESCE(amount_received, amount)), 0) as total')
+                ->value('total')
             : 0.0;
 
         // Money OUT — expenses
@@ -79,7 +82,10 @@ class CompanyBankAccount extends Model
 
         // Money OUT from transfers
         $transfersOut = Schema::hasTable('bank_account_transfers')
-            ? (float) BankAccountTransfer::where('from_account_id', $this->id)->sum('amount')
+            ? (float) BankAccountTransfer::query()
+                ->where('from_account_id', $this->id)
+                ->selectRaw('COALESCE(SUM(COALESCE(amount_sent, amount)), 0) as total')
+                ->value('total')
             : 0.0;
 
         return $paymentsIn + $transfersIn

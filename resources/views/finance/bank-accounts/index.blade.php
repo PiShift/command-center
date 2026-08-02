@@ -134,14 +134,44 @@
                     </select>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div x-show="!isCrossCurrency" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">Amount</label>
-                        <input name="amount" type="number" step="0.01" min="0.01" x-model.number="amount" required class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="0.00">
+                        <input name="amount" type="number" step="0.01" min="0.01" x-model.number="amount" :required="!isCrossCurrency" :disabled="isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="0.00">
                     </div>
                     <div>
                         <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">Date</label>
                         <input name="date" type="date" x-model="date" required class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors">
+                    </div>
+                </div>
+
+                <div x-show="isCrossCurrency" x-cloak class="space-y-4">
+                    <div class="rounded-lg border border-hairline bg-canvas px-3 py-2 text-[12px] text-dim">
+                        Cross-currency transfer: rate is always <span class="font-semibold text-ink">1 USD = X MRU</span>.
+                    </div>
+
+                    <input type="hidden" name="amount" :value="amountSent || ''" :disabled="!isCrossCurrency">
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">Amount Sent (<span x-text="fromCurrency"></span>)</label>
+                            <input name="amount_sent" type="number" step="0.01" min="0.01" :value="amountSent" @input="updateField('amountSent', $event.target.value)" :required="isCrossCurrency" :disabled="!isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="0.00">
+                        </div>
+                        <div>
+                            <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">Amount Received (<span x-text="toCurrency"></span>)</label>
+                            <input name="amount_received" type="number" step="0.01" min="0.01" :value="amountReceived" @input="updateField('amountReceived', $event.target.value)" :required="isCrossCurrency" :disabled="!isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">Rate (1 USD = X MRU)</label>
+                            <input name="exchange_rate" type="number" step="0.000001" min="0.000001" :value="exchangeRate" @input="updateField('exchangeRate', $event.target.value)" :required="isCrossCurrency" :disabled="!isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="389">
+                        </div>
+                        <div>
+                            <label class="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.05em] text-muted">Date</label>
+                            <input name="date" type="date" x-model="date" :required="isCrossCurrency" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors">
+                        </div>
                     </div>
                 </div>
 
@@ -155,7 +185,7 @@
                     <textarea name="notes" rows="3" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink focus:border-accent focus:bg-card focus:outline-none transition-colors" placeholder="Optional"></textarea>
                 </div>
 
-                <div x-show="fromAccount && toAccount && amount > 0" x-cloak class="rounded-lg border border-hairline bg-canvas px-3 py-2 text-[12px] text-dim">
+                <div x-show="fromAccount && toAccount && previewAmountFrom > 0 && previewAmountTo > 0" x-cloak class="rounded-lg border border-hairline bg-canvas px-3 py-2 text-[12px] text-dim">
                     After transfer: From account will have <span class="font-semibold text-ink" x-text="fmt(afterFrom)"></span>,
                     To account will have <span class="font-semibold text-ink" x-text="fmt(afterTo)"></span>
                 </div>
@@ -178,6 +208,16 @@
                 fromAccountId: '',
                 toAccountId: '',
                 amount: '',
+                amountSent: '',
+                amountReceived: '',
+                exchangeRate: 389,
+                rateDefault: 389,
+                editSequence: 0,
+                lastEdited: {
+                    amountSent: 0,
+                    amountReceived: 0,
+                    exchangeRate: 0,
+                },
                 date: config.defaultDate,
                 get fromAccount() {
                     return this.accounts.find(a => Number(a.id) === Number(this.fromAccountId)) || null;
@@ -185,19 +225,152 @@
                 get toAccount() {
                     return this.accounts.find(a => Number(a.id) === Number(this.toAccountId)) || null;
                 },
+                get fromCurrency() {
+                    return this.fromAccount?.currency || '';
+                },
+                get toCurrency() {
+                    return this.toAccount?.currency || '';
+                },
+                get isCrossCurrency() {
+                    if (!this.fromAccount || !this.toAccount) {
+                        return false;
+                    }
+
+                    return String(this.fromCurrency).toUpperCase() !== String(this.toCurrency).toUpperCase();
+                },
                 get toAccounts() {
                     return this.accounts.filter(a => Number(a.id) !== Number(this.fromAccountId));
                 },
+                get previewAmountFrom() {
+                    return this.isCrossCurrency ? Number(this.amountSent || 0) : Number(this.amount || 0);
+                },
+                get previewAmountTo() {
+                    return this.isCrossCurrency ? Number(this.amountReceived || 0) : Number(this.amount || 0);
+                },
                 get afterFrom() {
                     if (!this.fromAccount) return 0;
-                    return Number(this.fromAccount.balance || 0) - Number(this.amount || 0);
+                    return Number(this.fromAccount.balance || 0) - this.previewAmountFrom;
                 },
                 get afterTo() {
                     if (!this.toAccount) return 0;
-                    return Number(this.toAccount.balance || 0) + Number(this.amount || 0);
+                    return Number(this.toAccount.balance || 0) + this.previewAmountTo;
                 },
                 fmt(value) {
-                    return 'MRU ' + Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                },
+                updateField(field, rawValue) {
+                    const value = this.normalize(rawValue);
+                    this[field] = value;
+                    this.editSequence += 1;
+                    this.lastEdited[field] = this.editSequence;
+                    this.recalculateCrossCurrency();
+                },
+                normalize(value) {
+                    if (value === '' || value === null || value === undefined) {
+                        return '';
+                    }
+
+                    const numberValue = Number(value);
+                    return Number.isFinite(numberValue) ? numberValue : '';
+                },
+                asPositiveNumber(value) {
+                    const numberValue = Number(value);
+                    if (!Number.isFinite(numberValue) || numberValue <= 0) {
+                        return null;
+                    }
+
+                    return numberValue;
+                },
+                transferDirection() {
+                    const fromCurrency = String(this.fromCurrency).toUpperCase();
+                    const toCurrency = String(this.toCurrency).toUpperCase();
+
+                    if (fromCurrency === 'MRU' && toCurrency === 'USD') {
+                        return 'mru_to_usd';
+                    }
+
+                    if (fromCurrency === 'USD' && toCurrency === 'MRU') {
+                        return 'usd_to_mru';
+                    }
+
+                    return null;
+                },
+                recalculateCrossCurrency() {
+                    if (!this.isCrossCurrency) {
+                        return;
+                    }
+
+                    const direction = this.transferDirection();
+                    if (!direction) {
+                        return;
+                    }
+
+                    const values = {
+                        amountSent: this.asPositiveNumber(this.amountSent),
+                        amountReceived: this.asPositiveNumber(this.amountReceived),
+                        exchangeRate: this.asPositiveNumber(this.exchangeRate),
+                    };
+
+                    const orderedFields = Object.entries(this.lastEdited)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([field]) => field)
+                        .filter((field) => values[field] !== null)
+                        .slice(0, 2);
+
+                    if (orderedFields.length < 2) {
+                        return;
+                    }
+
+                    const signature = orderedFields.slice().sort().join('|');
+
+                    if (signature === 'amountSent|exchangeRate') {
+                        this.amountReceived = this.roundMoney(
+                            direction === 'mru_to_usd'
+                                ? values.amountSent / values.exchangeRate
+                                : values.amountSent * values.exchangeRate
+                        );
+                    } else if (signature === 'amountReceived|exchangeRate') {
+                        this.amountSent = this.roundMoney(
+                            direction === 'mru_to_usd'
+                                ? values.amountReceived * values.exchangeRate
+                                : values.amountReceived / values.exchangeRate
+                        );
+                    } else if (signature === 'amountReceived|amountSent') {
+                        this.exchangeRate = this.roundRate(
+                            direction === 'mru_to_usd'
+                                ? values.amountSent / values.amountReceived
+                                : values.amountReceived / values.amountSent
+                        );
+                    }
+                },
+                roundMoney(value) {
+                    if (!Number.isFinite(value)) {
+                        return '';
+                    }
+
+                    return Math.round(value * 100) / 100;
+                },
+                roundRate(value) {
+                    if (!Number.isFinite(value)) {
+                        return '';
+                    }
+
+                    return Math.round(value * 1_000_000) / 1_000_000;
+                },
+                init() {
+                    this.$watch('fromAccountId', () => this.handleAccountChange());
+                    this.$watch('toAccountId', () => this.handleAccountChange());
+                },
+                handleAccountChange() {
+                    if (!this.isCrossCurrency) {
+                        this.amountSent = '';
+                        this.amountReceived = '';
+                        this.exchangeRate = this.rateDefault;
+                        this.lastEdited = { amountSent: 0, amountReceived: 0, exchangeRate: 0 };
+                        return;
+                    }
+
+                    this.recalculateCrossCurrency();
                 },
                 close() {
                     this.open = false;

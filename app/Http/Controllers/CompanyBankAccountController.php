@@ -194,14 +194,23 @@ class CompanyBankAccountController extends Controller
         if (Schema::hasTable('bank_account_transfers')) {
             // Transfers IN
             BankAccountTransfer::where('to_account_id', $account->id)
-                ->with('fromAccount')
+                ->with(['fromAccount', 'toAccount'])
                 ->get()
-                ->each(function ($transfer) use (&$transactions) {
+                ->each(function ($transfer) use (&$transactions, $account) {
+                    $isCrossCurrency = ! is_null($transfer->exchange_rate)
+                        && (float) ($transfer->amount_received ?? 0) > 0
+                        && strtoupper((string) $transfer->fromAccount?->currency) !== strtoupper((string) $account->currency);
+
+                    $description = 'Transfer from '.($transfer->fromAccount?->name ?? 'Unknown account');
+                    if ($isCrossCurrency) {
+                        $description .= ' — '.$this->formatCrossCurrencySummary($transfer);
+                    }
+
                     $transactions->push([
                         'date' => $transfer->date,
                         'type' => 'in',
-                        'description' => 'Transfer from '.($transfer->fromAccount?->name ?? 'Unknown account'),
-                        'amount' => (float) $transfer->amount,
+                        'description' => $description,
+                        'amount' => (float) ($transfer->amount_received ?? $transfer->amount),
                         'reference' => $transfer->reference,
                         'source' => 'transfer_in',
                         'source_id' => $transfer->id,
@@ -211,14 +220,23 @@ class CompanyBankAccountController extends Controller
 
             // Transfers OUT
             BankAccountTransfer::where('from_account_id', $account->id)
-                ->with('toAccount')
+                ->with(['fromAccount', 'toAccount'])
                 ->get()
-                ->each(function ($transfer) use (&$transactions) {
+                ->each(function ($transfer) use (&$transactions, $account) {
+                    $isCrossCurrency = ! is_null($transfer->exchange_rate)
+                        && (float) ($transfer->amount_received ?? 0) > 0
+                        && strtoupper((string) $account->currency) !== strtoupper((string) $transfer->toAccount?->currency);
+
+                    $description = 'Transfer to '.($transfer->toAccount?->name ?? 'Unknown account');
+                    if ($isCrossCurrency) {
+                        $description .= ' — '.$this->formatCrossCurrencySummary($transfer);
+                    }
+
                     $transactions->push([
                         'date' => $transfer->date,
                         'type' => 'out',
-                        'description' => 'Transfer to '.($transfer->toAccount?->name ?? 'Unknown account'),
-                        'amount' => (float) $transfer->amount,
+                        'description' => $description,
+                        'amount' => (float) ($transfer->amount_sent ?? $transfer->amount),
                         'reference' => $transfer->reference,
                         'source' => 'transfer_out',
                         'source_id' => $transfer->id,
@@ -248,7 +266,10 @@ class CompanyBankAccountController extends Controller
 
         $totalIn = (float) $account->invoicePayments()->sum('amount');
         if (Schema::hasTable('bank_account_transfers')) {
-            $totalIn += (float) BankAccountTransfer::where('to_account_id', $account->id)->sum('amount');
+            $totalIn += (float) BankAccountTransfer::query()
+                ->where('to_account_id', $account->id)
+                ->selectRaw('COALESCE(SUM(COALESCE(amount_received, amount)), 0) as total')
+                ->value('total');
         }
 
         $totalOut = (float) $account->expenses()->where('status', 'confirmed')->sum('amount')
@@ -259,7 +280,10 @@ class CompanyBankAccountController extends Controller
                 : (float) PayrollRun::where('company_account_id', $account->id)->where('status', 'paid')->sum('total_net'));
 
         if (Schema::hasTable('bank_account_transfers')) {
-            $totalOut += (float) BankAccountTransfer::where('from_account_id', $account->id)->sum('amount');
+            $totalOut += (float) BankAccountTransfer::query()
+                ->where('from_account_id', $account->id)
+                ->selectRaw('COALESCE(SUM(COALESCE(amount_sent, amount)), 0) as total')
+                ->value('total');
         }
         $currentBalance = $totalIn - $totalOut;
 
@@ -322,5 +346,32 @@ class CompanyBankAccountController extends Controller
         $account->delete();
 
         return redirect()->route('bank-accounts.index')->with('success', 'Bank account deleted.');
+    }
+
+    private function formatCrossCurrencySummary(BankAccountTransfer $transfer): string
+    {
+        $sent = $this->formatTransferMoney(
+            (float) ($transfer->amount_sent ?? $transfer->amount ?? 0),
+            (string) ($transfer->fromAccount?->currency ?? 'MRU')
+        );
+        $received = $this->formatTransferMoney(
+            (float) ($transfer->amount_received ?? $transfer->amount ?? 0),
+            (string) ($transfer->toAccount?->currency ?? 'MRU')
+        );
+        $rate = rtrim(rtrim(number_format((float) $transfer->exchange_rate, 6, '.', ''), '0'), '.');
+
+        return $sent.' → '.$received.' (rate: '.$rate.')';
+    }
+
+    private function formatTransferMoney(float $amount, string $currency): string
+    {
+        $formatted = number_format($amount, 2);
+        $upperCurrency = strtoupper($currency);
+
+        if ($upperCurrency === 'USD') {
+            return '$'.$formatted.' USD';
+        }
+
+        return $formatted.' '.$upperCurrency;
     }
 }

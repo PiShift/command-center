@@ -11,6 +11,9 @@ class BankAccountTransfer extends Model
         'from_account_id',
         'to_account_id',
         'amount',
+        'amount_sent',
+        'amount_received',
+        'exchange_rate',
         'date',
         'reference',
         'notes',
@@ -19,6 +22,9 @@ class BankAccountTransfer extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'amount_sent' => 'decimal:2',
+        'amount_received' => 'decimal:2',
+        'exchange_rate' => 'decimal:6',
         'date' => 'date',
     ];
 
