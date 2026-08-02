@@ -68,15 +68,9 @@
         }
     }
 
-    @media (max-width: 768px) {
-        .expenses-overview-container {
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-        }
-    }
 </style>
 
-<div class="expenses-overview-container" x-data="{ tab: '{{ request('tab', 'overview') }}', month: '{{ $month->format('Y-m') }}' }"
+<div x-data="{ tab: '{{ request('tab', 'overview') }}', month: '{{ $month->format('Y-m') }}' }"
      style="max-width:1200px;margin:0 auto;padding:32px 0">
 
     {{-- Header --}}
