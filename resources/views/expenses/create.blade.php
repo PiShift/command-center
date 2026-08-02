@@ -232,7 +232,7 @@
                     </div>
                 </div>
 
-                <div x-show="recurring" x-cloak class="expense-form-recurring-grid" style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                <div x-show.important="recurring" x-cloak class="expense-form-recurring-grid" style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
                     <div>
                         <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#8c8c8a;margin-bottom:6px">Frequency *</label>
                         <div style="position:relative">
