@@ -15,6 +15,7 @@ use App\Models\ProjectResource;
 use App\Models\TaskComment;
 use App\Models\TaskToken;
 use App\Models\Team;
+use App\Services\TaskStatusHistoryLogger;
 use App\WebSocket\WebSocketBroadcaster;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -345,7 +346,19 @@ class DaemonController extends Controller
             'started_at' => now(),
         ])->save();
 
+        $task = $queue->task()->first();
+
+        if (! $task) {
+            return response()->json(['error' => 'task not found'], 404);
+        }
+
+        $oldStatus = (string) $task->status;
         $queue->task()->update(['status' => 'in-progress']);
+        TaskStatusHistoryLogger::log($task, $oldStatus, 'in-progress', [
+            'type' => 'daemon',
+            'agent_id' => $queue->agent_id,
+            'label' => 'Daemon runtime',
+        ]);
 
         $task = $queue->task()->with('project.teams')->first();
         $workspaceId = (string) ($task->project?->teams?->first()?->id ?? '');
@@ -545,7 +558,19 @@ class DaemonController extends Controller
             'pr_url' => $data['pr_url'] ?? $queue->pr_url,
         ])->save();
 
+        $task = $queue->task()->first();
+
+        if (! $task) {
+            return response()->json(['error' => 'task not found'], 404);
+        }
+
+        $oldStatus = (string) $task->status;
         $queue->task()->update(['status' => 'in-review']);
+        TaskStatusHistoryLogger::log($task, $oldStatus, 'in-review', [
+            'type' => 'daemon',
+            'agent_id' => $queue->agent_id,
+            'label' => 'Daemon runtime',
+        ]);
 
         $task = $queue->task()->with('project.teams')->first();
         $workspaceId = (string) ($task->project?->teams?->first()?->id ?? '');
@@ -587,7 +612,19 @@ class DaemonController extends Controller
         ])->save();
 
         $queue->loadMissing('runtime');
+        $task = $queue->task()->first();
+
+        if (! $task) {
+            return response()->json(['error' => 'task not found'], 404);
+        }
+
+        $oldStatus = (string) $task->status;
         $queue->task()->update(['status' => 'open']);
+        TaskStatusHistoryLogger::log($task, $oldStatus, 'open', [
+            'type' => 'daemon',
+            'agent_id' => $queue->agent_id,
+            'label' => 'Daemon runtime',
+        ]);
 
         $task = $queue->task()->with('project.teams')->first();
         $workspaceId = (string) ($task->project?->teams?->first()?->id ?? '');

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\TaskStatusHistoryLogger;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +15,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 class Task extends Model implements HasMedia
 {
     use InteractsWithMedia;
+
+    protected ?array $pendingStatusTransition = null;
 
     protected $fillable = [
         'project_id',
@@ -43,6 +46,34 @@ class Task extends Model implements HasMedia
         'labels' => 'array',
         'weight' => 'integer',
     ];
+
+    protected static function booted(): void
+    {
+        static::updating(function (self $task): void {
+            if (! $task->isDirty('status')) {
+                return;
+            }
+
+            $task->pendingStatusTransition = [
+                'from' => (string) $task->getOriginal('status'),
+                'to' => (string) $task->status,
+            ];
+        });
+
+        static::updated(function (self $task): void {
+            if (! $task->pendingStatusTransition) {
+                return;
+            }
+
+            TaskStatusHistoryLogger::log(
+                $task,
+                $task->pendingStatusTransition['from'],
+                $task->pendingStatusTransition['to'],
+            );
+
+            $task->pendingStatusTransition = null;
+        });
+    }
 
     public function project(): BelongsTo
     {
@@ -148,6 +179,13 @@ class Task extends Model implements HasMedia
     public function checklists(): HasMany
     {
         return $this->hasMany(TaskChecklist::class)->orderBy('sort_order');
+    }
+
+    public function statusHistory(): HasMany
+    {
+        return $this->hasMany(TaskStatusHistory::class)
+            ->orderBy('created_at')
+            ->orderBy('id');
     }
 
     public function registerMediaCollections(): void

@@ -69,6 +69,8 @@ class TaskController extends Controller
             'assignee',
             'agent.runtime',
             'latestQueue',
+            'statusHistory.actorUser',
+            'statusHistory.actorAgent',
             'checklists',
             'media',
             'comments' => fn ($q) => $q->with(['author', 'media'])->latest(),
