@@ -188,6 +188,34 @@
         </div>
         @endif
 
+        <div class="mt-5 border-t border-hairline pt-4">
+            <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-2">Status History</p>
+
+            @if($task->statusHistory->isEmpty())
+                <p class="text-[13px] text-muted italic">No status changes recorded yet.</p>
+            @else
+                <ul class="space-y-2">
+                    @foreach($task->statusHistory as $entry)
+                        @php
+                            $actorName = $entry->actorUser?->name
+                                ?? $entry->actorAgent?->name
+                                ?? $entry->actor_label
+                                ?? ucfirst(str_replace('-', ' ', $entry->actor_type));
+                        @endphp
+                        <li class="text-[13px] text-ink">
+                            <span class="text-muted">{{ $entry->created_at?->format('M d, Y H:i') }}</span>
+                            <span class="mx-1">-</span>
+                            <span class="font-medium">{{ $actorName }}</span>
+                            moved from
+                            <span class="font-medium">{{ $entry->from_status }}</span>
+                            to
+                            <span class="font-medium">{{ $entry->to_status }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+
         {{-- ── Implementation Guide ──────────────────────────────────────────── --}}
         @php $canEditTask = auth()->user()->hasPermission('tasks.edit_any'); @endphp
         @if($task->guide || $canEditTask)
