@@ -11,8 +11,10 @@ use App\Models\Customer;
 use App\Models\Project;
 use App\Models\Role;
 use App\Models\Task;
+use App\Models\TaskChangeRequest;
 use App\Models\TaskStatusHistory;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -39,7 +41,7 @@ class TaskStatusHistoryFeatureTest extends TestCase
         $manager = $this->createUserWithRole('manager');
         [, $project] = $this->createCustomerAndProject();
         $task = $this->createTask($project, [
-            'status' => 'backlog',
+            'status' => 'open',
             'assigned_to' => $manager->id,
         ]);
 
@@ -47,34 +49,35 @@ class TaskStatusHistoryFeatureTest extends TestCase
             ->patch(route('tasks.advance', $task))
             ->assertRedirect();
 
-        $this->assertHistoryRow(1, $task->id, 'backlog', 'in-progress', 'user', $manager->id);
+        $this->assertHistoryRow(1, $task->id, 'open', 'in-progress', 'user', $manager->id);
 
         Livewire::actingAs($manager)
             ->test(KanbanBoard::class)
-            ->call('moveTask', $task->id, 'done');
+            ->call('moveTask', $task->id, 'in-review');
 
-        $this->assertHistoryRow(2, $task->id, 'in-progress', 'done', 'user', $manager->id);
+        $this->assertHistoryRow(2, $task->id, 'in-progress', 'in-review', 'user', $manager->id);
 
+        // A reviewer requests changes (legal from in-review)
         $this->actingAs($manager)
-            ->put(route('tasks.update', $task), [
-                'title' => $task->title,
-                'project_id' => $task->project_id,
-                'assigned_to' => $task->assigned_to,
-                'agent_id' => null,
-                'type' => $task->type,
-                'priority' => $task->priority,
-                'status' => 'backlog',
-                'due_date' => null,
-                'estimated_hours' => $task->estimated_hours,
-                'labels' => [],
-                'description' => $task->description,
-                'source' => $task->source,
-                'original_input' => $task->original_input,
-                'guide' => $task->guide,
+            ->post(route('tasks.change-requests.store', $task), [
+                'category' => 'Incomplete',
+                'explanation' => 'Missing the edge case handling.',
+                'status' => 'changes-requested',
             ])
             ->assertRedirect(route('tasks.show', $task));
 
-        $this->assertHistoryRow(3, $task->id, 'done', 'backlog', 'user', $manager->id);
+        $this->assertHistoryRow(3, $task->id, 'in-review', 'changes-requested', 'user', $manager->id);
+
+        // Only one history row — the change request links to it (no double-logging)
+        $this->assertSame(
+            1,
+            TaskStatusHistory::where('task_id', $task->id)
+                ->where('to_status', 'changes-requested')
+                ->count()
+        );
+        $this->assertNotNull(
+            TaskChangeRequest::where('task_id', $task->id)->firstOrFail()->task_status_history_id
+        );
 
         $runtime = AgentRuntime::create([
             'user_id' => $manager->id,
@@ -97,7 +100,7 @@ class TaskStatusHistoryFeatureTest extends TestCase
             ->postJson("/api/daemon/tasks/{$queue->id}/start")
             ->assertOk();
 
-        $this->assertHistoryRow(4, $task->id, 'backlog', 'in-progress', 'daemon', null);
+        $this->assertHistoryRow(4, $task->id, 'changes-requested', 'in-progress', 'daemon', null);
 
         $this->actingAs($manager)
             ->postJson("/api/daemon/tasks/{$queue->id}/complete")
@@ -109,14 +112,62 @@ class TaskStatusHistoryFeatureTest extends TestCase
             ->postJson("/api/daemon/tasks/{$queue->id}/fail", ['error' => 'daemon test'])
             ->assertOk();
 
-        $this->assertHistoryRow(6, $task->id, 'in-review', 'open', 'daemon', null);
+        // Failing from review returns the task to in-progress so it can be retried
+        $this->assertHistoryRow(6, $task->id, 'in-review', 'in-progress', 'daemon', null);
+    }
+
+    public function test_changes_requested_reason_is_required_and_persisted_for_reviewers(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $developer = $this->createUserWithRole('developer');
+        [, $project] = $this->createCustomerAndProject();
+        $task = $this->createTask($project, [
+            'status' => 'in-review',
+            'assigned_to' => $developer->id,
+        ]);
+
+        $this->actingAs($developer)
+            ->post(route('tasks.change-requests.store', $task), [
+                'category' => 'Bug / broken',
+                'explanation' => 'The implementation misses the spec.',
+                'status' => 'changes-requested',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($manager)
+            ->post(route('tasks.change-requests.store', $task), [
+                'category' => 'Bug / broken',
+                'explanation' => 'The implementation misses the spec.',
+                'status' => 'changes-requested',
+                'attachments' => [UploadedFile::fake()->image('screenshot.png')],
+            ])
+            ->assertRedirect(route('tasks.show', $task));
+
+        $task->refresh();
+
+        $this->assertSame('changes-requested', $task->status);
+
+        $history = TaskStatusHistory::query()->where('task_id', $task->id)->latest()->firstOrFail();
+        $changeRequest = TaskChangeRequest::query()->where('task_id', $task->id)->latest()->firstOrFail();
+
+        $this->assertSame($history->id, $changeRequest->task_status_history_id);
+        $this->assertSame('Bug / broken', $changeRequest->category);
+        $this->assertSame('The implementation misses the spec.', $changeRequest->explanation);
+        $this->assertFalse($changeRequest->getMedia('attachments')->isEmpty());
+
+        $this->actingAs($developer)
+            ->get(route('tasks.show', $task))
+            ->assertOk()
+            ->assertSeeText('Changes Requested')
+            ->assertSeeText('Bug / broken')
+            ->assertSeeText('The implementation misses the spec.');
     }
 
     public function test_task_detail_view_displays_status_history_timeline(): void
     {
         $manager = $this->createUserWithRole('manager');
         [, $project] = $this->createCustomerAndProject();
-        $task = $this->createTask($project, ['status' => 'backlog']);
+        $task = $this->createTask($project, ['status' => 'open']);
 
         $this->actingAs($manager)
             ->patch(route('tasks.advance', $task))
@@ -191,7 +242,7 @@ class TaskStatusHistoryFeatureTest extends TestCase
             'title' => 'Task '.fake()->words(2, true),
             'type' => 'feature',
             'priority' => 'medium',
-            'status' => 'backlog',
+            'status' => 'open',
             'source' => 'manual',
             'estimated_hours' => 2,
         ], $attributes));

@@ -2,11 +2,14 @@
 
 namespace App\Livewire;
 
+use App\Exceptions\InvalidTaskTransition;
 use App\Models\KanbanColumn;
 use App\Models\Project;
 use App\Models\Sprint;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\ChecklistTemplateService;
+use App\Services\TaskStatusService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -176,23 +179,27 @@ class ProjectSprints extends Component
 
         $oldStatus = $task->status;
 
+        // Status changes go through the central workflow service; the rest of
+        // the fields update directly.
+        $statusRequested = $this->editTaskStatus !== $oldStatus;
+        if ($statusRequested) {
+            try {
+                app(TaskStatusService::class)->transition($task, $this->editTaskStatus);
+            } catch (InvalidTaskTransition $e) {
+                $this->addError('editTaskStatus', $e->getMessage());
+
+                return;
+            }
+        }
+
         $task->update([
             'title'       => $this->editTaskTitle,
-            'status'      => $this->editTaskStatus,
             'priority'    => $this->editTaskPriority,
             'assigned_to' => $this->editTaskAssignedTo,
             'due_date'    => $this->editTaskDueDate ?: null,
             'weight'      => $this->editTaskWeight,
             'sprint_id'   => $this->editTaskSprintId ?: null,
         ]);
-
-        if ($this->editTaskStatus === 'done' && $oldStatus !== 'done') {
-            $task->completed_at = now();
-            $task->saveQuietly();
-        } elseif ($this->editTaskStatus !== 'done' && $oldStatus === 'done') {
-            $task->completed_at = null;
-            $task->saveQuietly();
-        }
 
         $this->editingTask = null;
         $this->dispatch('task-updated');
@@ -281,7 +288,7 @@ class ProjectSprints extends Component
             'addTaskPriority' => 'required|in:low,medium,high',
         ]);
 
-        Task::create([
+        $task = Task::create([
             'project_id' => $this->project->id,
             'sprint_id'  => $this->addTaskSprintId,
             'title'      => $this->addTaskTitle,
@@ -291,6 +298,8 @@ class ProjectSprints extends Component
             'weight'     => $this->addTaskWeight,
             'source'     => 'manual',
         ]);
+
+        app(ChecklistTemplateService::class)->applyToTask($task);
 
         if (!in_array($this->addTaskSprintId, $this->expandedSprints)) {
             $this->expandedSprints[] = $this->addTaskSprintId;

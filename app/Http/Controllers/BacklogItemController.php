@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BacklogItem;
 use App\Models\Project;
 use App\Models\Task;
+use App\Services\ChecklistTemplateService;
 use Illuminate\Http\Request;
 
 class BacklogItemController extends Controller
@@ -128,6 +129,8 @@ class BacklogItemController extends Controller
             'source'       => 'manual',
         ]);
 
+        app(ChecklistTemplateService::class)->applyToTask($task);
+
         $backlogItem->update([
             'promoted'         => true,
             'promoted_task_id' => $task->id,
@@ -194,6 +197,8 @@ class BacklogItemController extends Controller
                 'weight'       => 3,
                 'source'       => 'manual',
             ]);
+
+            app(ChecklistTemplateService::class)->applyToTask($task);
 
             $item->update([
                 'promoted'         => true,

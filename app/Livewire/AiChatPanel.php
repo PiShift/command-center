@@ -10,6 +10,7 @@ use App\Models\ProjectDocument;
 use App\Models\Sprint;
 use App\Models\Task;
 use App\Models\TaskChecklist;
+use App\Services\ChecklistTemplateService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
@@ -969,12 +970,16 @@ class AiChatPanel extends Component
                         'original_input'  => null,
                     ]);
 
+                    // Baseline Definition-of-Done items from matching templates come first
+                    app(ChecklistTemplateService::class)->applyToTask($task);
+                    $sortOffset = (int) $task->checklists()->max('sort_order') + 1;
+
                     foreach ($taskData['checklist'] as $idx => $label) {
                         TaskChecklist::create([
                             'task_id'    => $task->id,
                             'label'      => Str::limit($label, 255, ''),
                             'is_checked' => false,
-                            'sort_order' => $idx,
+                            'sort_order' => $sortOffset + $idx,
                         ]);
                     }
                 }

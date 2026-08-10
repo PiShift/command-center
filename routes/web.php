@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AuthCodeController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\BacklogItemController;
 use App\Http\Controllers\BankAccountTransferController;
+use App\Http\Controllers\ChecklistTemplateController;
 use App\Http\Controllers\CompanyBankAccountController;
 use App\Http\Controllers\ContractTemplateController;
 use App\Http\Controllers\CreditController;
@@ -169,9 +170,17 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::delete('projects/{project}/backlog/{backlogItem}', [BacklogItemController::class, 'destroy'])->name('backlog.destroy');
     Route::post('projects/{project}/backlog/{backlogItem}/promote', [BacklogItemController::class, 'promote'])->name('backlog.promote');
 
+    // Checklist templates (Definition of Done baselines — manager/admin only)
+    Route::middleware('permission:projects.manage')->group(function () {
+        Route::resource('checklist-templates', ChecklistTemplateController::class)
+            ->names('checklist-templates')
+            ->except(['show']);
+    });
+
     // Tasks
     Route::resource('tasks', TaskController::class)->names('tasks')->except(['create']);
     Route::patch('/tasks/{task}/advance', [TaskController::class, 'advance'])->name('tasks.advance');
+    Route::post('/tasks/{task}/change-requests', [TaskController::class, 'storeChangeRequest'])->name('tasks.change-requests.store');
     Route::post('/tasks/{task}/claim', [TaskController::class, 'claim'])->name('tasks.claim');
     Route::post('/tasks/{task}/invoice-override', [TaskInvoiceOverrideController::class, 'store'])->name('task-invoice-overrides.store');
     Route::delete('/tasks/{task}/invoice-override', [TaskInvoiceOverrideController::class, 'destroy'])->name('task-invoice-overrides.destroy');

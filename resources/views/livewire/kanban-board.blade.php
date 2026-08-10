@@ -1,4 +1,56 @@
-<div class="flex flex-col h-full">
+<div class="flex flex-col h-full"
+     x-data="{
+         toast: { show: false, message: '', type: 'error' },
+         toastTimer: null,
+         showToast(message, type) {
+             this.toast = { show: true, message: message, type: type || 'error' };
+             clearTimeout(this.toastTimer);
+             this.toastTimer = setTimeout(() => this.toast.show = false, 5000);
+         },
+         shakeCard(taskId) {
+             const el = document.querySelector(`[data-task-card=&quot;${taskId}&quot;]`);
+             if (!el) return;
+             el.classList.remove('task-card-shake');
+             void el.offsetWidth; // restart the animation
+             el.classList.add('task-card-shake');
+         }
+     }"
+     x-on:board-toast.window="showToast($event.detail.message, $event.detail.type); if ($event.detail.taskId) shakeCard($event.detail.taskId)">
+
+    <style>
+        @keyframes task-card-shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(5px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(3px); }
+        }
+        .task-card-shake {
+            animation: task-card-shake 0.45s ease;
+            border-color: #b94040 !important;
+            box-shadow: 0 0 0 3px rgba(185, 64, 64, 0.15) !important;
+        }
+    </style>
+
+    {{-- Toast --}}
+    <div x-show="toast.show"
+         x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 -translate-y-2"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 -translate-y-2"
+         class="fixed top-5 right-5 z-[10000] max-w-sm rounded-xl border px-4 py-3 shadow-[0_8px_30px_rgba(20,20,19,0.16)] flex items-start gap-3"
+         :style="toast.type === 'error'
+             ? 'background:#fff5f5;border-color:#f5c6c6;color:#b94040'
+             : 'background:#edf7f2;border-color:#c6e8d5;color:#2e7d55'">
+        <svg x-show="toast.type === 'error'" xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 shrink-0 mt-0.5" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+        </svg>
+        <span class="text-[13px] font-medium leading-snug" x-text="toast.message"></span>
+        <button type="button" @click="toast.show = false" class="shrink-0 opacity-60 hover:opacity-100 cursor-pointer leading-none">&times;</button>
+    </div>
 
     {{-- ── Header row: tabs left · filters right ────────────────────────────── --}}
     <div class="flex items-center justify-between gap-4 mb-6 flex-wrap">
@@ -82,6 +134,25 @@
                 />
             </div>
 
+            <div class="w-44 shrink-0" wire:key="component-filter-{{ implode('-', $projectIds) }}">
+                <x-searchable-select
+                    multiple
+                    livewireModel="filterComponents"
+                    placeholder="All Components"
+                    :selected="$filterComponents"
+                    :options="$componentFilterOptions"
+                />
+            </div>
+
+            <div class="w-40 shrink-0">
+                <x-searchable-select
+                    livewireModel="filterLabel"
+                    placeholder="All Labels"
+                    :selected="$filterLabel"
+                    :options="$labelOptions"
+                />
+            </div>
+
             <button type="button"
                     x-on:click="$wire.dispatch('new-task', {})"
                     class="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium bg-accent hover:bg-accent-hover text-white rounded-lg transition-colors whitespace-nowrap cursor-pointer shrink-0">
@@ -122,6 +193,7 @@
                 <div class="bg-white rounded-[10px] cursor-pointer transition-all shadow-[0_1px_3px_rgba(20,20,19,0.04)] hover:shadow-[0_4px_14px_rgba(20,20,19,0.08)]"
                      style="border: 1px solid #eeeee9"
                      draggable="true"
+                     data-task-card="{{ $task->id }}"
                      wire:key="task-{{ $task->id }}"
                      x-on:dragstart.stop="$event.dataTransfer.setData('taskId', '{{ $task->id }}'); $event.dataTransfer.effectAllowed='move'"
                      x-on:mouseenter="$el.style.borderColor='#e5e4df'"

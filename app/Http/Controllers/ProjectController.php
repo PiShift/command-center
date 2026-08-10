@@ -151,7 +151,16 @@ class ProjectController extends Controller
             'deadline' => 'nullable|date',
             'budget' => 'nullable|numeric|min:0',
             'health' => 'required|in:on-track,at-risk,blocked',
+            'components' => 'nullable|array|max:50',
+            'components.*' => 'string|max:50',
         ]);
+
+        $data['components'] = collect($data['components'] ?? [])
+            ->map(fn (string $component) => trim($component))
+            ->filter(fn (string $component) => $component !== '')
+            ->unique(fn (string $component) => mb_strtolower($component))
+            ->values()
+            ->all();
 
         $project = Project::create($data);
 
@@ -198,7 +207,9 @@ class ProjectController extends Controller
                 ->pluck('id');
             if ($activeSprintIds->isNotEmpty()) {
                 $availableTasks = Task::where('project_id', $project->id)
-                    ->whereIn('sprint_id', $activeSprintIds)
+                    // Tasks with no sprint stay claimable — null sprint is an
+                    // intentional "not planned into a sprint yet" state, not an error
+                    ->where(fn ($q) => $q->whereIn('sprint_id', $activeSprintIds)->orWhereNull('sprint_id'))
                     ->where('status', 'open')
                     ->whereNull('assigned_to')
                     ->with('sprint')
@@ -250,7 +261,16 @@ class ProjectController extends Controller
             'deadline' => 'nullable|date',
             'budget' => 'nullable|numeric|min:0',
             'health' => 'required|in:on-track,at-risk,blocked',
+            'components' => 'nullable|array|max:50',
+            'components.*' => 'string|max:50',
         ]);
+
+        $data['components'] = collect($data['components'] ?? [])
+            ->map(fn (string $component) => trim($component))
+            ->filter(fn (string $component) => $component !== '')
+            ->unique(fn (string $component) => mb_strtolower($component))
+            ->values()
+            ->all();
 
         $oldHealth = $project->health;
         $project->update($data);

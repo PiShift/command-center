@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\Sprint;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\ChecklistTemplateService;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 
@@ -214,6 +215,8 @@ class ProjectBacklog extends Component
             'due_date'    => $this->promoteDueDate ?: null,
             'source'      => 'manual',
         ]);
+
+        app(ChecklistTemplateService::class)->applyToTask($task);
 
         $item->update([
             'promoted'         => true,

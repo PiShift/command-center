@@ -7,7 +7,9 @@ use App\Models\Agent;
 use App\Models\AgentTaskQueue;
 use App\Models\Task;
 use App\Models\TaskComment;
+use App\Exceptions\InvalidTaskTransition;
 use App\Services\AgentTriggerService;
+use App\Services\TaskStatusService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -48,8 +50,12 @@ class IssueController extends Controller
         if (array_key_exists('status', $data)) {
             $mappedStatus = $this->issuePayloadTransformer->normalizeIncomingStatus((string) $data['status']);
 
-            if ($mappedStatus !== null) {
-                $task->status = $mappedStatus;
+            if ($mappedStatus !== null && $mappedStatus !== (string) $task->status) {
+                try {
+                    app(TaskStatusService::class)->transition($task, $mappedStatus);
+                } catch (InvalidTaskTransition $e) {
+                    return response()->json(['error' => $e->getMessage()], 422);
+                }
             }
         }
 

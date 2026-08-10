@@ -15,7 +15,9 @@ use App\Models\ProjectResource;
 use App\Models\TaskComment;
 use App\Models\TaskToken;
 use App\Models\Team;
-use App\Services\TaskStatusHistoryLogger;
+use App\Exceptions\InvalidTaskTransition;
+use App\Services\TaskStatusService;
+use App\Support\Workflow\TransitionActor;
 use App\WebSocket\WebSocketBroadcaster;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -353,12 +355,16 @@ class DaemonController extends Controller
         }
 
         $oldStatus = (string) $task->status;
-        $queue->task()->update(['status' => 'in-progress']);
-        TaskStatusHistoryLogger::log($task, $oldStatus, 'in-progress', [
-            'type' => 'daemon',
-            'agent_id' => $queue->agent_id,
-            'label' => 'Daemon runtime',
-        ]);
+
+        try {
+            app(TaskStatusService::class)->transition(
+                $task,
+                'in-progress',
+                TransitionActor::agent($queue->agent_id, 'Daemon runtime'),
+            );
+        } catch (InvalidTaskTransition) {
+            return response()->json(['error' => "task cannot transition from '{$oldStatus}' to 'in-progress'"], 422);
+        }
 
         $task = $queue->task()->with('project.teams')->first();
         $workspaceId = (string) ($task->project?->teams?->first()?->id ?? '');
@@ -565,12 +571,16 @@ class DaemonController extends Controller
         }
 
         $oldStatus = (string) $task->status;
-        $queue->task()->update(['status' => 'in-review']);
-        TaskStatusHistoryLogger::log($task, $oldStatus, 'in-review', [
-            'type' => 'daemon',
-            'agent_id' => $queue->agent_id,
-            'label' => 'Daemon runtime',
-        ]);
+
+        try {
+            app(TaskStatusService::class)->transition(
+                $task,
+                'in-review',
+                TransitionActor::agent($queue->agent_id, 'Daemon runtime'),
+            );
+        } catch (InvalidTaskTransition $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
 
         $task = $queue->task()->with('project.teams')->first();
         $workspaceId = (string) ($task->project?->teams?->first()?->id ?? '');
@@ -619,12 +629,28 @@ class DaemonController extends Controller
         }
 
         $oldStatus = (string) $task->status;
-        $queue->task()->update(['status' => 'open']);
-        TaskStatusHistoryLogger::log($task, $oldStatus, 'open', [
-            'type' => 'daemon',
-            'agent_id' => $queue->agent_id,
-            'label' => 'Daemon runtime',
-        ]);
+        $statusBeforeFail = $task->status;
+
+        // Return the task to the column it came from so it can be retried:
+        // from review back to in-progress, from anywhere else back to open.
+        $failTarget = $statusBeforeFail === 'in-review' ? 'in-progress' : 'open';
+
+        try {
+            app(TaskStatusService::class)->transition(
+                $task,
+                $failTarget,
+                TransitionActor::agent($queue->agent_id, 'Daemon runtime'),
+            );
+        } catch (InvalidTaskTransition) {
+            // The task has drifted outside the agent's legal transition map
+            // (e.g. a reviewer moved it in the meantime) — the queue failure
+            // is still recorded above; leave the task status untouched.
+            Log::warning('Daemon failTask: task status left unchanged', [
+                'task_id' => $task->id,
+                'from' => $oldStatus,
+                'attempted_to' => $failTarget,
+            ]);
+        }
 
         $task = $queue->task()->with('project.teams')->first();
         $workspaceId = (string) ($task->project?->teams?->first()?->id ?? '');
@@ -639,7 +665,7 @@ class DaemonController extends Controller
         ));
         broadcast(new TaskStatusChanged(
             taskId: $task->id,
-            status: 'open',
+            status: $failTarget,
             projectId: (string) $task->project_id,
         ));
 

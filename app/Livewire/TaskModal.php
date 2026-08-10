@@ -3,16 +3,20 @@
 namespace App\Livewire;
 
 use App\Events\AgentCommentPosted;
+use App\Exceptions\InvalidTaskTransition;
 use App\Models\Agent;
 use App\Models\AgentTaskQueue;
 use App\Models\KanbanColumn;
 use App\Models\Project;
+use App\Models\Sprint;
 use App\Models\Task;
 use App\Models\TaskChecklist;
 use App\Models\TaskComment;
 use App\Models\User;
 use App\Notifications\TaskCommentNotification;
 use App\Services\AgentTriggerService;
+use App\Services\ChecklistTemplateService;
+use App\Services\TaskStatusService;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 
@@ -27,7 +31,11 @@ class TaskModal extends Component
     public string $guide = '';
     public string $status = 'todo';
     public string $priority = 'medium';
+    public string $type = 'feature';
+    public ?string $component = null;
+    public array $labels = [];
     public ?int $projectId = null;
+    public ?int $sprintId = null;
     public ?int $assignedTo = null;
     public ?string $agentId = null;
     public string $dueDate = '';
@@ -42,6 +50,13 @@ class TaskModal extends Component
     // Checklist
     public string $newChecklistLabel = '';
 
+    // Labels
+    public string $newLabel = '';
+
+    // Request changes dialog
+    public string $changeCategory = '';
+    public string $changeExplanation = '';
+
     // Edit inline
     public bool $editingTitle = false;
     public bool $editingDescription = false;
@@ -53,11 +68,18 @@ class TaskModal extends Component
             'description'    => 'nullable|string',
             'status'         => 'required|string',
             'priority'       => 'required|string|in:critical,high,medium,low',
+            'type'           => 'required|string|in:bug,feature,change',
+            'component'      => 'nullable|string|max:100',
+            'labels'         => 'nullable|array|max:20',
+            'labels.*'       => 'string|max:50',
             'projectId'      => 'nullable|exists:projects,id',
+            'sprintId'       => 'nullable|exists:sprints,id',
             'assignedTo'     => 'nullable|exists:users,id',
             'agentId'        => 'nullable|exists:agents,id',
             'dueDate'        => 'nullable|date',
             'estimatedHours' => 'nullable|numeric|min:0|max:999',
+            'changeCategory' => 'nullable|string|in:Incomplete,Doesn\'t match spec,Bug / broken,Unprofessional / careless,Other',
+            'changeExplanation' => 'nullable|string|min:3',
         ];
     }
 
@@ -71,7 +93,7 @@ class TaskModal extends Component
 
     public function openTask(int $id): void
     {
-        $task = Task::with(['project', 'assignee', 'agent', 'comments.author', 'comments.media', 'comments.agent', 'media'])->findOrFail($id);
+        $task = Task::with(['project', 'sprint', 'assignee', 'agent', 'comments.author', 'comments.media', 'comments.agent', 'media'])->findOrFail($id);
 
         $this->taskId          = $task->id;
         $this->title           = $task->title;
@@ -79,7 +101,11 @@ class TaskModal extends Component
         $this->guide           = $task->guide ?? '';
         $this->status          = $task->status;
         $this->priority        = $task->priority;
+        $this->type            = $task->type ?? 'feature';
+        $this->component       = $task->component;
+        $this->labels          = array_values($task->labels ?? []);
         $this->projectId       = $task->project_id;
+        $this->sprintId        = $task->sprint_id;
         $this->assignedTo      = $task->assigned_to;
         $this->agentId         = $task->agent_id;
         $this->dueDate         = $task->due_date?->format('Y-m-d') ?? '';
@@ -100,7 +126,12 @@ class TaskModal extends Component
         $this->guide           = '';
         $this->status          = 'todo';
         $this->priority        = 'medium';
+        $this->type            = 'feature';
+        $this->component       = null;
+        $this->labels          = [];
+        $this->newLabel        = '';
         $this->projectId       = $projectId;
+        $this->sprintId        = null;
         $this->assignedTo      = null;
         $this->agentId         = null;
         $this->dueDate         = '';
@@ -124,7 +155,10 @@ class TaskModal extends Component
             'description'    => 'editMeta',
             'status'         => 'editStatus',
             'priority'       => 'editPriority',
+            'type'           => 'editMeta',
+            'component'      => 'editMeta',
             'projectId'      => 'editProject',
+            'sprintId'       => 'editProject',
             'assignedTo'     => 'editAssignee',
             'agentId'        => 'editAssignee',
             'dueDate'        => 'editDates',
@@ -138,7 +172,10 @@ class TaskModal extends Component
             'description'    => 'description',
             'status'         => 'status',
             'priority'       => 'priority',
+            'type'           => 'type',
+            'component'      => 'component',
             'projectId'      => 'project_id',
+            'sprintId'       => 'sprint_id',
             'assignedTo'     => 'assigned_to',
             'agentId'        => 'agent_id',
             'dueDate'        => 'due_date',
@@ -147,21 +184,46 @@ class TaskModal extends Component
 
         $oldStatus     = $task->status;
         $oldAgentId    = $task->agent_id;
+
+        // Status changes must go through the central workflow service —
+        // legality, conditions, validators, and post-functions apply.
+        if ($field === 'status') {
+            try {
+                app(TaskStatusService::class)->transition($task, (string) $this->status);
+            } catch (InvalidTaskTransition $e) {
+                $this->status = $task->status;
+                $this->addError('status', $e->getMessage());
+
+                return;
+            }
+
+            $this->editingTitle = false;
+            $this->editingDescription = false;
+
+            return;
+        }
+
         $task->update([$map[$field] => $this->$field ?: null]);
+
+        if ($field === 'projectId') {
+            // Keep the sprint consistent with the newly selected project
+            $sprintBelongsToProject = $this->sprintId
+                && Sprint::where('id', $this->sprintId)->where('project_id', $this->projectId)->exists();
+            if (! $sprintBelongsToProject) {
+                $this->sprintId = null;
+                $task->update(['sprint_id' => null]);
+            }
+
+            $allowedComponents = Project::find($this->projectId)?->components ?? [];
+            if ($this->component && ! in_array($this->component, $allowedComponents, true)) {
+                $this->component = null;
+                $task->update(['component' => null]);
+            }
+        }
 
         if ($field === 'agentId') {
             $task->refresh();
             $this->syncAgentQueue($task, $this->agentId, $oldAgentId);
-        }
-
-        if ($field === 'status') {
-            if ($this->status === 'done' && $oldStatus !== 'done') {
-                $task->completed_at = now();
-                $task->saveQuietly();
-            } elseif ($this->status !== 'done' && $oldStatus === 'done') {
-                $task->completed_at = null;
-                $task->saveQuietly();
-            }
         }
 
         $this->editingTitle = false;
@@ -174,19 +236,37 @@ class TaskModal extends Component
         $task = Task::create([
             'title'           => $this->title,
             'description'     => $this->description ?: null,
+            'type'            => $this->type,
+            'component'       => $this->component ?: null,
             'status'          => $this->status,
             'priority'        => $this->priority,
             'project_id'      => $this->projectId,
+            'sprint_id'       => $this->sprintId,
             'assigned_to'     => $this->assignedTo,
             'agent_id'        => $this->agentId,
             'due_date'        => $this->dueDate ?: null,
             'estimated_hours' => $this->estimatedHours ?: null,
+            'labels'          => $this->labels ?: null,
         ]);
+        app(ChecklistTemplateService::class)->applyToTask($task);
         $this->taskId = $task->id;
         $this->isNew  = false;
         $this->syncAgentQueue($task, $this->agentId, null);
         $this->dispatch('task-saved');
         $this->openTask($task->id);
+    }
+
+    /**
+     * The component dropdown (x-searchable-select) syncs via $wire.set,
+     * so persist immediately once the task exists.
+     */
+    public function updatedComponent($value): void
+    {
+        if (! $this->taskId) {
+            return;
+        }
+
+        $this->saveField('component');
     }
 
     public function addComment(): void
@@ -280,13 +360,107 @@ class TaskModal extends Component
 
     public function deleteChecklistItem(int $id): void
     {
-        TaskChecklist::where('task_id', $this->taskId)->findOrFail($id)->delete();
+        $item = TaskChecklist::where('task_id', $this->taskId)->findOrFail($id);
+
+        // Template-sourced items are locked: they can be checked off but not deleted.
+        if ($item->isLocked()) {
+            return;
+        }
+
+        $item->delete();
     }
 
     public function renameChecklistItem(int $id, string $label): void
     {
         if (! trim($label)) return;
         TaskChecklist::where('task_id', $this->taskId)->findOrFail($id)->update(['label' => trim($label)]);
+    }
+
+    // ── Labels ─────────────────────────────────────────────────────────────────
+
+    public function addLabel(string $label): void
+    {
+        $label = trim($label);
+
+        if ($label === '' || mb_strlen($label) > 50) {
+            return;
+        }
+
+        $exists = collect($this->labels)
+            ->contains(fn (string $existing) => mb_strtolower($existing) === mb_strtolower($label));
+
+        if ($exists) {
+            $this->newLabel = '';
+
+            return;
+        }
+
+        $this->labels[] = $label;
+        $this->newLabel = '';
+        $this->persistLabels();
+    }
+
+    public function removeLabel(int $index): void
+    {
+        unset($this->labels[$index]);
+        $this->labels = array_values($this->labels);
+        $this->persistLabels();
+    }
+
+    private function persistLabels(): void
+    {
+        if (! $this->taskId) {
+            return;
+        }
+
+        $task = Task::findOrFail($this->taskId);
+        Gate::authorize('editMeta', $task);
+        $task->update(['labels' => $this->labels ?: null]);
+    }
+
+    // ── Request changes ───────────────────────────────────────────────────────
+
+    public function requestChanges(): void
+    {
+        if (! $this->taskId) {
+            return;
+        }
+
+        $task = Task::findOrFail($this->taskId);
+        abort_unless(auth()->user()->hasPermission('tasks.edit_any'), 403);
+
+        $data = $this->validate([
+            'changeCategory' => 'required|string|in:Incomplete,Doesn\'t match spec,Bug / broken,Unprofessional / careless,Other',
+            'changeExplanation' => 'required|string|min:3',
+        ]);
+
+        try {
+            app(TaskStatusService::class)->transition(
+                $task,
+                'changes-requested',
+                input: [
+                    'category' => $data['changeCategory'],
+                    'explanation' => $data['changeExplanation'],
+                ],
+                postPersist: function (Task $task, ?\App\Models\TaskStatusHistory $history) use ($data): void {
+                    \App\Models\TaskChangeRequest::query()->create([
+                        'task_id' => $task->id,
+                        'task_status_history_id' => $history?->id,
+                        'category' => $data['changeCategory'],
+                        'explanation' => $data['changeExplanation'],
+                    ]);
+                },
+            );
+        } catch (InvalidTaskTransition $e) {
+            $this->addError('changeCategory', $e->getMessage());
+
+            return;
+        }
+
+        $this->status = $task->fresh()->status;
+        $this->changeCategory = '';
+        $this->changeExplanation = '';
+        $this->dispatch('changes-requested');
     }
 
     public function saveGuide(): void    {
@@ -310,8 +484,8 @@ class TaskModal extends Component
 
         $user = auth()->user();
         $task->assigned_to = $user->id;
-        $task->status      = 'todo';
         $task->save();
+        app(TaskStatusService::class)->transition($task, 'todo');
 
         activity()
             ->performedOn($task)
@@ -366,7 +540,7 @@ class TaskModal extends Component
     public function render()
     {
         $task = $this->taskId
-            ? Task::with(['project', 'assignee', 'agent.runtime', 'comments.author', 'comments.media', 'comments.agent', 'checklists', 'media'])->find($this->taskId)
+            ? Task::with(['project', 'sprint', 'assignee', 'agent.runtime', 'comments.author', 'comments.media', 'comments.agent', 'checklists', 'media'])->find($this->taskId)
             : null;
 
         $canEdit = [
@@ -383,7 +557,12 @@ class TaskModal extends Component
 
         $canClaim = $task && Gate::allows('claim', $task);
 
-        $projects = Project::orderBy('name')->get(['id', 'name', 'color']);
+        // The transition is legal from in-review; input is supplied by the dialog
+        $canRequestChanges = $task
+            && $task->status === 'in-review'
+            && auth()->user()->hasPermission('tasks.edit_any');
+
+        $projects = Project::orderBy('name')->get(['id', 'name', 'color', 'components']);
         $users    = User::orderBy('name')->get(['id', 'name', 'color', 'initials']);
         $agents   = Agent::query()
             ->where('owner_id', auth()->id())
@@ -393,7 +572,22 @@ class TaskModal extends Component
             ->get();
         $columns  = KanbanColumn::orderBy('position')->get(['slug', 'name', 'color']);
 
-        return view('livewire.task-modal', compact('task', 'projects', 'users', 'agents', 'columns', 'canEdit', 'canClaim'));
+        // Component dropdown options come from the selected project's configured list
+        $selectedProject = $this->projectId ? $projects->firstWhere('id', (int) $this->projectId) : null;
+        $componentOptions = collect($selectedProject?->components ?? [])
+            ->map(fn (string $name) => ['id' => $name, 'label' => $name])
+            ->values()
+            ->all();
+
+        // Sprint dropdown options are scoped to the selected project (same as the
+        // sprint views: any project sprint is selectable, status shown in the label)
+        $sprintOptions = $selectedProject
+            ? Sprint::where('project_id', $selectedProject->id)
+                ->orderBy('sort_order')
+                ->get(['id', 'name', 'status'])
+            : collect();
+
+        return view('livewire.task-modal', compact('task', 'projects', 'users', 'agents', 'columns', 'canEdit', 'canClaim', 'canRequestChanges', 'componentOptions', 'sprintOptions'));
     }
 
     private function syncAgentQueue(Task $task, ?string $newAgentId, ?string $oldAgentId): void
