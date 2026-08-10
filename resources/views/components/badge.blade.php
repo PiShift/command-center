@@ -8,6 +8,7 @@ $maps = [
         'backlog'     => ['label' => 'Backlog',     'bg' => '#f3f2ee', 'text' => '#5c5c5a'],
         'in-progress' => ['label' => 'In Progress', 'bg' => '#eef3fb', 'text' => '#3a6fba'],
         'in-review'   => ['label' => 'In Review',   'bg' => '#fef9ec', 'text' => '#9a7a1a'],
+        'changes-requested' => ['label' => 'Changes Requested', 'bg' => '#fdf2f8', 'text' => '#be185d'],
         'done'        => ['label' => 'Done',         'bg' => '#edf7f2', 'text' => '#2e7d55'],
     ],
     'priority' => [

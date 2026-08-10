@@ -225,7 +225,7 @@
                 <div class="bg-white border border-line rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
                     <div class="px-6 py-4 border-b border-hairline">
                         <h2 class="text-[14px] font-semibold text-ink">Available to Claim</h2>
-                        <p class="text-[12px] text-muted mt-0.5">Open, unassigned tasks in the active sprint</p>
+                        <p class="text-[12px] text-muted mt-0.5">Open, unassigned tasks in the active sprint or with no sprint set</p>
                     </div>
                     @if($availableTasks->isEmpty())
                     <div class="px-6 py-10 text-center">
@@ -338,6 +338,11 @@
                         </div>
                     </dl>
                 </div>
+
+                {{-- Components (inline management) --}}
+                @if($canManage)
+                <livewire:project-components :project="$project" />
+                @endif
 
                 {{-- Teams --}}
                 @php $assignedTeamIds = $assignedTeams->pluck('id')->toArray(); @endphp

@@ -7,12 +7,41 @@
          guideMode: 'preview',
          guideAiLoading: false,
          guideAiError: '',
+         changeRequestOpen: false,
+         changeFiles: [],
          lightboxSrc: null,
          attachUploading: false,
          attachError: '',
          commentFile: null,
          commentFileName: '',
          commentUploading: false,
+         async submitChangeRequest() {
+             const taskId = $wire.get('taskId');
+             if (!taskId) return;
+             // With attachments: the HTTP endpoint handles both the transition
+             // and the upload in one request. Without: the Livewire action.
+             if (this.changeFiles.length > 0) {
+                 const fd = new FormData();
+                 fd.append('_token', document.querySelector('meta[name=csrf-token]').content);
+                 fd.append('category', $wire.get('changeCategory'));
+                 fd.append('explanation', $wire.get('changeExplanation'));
+                 this.changeFiles.forEach(f => fd.append('attachments[]', f));
+                 try {
+                     const res = await fetch(`/tasks/${taskId}/change-requests`, {
+                         method: 'POST',
+                         headers: { 'Accept': 'application/json' },
+                         body: fd
+                     });
+                     if (res.ok || res.redirected) {
+                         this.changeRequestOpen = false;
+                         this.changeFiles = [];
+                         window.location.reload();
+                     }
+                 } catch(e) {}
+                 return;
+             }
+             await $wire.requestChanges();
+         },
          async generateGuide(taskId) {
              this.guideAiLoading = true;
              this.guideAiError = '';
@@ -78,6 +107,7 @@
     x-init="$nextTick(() => { panelOpen = true })"
     x-on:open-task.window="closing = false; panelOpen = true; $wire.openTask($event.detail.id)"
     x-on:new-task.window="closing = false; panelOpen = true; $wire.newTask()"
+    x-on:changes-requested.window="changeRequestOpen = false; changeFiles = []"
     x-on:guide-saved.window="guideMode = 'preview'">
 @php
     $priorityMap = [
@@ -306,7 +336,15 @@
                                    class="w-full text-[13px] text-ink bg-surface border border-line rounded px-1.5 py-0.5 outline-none focus:border-accent transition-colors">
                         </div>
 
-                        {{-- Delete (hover only) --}}
+                        {{-- Delete (hover only) — locked for template-sourced items --}}
+                        @if($checkItem->checklist_template_item_id)
+                        <span class="flex-shrink-0 w-5 h-5 flex items-center justify-center text-muted"
+                              title="From checklist template — cannot be removed">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/>
+                            </svg>
+                        </span>
+                        @else
                         <button wire:click="deleteChecklistItem({{ $checkItem->id }})"
                                 class="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-100 w-5 h-5 flex items-center justify-center rounded text-muted hover:text-[#b94040] cursor-pointer"
                                 title="Delete">
@@ -314,6 +352,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
                             </svg>
                         </button>
+                        @endif
                     </li>
                     @endforeach
                 </ul>
@@ -610,12 +649,25 @@
                     @if($canEdit['status'])
                     <select wire:model.live="status"
                             wire:change="saveField('status')"
-                            class="w-full min-h-11 text-base sm:text-[12px] font-semibold rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors"
+                            class="w-full min-h-11 text-base sm:text-[12px] font-semibold rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors {{ $errors->has('status') ? 'border-[#b94040]' : '' }}"
                             style="background: {{ $statusMap[$status]['bg'] ?? '#F5F4EF' }}; color: {{ $statusMap[$status]['text'] ?? '#8c8c8a' }}">
                         @foreach($columns as $col)
                         <option value="{{ $col->slug }}" @selected($status === $col->slug)>{{ $col->name }}</option>
                         @endforeach
                     </select>
+                    @error('status')
+                    <div class="mt-2 flex items-start gap-1.5 text-[12px] text-[#b94040] bg-[#fff5f5] border border-[#f5c6c6] rounded-lg px-3 py-2"
+                         x-data="{ show: true }"
+                         x-show="show"
+                         x-init="setTimeout(() => show = false, 8000)"
+                         x-transition:leave="transition-opacity duration-300"
+                         x-transition:leave-end="opacity-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+                        </svg>
+                        <span>{{ $message }}</span>
+                    </div>
+                    @enderror
                     @else
                     <span class="inline-flex items-center text-[11px] font-semibold rounded-[5px] px-2 py-0.5"
                           style="background: {{ $statusMap[$status]['bg'] ?? '#F5F4EF' }}; color: {{ $statusMap[$status]['text'] ?? '#8c8c8a' }}">
@@ -645,6 +697,22 @@
                     @endif
                 </div>
 
+                {{-- Type --}}
+                <div class="py-3.5">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">Type</p>
+                    @if($canEdit['meta'])
+                    <select wire:model.live="type"
+                            wire:change="saveField('type')"
+                            class="w-full min-h-11 text-base sm:text-[12px] font-medium text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
+                        <option value="feature" @selected($type==='feature')>Feature</option>
+                        <option value="bug" @selected($type==='bug')>Bug</option>
+                        <option value="change" @selected($type==='change')>Change</option>
+                    </select>
+                    @else
+                    <p class="text-[12px] text-ink">{{ ucfirst($type) }}</p>
+                    @endif
+                </div>
+
                 {{-- Project --}}
                 <div class="py-3.5">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">Project</p>
@@ -661,6 +729,80 @@
                     <p class="text-[12px] text-ink">
                         {{ $task?->project?->name ?? '—' }}
                     </p>
+                    @endif
+                </div>
+
+                {{-- Sprint (scoped to selected project) --}}
+                <div class="py-3.5" wire:key="task-sprint-{{ $projectId ?? 'none' }}">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">Sprint</p>
+                    @if($canEdit['project'])
+                    <select wire:model.live="sprintId"
+                            wire:change="saveField('sprintId')"
+                            class="w-full min-h-11 text-base sm:text-[12px] font-medium text-ink rounded-md px-3 py-2.5 sm:px-2 sm:py-1.5 bg-surface border border-line appearance-none cursor-pointer outline-none focus:border-accent transition-colors">
+                        <option value="">No sprint</option>
+                        @foreach($sprintOptions as $s)
+                        <option value="{{ $s->id }}" @selected($sprintId == $s->id)>{{ $s->name }} ({{ ucfirst($s->status) }})</option>
+                        @endforeach
+                    </select>
+                    @if($projectId && $sprintOptions->isEmpty())
+                    <p class="text-[11px] text-muted italic mt-1">This project has no sprints yet.</p>
+                    @endif
+                    @else
+                    <p class="text-[12px] text-ink">
+                        {{ $task?->sprint?->name ?? '—' }}
+                    </p>
+                    @endif
+                </div>
+
+                {{-- Component (project-scoped list) --}}
+                <div class="py-3.5" wire:key="task-component-{{ $projectId ?? 'none' }}">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">Component</p>
+                    @if($canEdit['meta'])
+                        @if(count($componentOptions) > 0)
+                        <x-searchable-select
+                            livewireModel="component"
+                            placeholder="No component"
+                            :selected="$this->component"
+                            :options="$componentOptions"
+                        />
+                        @else
+                        <p class="text-[12px] text-muted italic">No components configured for this project.</p>
+                        @endif
+                    @else
+                    <p class="text-[12px] text-ink">{{ $this->component ?? '—' }}</p>
+                    @endif
+                </div>
+
+                {{-- Labels (free-form tags) --}}
+                <div class="py-3.5">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">Labels</p>
+                    @if($canEdit['meta'])
+                    <div class="flex flex-wrap items-center gap-1.5" x-data="{ draft: '' }">
+                        @foreach($labels as $index => $label)
+                        <span class="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 bg-hairline text-dim"
+                              wire:key="label-{{ $index }}">
+                            {{ $label }}
+                            <button type="button" wire:click="removeLabel({{ $index }})"
+                                    class="text-muted hover:text-[#b94040] cursor-pointer leading-none" title="Remove label">×</button>
+                        </span>
+                        @endforeach
+                        <input x-model="draft"
+                               @keydown.enter.prevent="if(draft.trim()) { $wire.addLabel(draft.trim()); draft = '' }"
+                               @keydown.,.prevent="if(draft.trim()) { $wire.addLabel(draft.trim()); draft = '' }"
+                               @blur="if(draft.trim()) { $wire.addLabel(draft.trim()); draft = '' }"
+                               type="text" placeholder="Add label…"
+                               class="flex-1 min-w-[90px] text-[12px] text-ink bg-transparent outline-none placeholder:text-muted placeholder:italic py-0.5">
+                    </div>
+                    @else
+                        @if(count($labels))
+                        <div class="flex flex-wrap gap-1.5">
+                            @foreach($labels as $label)
+                            <span class="inline-flex items-center text-[11px] font-medium rounded-full px-2 py-0.5 bg-hairline text-dim">{{ $label }}</span>
+                            @endforeach
+                        </div>
+                        @else
+                        <p class="text-[12px] text-muted">—</p>
+                        @endif
                     @endif
                 </div>
 
@@ -762,6 +904,23 @@
                 </div>
                 @endif
 
+                {{-- Request changes (reviewers, while in review) --}}
+                @if($canRequestChanges)
+                <div class="py-3.5">
+                    <button type="button"
+                            @click="changeRequestOpen = true"
+                            class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-medium rounded-lg border transition-colors cursor-pointer"
+                            style="background:#fff8f8;border-color:#f0b8b8;color:#b94040"
+                            onmouseover="this.style.background='#fff0f0'"
+                            onmouseout="this.style.background='#fff8f8'">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/>
+                        </svg>
+                        Request changes
+                    </button>
+                </div>
+                @endif
+
                 {{-- Delete task --}}
                 @if($task && $canEdit['deleteTask'])
                 <div class="py-3.5">
@@ -800,6 +959,93 @@
 
     </div>
 </div>
+
+{{-- ── Request Changes dialog ─────────────────────────────────────────── --}}
+@if($canRequestChanges)
+<div x-show="changeRequestOpen"
+     x-cloak
+     class="fixed inset-0 flex items-center justify-center p-4"
+     style="z-index:10002"
+     x-on:keydown.escape.window="changeRequestOpen = false">
+    <div class="absolute inset-0 bg-black/50" @click="changeRequestOpen = false"></div>
+    <div class="relative w-full max-w-md bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.22)] overflow-hidden"
+         x-show="changeRequestOpen"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
+         @click.stop>
+        <div class="px-6 py-4 border-b border-hairline">
+            <h3 class="text-[15px] font-semibold text-ink">Request changes</h3>
+            <p class="text-[12px] text-muted mt-0.5">
+                The task moves to Changes Requested and its checklist is reset — the assignee must re-confirm every item before it can return to review.
+            </p>
+        </div>
+
+        <div class="px-6 py-4 space-y-4">
+            <div>
+                <label class="block text-[12px] font-medium text-dim mb-1">Category *</label>
+                <select wire:model="changeCategory"
+                        class="w-full min-h-11 text-[13px] text-ink rounded-lg px-3 py-2 bg-white border appearance-none cursor-pointer outline-none focus:border-accent transition-colors {{ $errors->has('changeCategory') ? 'border-[#b94040]' : 'border-line' }}">
+                    <option value="">— Select a reason —</option>
+                    <option value="Incomplete">Incomplete</option>
+                    <option value="Doesn't match spec">Doesn't match spec</option>
+                    <option value="Bug / broken">Bug / broken</option>
+                    <option value="Unprofessional / careless">Unprofessional / careless</option>
+                    <option value="Other">Other</option>
+                </select>
+                @error('changeCategory')<p class="text-[12px] text-[#b94040] mt-1">{{ $message }}</p>@enderror
+            </div>
+
+            <div>
+                <label class="block text-[12px] font-medium text-dim mb-1">Explanation *</label>
+                <textarea wire:model="changeExplanation"
+                          rows="4"
+                          placeholder="Describe what needs to change and why."
+                          class="w-full text-[13px] text-ink rounded-lg px-3 py-2 bg-white border outline-none focus:border-accent transition-colors resize-none {{ $errors->has('changeExplanation') ? 'border-[#b94040]' : 'border-line' }}"></textarea>
+                @error('changeExplanation')<p class="text-[12px] text-[#b94040] mt-1">{{ $message }}</p>@enderror
+            </div>
+
+            <div>
+                <label class="block text-[12px] font-medium text-dim mb-1">Attachments <span class="text-muted font-normal">(optional)</span></label>
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <template x-for="(file, index) in changeFiles" :key="index">
+                        <span class="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 bg-hairline text-dim">
+                            <span x-text="file.name" class="max-w-[160px] truncate"></span>
+                            <button type="button" @click="changeFiles.splice(index, 1)" class="text-muted hover:text-[#b94040] cursor-pointer leading-none">×</button>
+                        </span>
+                    </template>
+                    <label class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-dim bg-surface border border-line rounded-lg hover:bg-hairline hover:text-ink transition-colors cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                        </svg>
+                        Add file
+                        <input type="file" multiple class="sr-only" @change="changeFiles = changeFiles.concat(Array.from($event.target.files)); $event.target.value = ''">
+                    </label>
+                </div>
+                <p class="text-[11px] text-muted mt-1">Attached files are uploaded with the change request.</p>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 px-6 py-4 border-t border-hairline">
+            <button type="button" @click="changeRequestOpen = false"
+                    class="px-4 py-2 text-[13px] font-medium text-ink bg-surface border border-line rounded-lg hover:bg-hairline transition-colors cursor-pointer">
+                Cancel
+            </button>
+            <button type="button"
+                    @click="submitChangeRequest()"
+                    class="px-4 py-2 text-[13px] font-medium text-white rounded-lg transition-colors cursor-pointer"
+                    style="background:#b94040"
+                    onmouseover="this.style.background='#a33636'"
+                    onmouseout="this.style.background='#b94040'">
+                Return for changes
+            </button>
+        </div>
+    </div>
+</div>
+@endif
 
 {{-- ── Guide Drawer ─────────────────────────────────────────────────── --}}
 @if($task && ! $isNew)

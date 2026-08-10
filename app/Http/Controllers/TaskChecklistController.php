@@ -53,6 +53,8 @@ class TaskChecklistController extends Controller
     public function destroy(Task $task, TaskChecklist $item)
     {
         abort_unless($item->task_id === $task->id, 404);
+        // Template-sourced items can be checked off but not deleted
+        abort_if($item->isLocked(), 403);
 
         $item->delete();
 

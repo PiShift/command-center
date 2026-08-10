@@ -83,6 +83,20 @@
                     </select>
                 </div>
 
+                {{-- Component --}}
+                <div>
+                    <label class="block text-[12px] font-medium text-dim mb-1">Component</label>
+                    <input type="text" name="component" list="task-component-options"
+                           value="{{ old('component', $task->component ?? '') }}"
+                           placeholder="e.g. Mobile, Web, Backend"
+                           class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
+                    <datalist id="task-component-options">
+                        @foreach($componentOptions ?? [] as $componentOption)
+                            <option value="{{ $componentOption }}"></option>
+                        @endforeach
+                    </datalist>
+                </div>
+
                 {{-- Priority --}}
                 <div>
                     <label class="block text-[12px] font-medium text-dim mb-1">Priority *</label>
@@ -122,6 +136,15 @@
                     <label class="block text-[12px] font-medium text-dim mb-1">Description</label>
                     <textarea name="description" rows="4"
                               class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">{{ old('description', $task->description ?? '') }}</textarea>
+                </div>
+
+                {{-- Labels --}}
+                <div class="col-span-2">
+                    <label class="block text-[12px] font-medium text-dim mb-1">Labels</label>
+                    <input type="text" name="labels_csv"
+                           value="{{ old('labels_csv', isset($task) ? implode(', ', $task->labels ?? []) : '') }}"
+                           placeholder="Comma-separated, e.g. urgent, ios, refactor"
+                           class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
 
                 {{-- Source --}}

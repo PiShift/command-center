@@ -15,6 +15,9 @@
     if ($user->hasPermission('projects.view')) {
         $nav[] = ['route' => 'projects.index', 'label' => 'Projects', 'icon' => 'folder', 'badge' => \App\Models\Project::count()];
     }
+    if ($user->hasPermission('projects.manage')) {
+        $nav[] = ['route' => 'checklist-templates.index', 'label' => 'Checklists', 'icon' => 'clipboard'];
+    }
     if ($user->hasPermission('users.view')) {
         $nav[] = ['route' => 'users.index', 'label' => 'Users', 'icon' => 'users'];
     }

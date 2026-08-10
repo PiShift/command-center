@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Exceptions\InvalidTaskTransition;
 use App\Models\KanbanColumn;
 use App\Models\Project;
 use App\Models\Task;
@@ -9,7 +10,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\TaskClaimedNotification;
-use App\Notifications\TaskStatusChangedNotification;
+use App\Services\TaskStatusService;
 use App\Support\Broadcasts\IssueBroadcastPayload;
 use App\WebSocket\WebSocketBroadcaster;
 use Illuminate\Support\Facades\Gate;
@@ -30,6 +31,10 @@ class KanbanBoard extends Component
     public ?int $filterAssignee = null;
 
     public string $filterPriority = '';
+
+    public array $filterComponents = [];
+
+    public ?string $filterLabel = null;
 
     #[Url(as: 'projects', except: '')]
     public string $projectFilter = '';
@@ -98,14 +103,34 @@ class KanbanBoard extends Component
         $task = Task::findOrFail($taskId);
         Gate::authorize('editStatus', $task);
         $col = KanbanColumn::where('slug', $columnSlug)->firstOrFail();
-        $oldStatus = $task->status;
         $newStatus = $col->slug;
 
-        if ($oldStatus === $newStatus) {
+        if ($task->status === $newStatus) {
             return;
         }
 
-        $task->update(['status' => $newStatus]);
+        // Moving into Changes Requested always requires a reason — drag-and-drop
+        // cannot supply one, so point the reviewer at the Request changes dialog.
+        if ($newStatus === 'changes-requested') {
+            $this->dispatch(
+                'board-toast',
+                message: 'Requesting changes requires a reason. Open the task and use "Request changes" to pick a category and explain what needs to change.',
+                type: 'error',
+                taskId: $taskId,
+            );
+            $this->dispatch('$refresh');
+
+            return;
+        }
+
+        try {
+            app(TaskStatusService::class)->transition($task, $newStatus);
+        } catch (InvalidTaskTransition $e) {
+            $this->dispatch('board-toast', message: $e->getMessage(), type: 'error', taskId: $taskId);
+            $this->dispatch('$refresh');
+
+            return;
+        }
 
         $workspaceId = $this->resolveWorkspaceId($task);
 
@@ -114,30 +139,6 @@ class KanbanBoard extends Component
                 $task, $workspaceId, (string) auth()->id()
             );
         }
-
-        // Track completion timestamp
-        if ($newStatus === 'done') {
-            $task->completed_at = now();
-            $task->saveQuietly();
-        } elseif ($oldStatus === 'done') {
-            $task->completed_at = null;
-            $task->saveQuietly();
-        }
-
-        $mover = auth()->user();
-        $recipients = collect();
-        if ($task->assigned_to && $task->assigned_to !== $mover->id) {
-            $recipients->push($task->assignee);
-        }
-        $managers = User::whereHas('roleModel', fn ($q) => $q->whereIn('slug', ['super-admin', 'manager']))->get();
-        $recipients = $recipients->merge($managers)->unique('id')->filter(fn ($u) => $u->id !== $mover->id);
-
-        $task->load('project');
-        foreach ($recipients as $recipient) {
-            $recipient->notify(new TaskStatusChangedNotification($task, $oldStatus, $newStatus, $mover));
-        }
-
-        SlackNotificationHelper::notifyOnce(new TaskStatusChangedNotification($task, $oldStatus, $newStatus, $mover));
 
         $this->dispatch('task-moved', taskId: $taskId, column: $columnSlug);
     }
@@ -155,8 +156,8 @@ class KanbanBoard extends Component
 
         $user = auth()->user();
         $task->assigned_to = $user->id;
-        $task->status = 'todo';
         $task->save();
+        app(TaskStatusService::class)->transition($task, 'todo');
 
         $workspaceId = $this->resolveWorkspaceId($task);
 
@@ -266,6 +267,12 @@ class KanbanBoard extends Component
             if ($this->filterPriority) {
                 $query->where('priority', $this->filterPriority);
             }
+            if ($this->filterComponents !== []) {
+                $query->whereIn('component', $this->filterComponents);
+            }
+            if ($this->filterLabel) {
+                $query->whereJsonContains('labels', $this->filterLabel);
+            }
             $tasks = $query->get()->sortBy(fn ($t) => $priorityOrder[$t->priority] ?? 9);
             $col->setRelation('tasks', $tasks->values());
 
@@ -298,6 +305,29 @@ class KanbanBoard extends Component
             ? User::where('id', $user->id)->get()
             : User::orderBy('name')->get();
 
+        // Component filter options are project-scoped: they follow the selected projects
+        $filterScopeProjects = $this->projectIds !== []
+            ? $projects->whereIn('id', $this->projectIds)
+            : $projects;
+        $componentFilterOptions = $filterScopeProjects
+            ->flatMap(fn ($project) => $project->components ?? [])
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(fn (string $name) => ['id' => $name, 'label' => $name])
+            ->all();
+
+        // Label filter options: all labels currently in use on tasks
+        $labelOptions = Task::query()
+            ->whereNotNull('labels')
+            ->get(['labels'])
+            ->flatMap(fn (Task $task) => $task->labels ?? [])
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(fn (string $label) => ['id' => $label, 'label' => $label])
+            ->all();
+
         // Teams the current user belongs to (always loaded; only shown for scoped/developer)
         $userTeams = $scopedToUser
             ? Team::whereHas('members', fn ($q) => $q->where('user_id', $user->id))
@@ -307,6 +337,6 @@ class KanbanBoard extends Component
                 ->get()
             : collect();
 
-        return view('livewire.kanban-board', compact('columns', 'projects', 'teamMembers', 'scopedToUser', 'userTeams', 'canViewBilling'));
+        return view('livewire.kanban-board', compact('columns', 'projects', 'teamMembers', 'scopedToUser', 'userTeams', 'canViewBilling', 'componentFilterOptions', 'labelOptions'));
     }
 }

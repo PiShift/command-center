@@ -36,6 +36,7 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
+                {{-- Requesting changes goes through the panel below (reason required) --}}
                 <form method="POST" action="{{ route('tasks.advance', $task) }}">
                     @csrf @method('PATCH')
                     <button type="submit"
@@ -52,6 +53,39 @@
                 @endif
             </div>
         </div>
+
+        @if(auth()->user()->hasPermission('tasks.edit_any') && $task->status !== 'changes-requested')
+        <div class="mt-6 rounded-xl border border-rose-200 bg-rose-50/70 p-4">
+            <p class="text-[11px] font-medium text-rose-700 uppercase tracking-wider mb-3">Request changes</p>
+            <form method="POST" action="{{ route('tasks.change-requests.store', $task) }}" enctype="multipart/form-data" class="space-y-3">
+                @csrf
+                <div>
+                    <label class="block text-[12px] font-medium text-dim mb-1">Category *</label>
+                    <select name="category" required class="w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] text-ink">
+                        <option value="">— Select a reason —</option>
+                        <option value="Incomplete">Incomplete</option>
+                        <option value="Doesn't match spec">Doesn't match spec</option>
+                        <option value="Bug / broken">Bug / broken</option>
+                        <option value="Unprofessional / careless">Unprofessional / careless</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[12px] font-medium text-dim mb-1">Explanation *</label>
+                    <textarea name="explanation" rows="4" required placeholder="Describe what needs to change and why." class="w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] text-ink"></textarea>
+                </div>
+                <div>
+                    <label class="block text-[12px] font-medium text-dim mb-1">Attachments</label>
+                    <input type="file" name="attachments[]" multiple class="block w-full text-[13px] text-dim file:mr-3 file:rounded-lg file:border-0 file:bg-hairline file:px-3 file:py-2 file:text-[13px] file:text-ink">
+                </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium border border-rose-300 rounded-lg text-rose-700 bg-white hover:bg-rose-100">
+                        Return for changes
+                    </button>
+                </div>
+            </form>
+        </div>
+        @endif
 
         <div class="grid grid-cols-2 gap-x-8 gap-y-3 mt-6 text-[13px] border-t border-hairline pt-5">
             <div>
@@ -188,6 +222,40 @@
         </div>
         @endif
 
+        @if($task->changeRequests->isNotEmpty())
+        <div class="mt-5 border-t border-hairline pt-4">
+            <div class="rounded-xl border border-rose-200 bg-rose-50/70 p-4">
+                <p class="text-[11px] font-medium text-rose-700 uppercase tracking-wider mb-3">Changes Requested</p>
+                @foreach($task->changeRequests as $changeRequest)
+                    <div class="space-y-3">
+                        <div>
+                            <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-1">Category</p>
+                            <p class="text-[13px] font-semibold text-ink">{{ $changeRequest->category }}</p>
+                        </div>
+                        <div>
+                            <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-1">Explanation</p>
+                            <p class="text-[13px] text-ink whitespace-pre-line">{{ $changeRequest->explanation }}</p>
+                        </div>
+                        @if($changeRequest->getMedia('attachments')->isNotEmpty())
+                            <div>
+                                <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-2">Attachments</p>
+                                <ul class="space-y-1">
+                                    @foreach($changeRequest->getMedia('attachments') as $media)
+                                        <li>
+                                            <a href="{{ route('attachments.download', ['task' => $task->id, 'media' => $media->id]) }}" class="text-[13px] text-accent hover:underline">
+                                                {{ $media->file_name }}
+                                            </a>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
         <div class="mt-5 border-t border-hairline pt-4">
             <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-2">Status History</p>
 
@@ -315,6 +383,14 @@
                     <span class="flex-1 text-[13px] leading-snug {{ $checkItem->is_checked ? 'line-through text-muted' : 'text-ink' }} truncate">
                         {{ $checkItem->label }}
                     </span>
+                    @if($checkItem->checklist_template_item_id)
+                    <span class="w-5 h-5 flex items-center justify-center text-muted flex-shrink-0"
+                          title="From checklist template — cannot be removed">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/>
+                        </svg>
+                    </span>
+                    @else
                     <form method="POST" action="{{ route('checklists.destroy', [$task, $checkItem]) }}"
                           class="opacity-0 group-hover:opacity-100 transition-opacity">
                         @csrf @method('DELETE')
@@ -324,6 +400,7 @@
                             </svg>
                         </button>
                     </form>
+                    @endif
                 </li>
                 @endforeach
             </ul>

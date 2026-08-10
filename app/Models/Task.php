@@ -18,6 +18,12 @@ class Task extends Model implements HasMedia
 
     protected ?array $pendingStatusTransition = null;
 
+    /**
+     * Set by TaskStatusService when it persists a status change, so the
+     * fallback history hook in booted() skips that save.
+     */
+    public bool $history_written = false;
+
     protected $fillable = [
         'project_id',
         'sprint_id',
@@ -26,6 +32,7 @@ class Task extends Model implements HasMedia
         'title',
         'description',
         'type',
+        'component',
         'priority',
         'status',
         'due_date',
@@ -62,6 +69,17 @@ class Task extends Model implements HasMedia
 
         static::updated(function (self $task): void {
             if (! $task->pendingStatusTransition) {
+                return;
+            }
+
+            // Status history is a post-function of TaskStatusService; when the
+            // service persisted this save it already wrote the history row.
+            // This hook remains as a fallback so any path that bypasses the
+            // service still leaves an audit trail.
+            if ($task->history_written) {
+                $task->history_written = false;
+                $task->pendingStatusTransition = null;
+
                 return;
             }
 
@@ -186,6 +204,11 @@ class Task extends Model implements HasMedia
         return $this->hasMany(TaskStatusHistory::class)
             ->orderBy('created_at')
             ->orderBy('id');
+    }
+
+    public function changeRequests(): HasMany
+    {
+        return $this->hasMany(TaskChangeRequest::class)->latest();
     }
 
     public function registerMediaCollections(): void
