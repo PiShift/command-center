@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\ProjectSearchController;
 use App\Http\Controllers\Api\RuntimeController;
 use App\Http\Controllers\Api\RuntimeExtrasController;
 use App\Http\Controllers\Api\SkillController;
+use App\Http\Controllers\Api\SqlReadController;
 use App\Http\Controllers\Api\SquadController;
 use App\Http\Controllers\Api\SquadExtrasController;
 use App\Http\Controllers\Api\UploadController;
@@ -290,6 +291,7 @@ Route::middleware([
     Route::get('/dashboard/usage/by-agent', [DashboardApiController::class, 'usageByAgent']);
     Route::get('/dashboard/agent-runtime', [DashboardApiController::class, 'agentRuntime']);
     Route::get('/dashboard/runtime/daily', [DashboardApiController::class, 'runtimeDaily']);
+    Route::post('/sql/read', SqlReadController::class);
 
     Route::get('/invitations/{invitationId}', [InvitationController::class, 'show']);
     Route::post('/invitations/{invitationId}/accept', [InvitationController::class, 'accept']);
