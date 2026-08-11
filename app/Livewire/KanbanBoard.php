@@ -30,7 +30,7 @@ class KanbanBoard extends Component
 
     public ?int $filterAssignee = null;
 
-    public string $filterPriority = '';
+    public ?string $filterPriority = null;
 
     public array $filterComponents = [];
 
@@ -64,6 +64,15 @@ class KanbanBoard extends Component
         if ($this->projectFilter !== $csv) {
             $this->projectFilter = $csv;
         }
+    }
+
+    public function updatedFilterPriority($value): void
+    {
+        $allowedPriorities = ['critical', 'high', 'medium', 'low'];
+
+        $this->filterPriority = in_array($value, $allowedPriorities, true)
+            ? $value
+            : null;
     }
 
     public function applyStoredProjectSelection(string $csv): void

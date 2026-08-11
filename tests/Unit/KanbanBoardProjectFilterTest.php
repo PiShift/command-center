@@ -50,4 +50,20 @@ class KanbanBoardProjectFilterTest extends TestCase
         $this->assertSame([1, 2], $component->projectIds);
         $this->assertSame('1,2', $component->projectFilter);
     }
+
+    public function test_priority_filter_accepts_only_supported_values(): void
+    {
+        $component = new KanbanBoard;
+
+        $this->assertNull($component->filterPriority);
+
+        $component->updatedFilterPriority('high');
+        $this->assertSame('high', $component->filterPriority);
+
+        $component->updatedFilterPriority('urgent');
+        $this->assertNull($component->filterPriority);
+
+        $component->updatedFilterPriority('');
+        $this->assertNull($component->filterPriority);
+    }
 }
