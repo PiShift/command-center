@@ -540,7 +540,19 @@ class TaskModal extends Component
     public function render()
     {
         $task = $this->taskId
-            ? Task::with(['project', 'sprint', 'assignee', 'agent.runtime', 'comments.author', 'comments.media', 'comments.agent', 'checklists', 'media'])->find($this->taskId)
+            ? Task::with([
+                'project',
+                'sprint',
+                'assignee',
+                'agent.runtime',
+                'comments.author',
+                'comments.media',
+                'comments.agent',
+                'checklists',
+                'media',
+                'changeRequests.statusHistory.actorUser',
+                'changeRequests.media',
+            ])->find($this->taskId)
             : null;
 
         $canEdit = [

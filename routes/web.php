@@ -181,6 +181,7 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::resource('tasks', TaskController::class)->names('tasks')->except(['create']);
     Route::patch('/tasks/{task}/advance', [TaskController::class, 'advance'])->name('tasks.advance');
     Route::post('/tasks/{task}/change-requests', [TaskController::class, 'storeChangeRequest'])->name('tasks.change-requests.store');
+    Route::get('/tasks/{task}/change-requests/{changeRequest}/attachments/{media}/download', [TaskController::class, 'downloadChangeRequestAttachment'])->name('tasks.change-requests.attachments.download');
     Route::post('/tasks/{task}/claim', [TaskController::class, 'claim'])->name('tasks.claim');
     Route::post('/tasks/{task}/invoice-override', [TaskInvoiceOverrideController::class, 'store'])->name('task-invoice-overrides.store');
     Route::delete('/tasks/{task}/invoice-override', [TaskInvoiceOverrideController::class, 'destroy'])->name('task-invoice-overrides.destroy');

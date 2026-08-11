@@ -256,6 +256,55 @@
                 @endif
             </div>
 
+            {{-- Latest change request context for assignees/developers --}}
+            @if($task && $task->changeRequests->isNotEmpty())
+            @php
+                $latestChangeRequest = $task->changeRequests->first();
+                $requestedBy = $latestChangeRequest?->statusHistory?->actorUser?->name;
+            @endphp
+            <div class="px-4 sm:px-7 py-5 border-b border-hairline">
+                <div class="rounded-xl border border-rose-200 bg-rose-50/70 p-4">
+                    <div class="flex items-start justify-between gap-3 mb-3">
+                        <p class="text-[11px] font-medium text-rose-700 uppercase tracking-wider">Latest change request</p>
+                        <p class="text-[11px] text-rose-700 text-right">
+                            {{ $latestChangeRequest->created_at->diffForHumans() }}
+                            @if($requestedBy)
+                                by {{ $requestedBy }}
+                            @endif
+                        </p>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-1">Category</p>
+                            <p class="text-[13px] font-semibold text-ink">{{ $latestChangeRequest->category }}</p>
+                        </div>
+
+                        <div>
+                            <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-1">Explanation</p>
+                            <p class="text-[13px] text-ink whitespace-pre-line">{{ $latestChangeRequest->explanation }}</p>
+                        </div>
+
+                        @if($latestChangeRequest->getMedia('attachments')->isNotEmpty())
+                        <div>
+                            <p class="text-[11px] font-medium text-muted uppercase tracking-wider mb-2">Attachments</p>
+                            <ul class="space-y-1">
+                                @foreach($latestChangeRequest->getMedia('attachments') as $media)
+                                <li>
+                                    <a href="{{ route('tasks.change-requests.attachments.download', ['task' => $task->id, 'changeRequest' => $latestChangeRequest->id, 'media' => $media->id]) }}"
+                                       class="text-[13px] text-accent hover:underline">
+                                        {{ $media->file_name }}
+                                    </a>
+                                </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+            @endif
+
             {{-- Implementation Guide trigger --}}
             @if(! $isNew && ($task?->guide || $canEdit['meta']))
             <div class="px-4 sm:px-7 py-3 border-b border-hairline flex items-center gap-2">
