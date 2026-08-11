@@ -13,6 +13,7 @@ use App\Models\Customer;
 use App\Models\Project;
 use App\Models\Role;
 use App\Models\Task;
+use App\Models\TaskChangeRequest;
 use App\Models\TaskChecklist;
 use App\Models\TaskStatusHistory;
 use App\Models\User;
@@ -20,6 +21,7 @@ use App\Services\TaskStatusService;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -365,6 +367,72 @@ class TaskStatusWorkflowTest extends TestCase
         ]);
         // Checklist was reset — dev must re-confirm
         $this->assertSame(0, $fresh->checklists()->where('is_checked', true)->count());
+    }
+
+    public function test_task_modal_shows_latest_change_request_details_to_developer(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $developer = $this->createUserWithRole('developer');
+        [, $project] = $this->createCustomerAndProject();
+
+        $task = $this->createTask($project, ['status' => 'changes-requested', 'assigned_to' => $developer->id]);
+        $history = TaskStatusHistory::create([
+            'task_id' => $task->id,
+            'from_status' => 'in-review',
+            'to_status' => 'changes-requested',
+            'actor_type' => 'user',
+            'actor_user_id' => $manager->id,
+        ]);
+
+        $changeRequest = TaskChangeRequest::create([
+            'task_id' => $task->id,
+            'task_status_history_id' => $history->id,
+            'category' => 'Incomplete',
+            'explanation' => 'Please add empty-state validation and fix edge-case pagination.',
+        ]);
+        $changeRequest->addMedia(UploadedFile::fake()->create('qa-notes.txt', 4, 'text/plain'))
+            ->toMediaCollection('attachments');
+
+        Livewire::actingAs($developer)
+            ->test(TaskModal::class)
+            ->call('openTask', $task->id)
+            ->assertSee('Latest change request')
+            ->assertSee('Incomplete')
+            ->assertSee('Please add empty-state validation and fix edge-case pagination.')
+            ->assertSee('qa-notes.txt');
+    }
+
+    public function test_developer_can_download_change_request_attachment_from_modal_route(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        $developer = $this->createUserWithRole('developer');
+        [, $project] = $this->createCustomerAndProject();
+
+        $task = $this->createTask($project, ['status' => 'changes-requested', 'assigned_to' => $developer->id]);
+        $history = TaskStatusHistory::create([
+            'task_id' => $task->id,
+            'from_status' => 'in-review',
+            'to_status' => 'changes-requested',
+            'actor_type' => 'user',
+            'actor_user_id' => $manager->id,
+        ]);
+
+        $changeRequest = TaskChangeRequest::create([
+            'task_id' => $task->id,
+            'task_status_history_id' => $history->id,
+            'category' => 'Other',
+            'explanation' => 'Reference screenshots attached.',
+        ]);
+        $media = $changeRequest->addMedia(UploadedFile::fake()->create('bug-screenshot.png', 12, 'image/png'))
+            ->toMediaCollection('attachments');
+
+        $this->actingAs($developer)
+            ->get(route('tasks.change-requests.attachments.download', [
+                'task' => $task->id,
+                'changeRequest' => $changeRequest->id,
+                'media' => $media->id,
+            ]))
+            ->assertOk();
     }
 
     // ── Checklist reset on rework ───────────────────────────────────────────

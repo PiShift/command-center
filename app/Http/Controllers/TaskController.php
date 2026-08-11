@@ -20,6 +20,7 @@ use App\Support\Broadcasts\IssueBroadcastPayload;
 use App\WebSocket\WebSocketBroadcaster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class TaskController extends Controller
 {
@@ -253,6 +254,15 @@ class TaskController extends Controller
         }
 
         return redirect()->route('tasks.show', $task)->with('success', 'Changes requested.');
+    }
+
+    public function downloadChangeRequestAttachment(Task $task, TaskChangeRequest $changeRequest, Media $media)
+    {
+        abort_unless(auth()->user()->hasPermission('tasks.view'), 403);
+        abort_unless((int) $changeRequest->task_id === (int) $task->id, 404);
+        abort_unless($media->model_type === TaskChangeRequest::class && (int) $media->model_id === (int) $changeRequest->id, 404);
+
+        return response()->download($media->getPath(), $media->file_name);
     }
 
     public function claim(Task $task)
