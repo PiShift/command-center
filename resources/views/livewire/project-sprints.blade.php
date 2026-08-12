@@ -162,7 +162,7 @@
     @php $sectionPrinted[$sprint->status] = true; @endphp
     @endif
 
-    <div x-show="sectionOpen.{{ $sprint->status }}">
+    <div x-show="sectionOpen.{{ $sprint->status }}" class="mt-2.5">
     <div class="bg-white border border-line rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
 
         {{-- Sprint header --}}
