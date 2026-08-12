@@ -86,15 +86,21 @@
                 {{-- Component --}}
                 <div>
                     <label class="block text-[12px] font-medium text-dim mb-1">Component</label>
-                    <input type="text" name="component" list="task-component-options"
-                           value="{{ old('component', $task->component ?? '') }}"
-                           placeholder="e.g. Mobile, Web, Backend"
-                           class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
-                    <datalist id="task-component-options">
-                        @foreach($componentOptions ?? [] as $componentOption)
-                            <option value="{{ $componentOption }}"></option>
+                    @php
+                        $selectedComponent = old('component', $task->component ?? '');
+                        $hasLegacySelection = filled($selectedComponent)
+                            && ! collect($componentOptions ?? [])->contains($selectedComponent);
+                    @endphp
+                    <select name="component"
+                            class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
+                        <option value="">No component</option>
+                        @foreach(($componentOptions ?? []) as $componentOption)
+                            <option value="{{ $componentOption }}" @selected($selectedComponent === $componentOption)>{{ $componentOption }}</option>
                         @endforeach
-                    </datalist>
+                        @if($hasLegacySelection)
+                            <option value="{{ $selectedComponent }}" selected>{{ $selectedComponent }} (legacy)</option>
+                        @endif
+                    </select>
                 </div>
 
                 {{-- Priority --}}

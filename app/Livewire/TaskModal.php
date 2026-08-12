@@ -12,6 +12,7 @@ use App\Models\Sprint;
 use App\Models\Task;
 use App\Models\TaskChecklist;
 use App\Models\TaskComment;
+use App\Models\TaskComponent;
 use App\Models\User;
 use App\Notifications\TaskCommentNotification;
 use App\Services\AgentTriggerService;
@@ -212,12 +213,6 @@ class TaskModal extends Component
             if (! $sprintBelongsToProject) {
                 $this->sprintId = null;
                 $task->update(['sprint_id' => null]);
-            }
-
-            $allowedComponents = Project::find($this->projectId)?->components ?? [];
-            if ($this->component && ! in_array($this->component, $allowedComponents, true)) {
-                $this->component = null;
-                $task->update(['component' => null]);
             }
         }
 
@@ -574,7 +569,7 @@ class TaskModal extends Component
             && $task->status === 'in-review'
             && auth()->user()->hasPermission('tasks.edit_any');
 
-        $projects = Project::orderBy('name')->get(['id', 'name', 'color', 'components']);
+        $projects = Project::orderBy('name')->get(['id', 'name', 'color']);
         $users    = User::orderBy('name')->get(['id', 'name', 'color', 'initials']);
         $agents   = Agent::query()
             ->where('owner_id', auth()->id())
@@ -584,15 +579,32 @@ class TaskModal extends Component
             ->get();
         $columns  = KanbanColumn::orderBy('position')->get(['slug', 'name', 'color']);
 
-        // Component dropdown options come from the selected project's configured list
-        $selectedProject = $this->projectId ? $projects->firstWhere('id', (int) $this->projectId) : null;
-        $componentOptions = collect($selectedProject?->components ?? [])
+        // Components are global options shared across all projects.
+        $componentOptions = TaskComponent::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->pluck('name')
             ->map(fn (string $name) => ['id' => $name, 'label' => $name])
             ->values()
             ->all();
 
+        // Keep legacy values visible/editable until manually reassigned.
+        if ($this->component) {
+            $hasCurrent = collect($componentOptions)
+                ->contains(fn (array $option) => mb_strtolower($option['id']) === mb_strtolower($this->component));
+
+            if (! $hasCurrent) {
+                $componentOptions[] = [
+                    'id' => $this->component,
+                    'label' => $this->component . ' (legacy)',
+                ];
+            }
+        }
+
         // Sprint dropdown options are scoped to the selected project (same as the
         // sprint views: any project sprint is selectable, status shown in the label)
+        $selectedProject = $this->projectId ? $projects->firstWhere('id', (int) $this->projectId) : null;
+
         $sprintOptions = $selectedProject
             ? Sprint::where('project_id', $selectedProject->id)
                 ->orderBy('sort_order')

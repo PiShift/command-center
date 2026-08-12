@@ -6,6 +6,7 @@ use App\Exceptions\InvalidTaskTransition;
 use App\Models\KanbanColumn;
 use App\Models\Project;
 use App\Models\Task;
+use App\Models\TaskComponent;
 use App\Models\Team;
 use App\Models\User;
 use App\Notifications\Helpers\SlackNotificationHelper;
@@ -229,8 +230,6 @@ class KanbanBoard extends Component
         $user = auth()->user();
         $scopedToUser = ! $user->hasPermission('tasks.view_all');
         $canViewBilling = $user->hasPermission('invoices.view');
-        $priorityOrder = ['critical' => 0, 'high' => 1, 'medium' => 2, 'low' => 3];
-
         $teamProjectIds = $scopedToUser
             ? Team::whereHas('members', fn ($q) => $q->where('user_id', $user->id))
                 ->with('projects:id')
@@ -238,7 +237,7 @@ class KanbanBoard extends Component
                 ->flatMap(fn ($t) => $t->projects->pluck('id'))
             : collect();
 
-        $columns = KanbanColumn::orderBy('position')->get()->map(function ($col) use ($priorityOrder, $scopedToUser, $user, $canViewBilling) {
+        $columns = KanbanColumn::orderBy('position')->get()->map(function ($col) use ($scopedToUser, $user, $canViewBilling) {
             // Developers never see the Open column — it belongs to the Lobby
             if ($scopedToUser && $col->slug === 'open') {
                 return null;
@@ -260,7 +259,8 @@ class KanbanBoard extends Component
             $query = $col->tasks()
                 ->with($relations)
                 ->withCount('comments')
-                ->orderByDesc('updated_at');
+                ->orderBy('kanban_position')
+                ->orderBy('id');
 
             // Developers: only their own assigned tasks (not team-wide unclaimed tasks)
             if ($scopedToUser) {
@@ -282,30 +282,75 @@ class KanbanBoard extends Component
             if ($this->filterLabel) {
                 $query->whereJsonContains('labels', $this->filterLabel);
             }
-            $tasks = $query->get()->sortBy(fn ($t) => $priorityOrder[$t->priority] ?? 9);
-            $col->setRelation('tasks', $tasks->values());
+            $col->setRelation('tasks', $query->get()->values());
 
             return $col;
         })->filter()->values();
 
         // Scoped users see projects where they have assigned tasks OR their teams are assigned
         if ($scopedToUser) {
-            $projects = Project::with(['customer', 'tasks.assignee'])
+            $projects = Project::with(['customer', 'tasks.assignee', 'tasks.sprint', 'sprints:id,project_id,status'])
                 ->where(function ($q) use ($user, $teamProjectIds) {
                     $q->whereHas('tasks', fn ($q2) => $q2->where('assigned_to', $user->id))
                         ->orWhereIn('id', $teamProjectIds);
                 })
-                ->orderBy('name')
                 ->get()
-                // Tag each project so the view knows if it's a direct or team project
-                ->each(function ($project) use ($user, $teamProjectIds) {
+                // Only keep projects that are actionable for the developer.
+                ->map(function ($project) use ($user, $teamProjectIds) {
                     $project->is_team_project = $teamProjectIds->contains($project->id);
-                    $project->my_tasks = $project->tasks->where('assigned_to', $user->id)->values();
-                    $project->claimable_count = $project->tasks
+
+                    $project->my_tasks = $project->tasks
+                        ->where('assigned_to', $user->id)
+                        ->where('status', '!=', 'done')
+                        ->sortByDesc('updated_at')
+                        ->values();
+
+                    $activeSprintIds = $project->sprints
+                        ->where('status', 'active')
+                        ->pluck('id');
+
+                    $project->claimable_tasks = $project->tasks
                         ->where('status', 'open')
                         ->whereNull('assigned_to')
-                        ->count();
-                });
+                        ->filter(fn (Task $task) => $task->sprint_id === null || $activeSprintIds->contains($task->sprint_id))
+                        ->sortByDesc('updated_at')
+                        ->values();
+
+                    $project->claimable_count = $project->claimable_tasks->count();
+                    $project->has_assigned = $project->my_tasks->isNotEmpty();
+
+                    $project->preview_tasks = $project->has_assigned
+                        ? $project->my_tasks
+                        : $project->claimable_tasks;
+
+                    $project->preview_mode = $project->has_assigned ? 'assigned' : 'claimable';
+
+                    $recentAssigned = $project->my_tasks->max('updated_at');
+                    $recentClaimable = $project->claimable_tasks->max('updated_at');
+                    $project->relevance_recent_at = $recentAssigned ?? $recentClaimable;
+
+                    return $project;
+                })
+                ->filter(fn ($project) => $project->my_tasks->isNotEmpty() || $project->claimable_count > 0)
+                ->sort(function ($a, $b) {
+                    if ($a->has_assigned !== $b->has_assigned) {
+                        return $a->has_assigned ? -1 : 1;
+                    }
+
+                    if ($a->claimable_count !== $b->claimable_count) {
+                        return $b->claimable_count <=> $a->claimable_count;
+                    }
+
+                    $ta = $a->relevance_recent_at?->timestamp ?? 0;
+                    $tb = $b->relevance_recent_at?->timestamp ?? 0;
+
+                    if ($ta !== $tb) {
+                        return $tb <=> $ta;
+                    }
+
+                    return strcmp($a->name, $b->name);
+                })
+                ->values();
         } else {
             $projects = Project::with(['tasks', 'customer'])->orderBy('name')->get();
         }
@@ -314,14 +359,11 @@ class KanbanBoard extends Component
             ? User::where('id', $user->id)->get()
             : User::orderBy('name')->get();
 
-        // Component filter options are project-scoped: they follow the selected projects
-        $filterScopeProjects = $this->projectIds !== []
-            ? $projects->whereIn('id', $this->projectIds)
-            : $projects;
-        $componentFilterOptions = $filterScopeProjects
-            ->flatMap(fn ($project) => $project->components ?? [])
-            ->unique()
-            ->sort()
+        // Component filter options are global/shared across all projects.
+        $componentFilterOptions = TaskComponent::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->pluck('name')
             ->values()
             ->map(fn (string $name) => ['id' => $name, 'label' => $name])
             ->all();
@@ -347,5 +389,28 @@ class KanbanBoard extends Component
             : collect();
 
         return view('livewire.kanban-board', compact('columns', 'projects', 'teamMembers', 'scopedToUser', 'userTeams', 'canViewBilling', 'componentFilterOptions', 'labelOptions'));
+    }
+
+    public function reorderTaskInColumn(int $taskId, int $targetTaskId): void
+    {
+        if ($taskId === $targetTaskId) {
+            return;
+        }
+
+        $task = Task::findOrFail($taskId);
+        $target = Task::findOrFail($targetTaskId);
+
+        Gate::authorize('editStatus', $task);
+        Gate::authorize('editStatus', $target);
+
+        if ($task->status !== $target->status) {
+            return;
+        }
+
+        $targetPosition = $target->kanban_position ?? 0;
+        $task->kanban_position = $targetPosition - 1;
+        $task->save();
+
+        $this->dispatch('$refresh');
     }
 }

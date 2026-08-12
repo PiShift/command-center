@@ -326,6 +326,33 @@ class ProjectSprints extends Component
         }
 
         $sprints = $query->get();
+
+        $activeSprints = $sprints
+            ->where('status', 'active')
+            ->sort(function (Sprint $a, Sprint $b) {
+                if ((int) $a->sort_order !== (int) $b->sort_order) {
+                    return (int) $a->sort_order <=> (int) $b->sort_order;
+                }
+
+                return ($b->updated_at?->timestamp ?? 0) <=> ($a->updated_at?->timestamp ?? 0);
+            })
+            ->values();
+
+        $draftSprints = $sprints
+            ->where('status', 'draft')
+            ->sortBy('sort_order')
+            ->values();
+
+        $completedSprints = $sprints
+            ->where('status', 'completed')
+            ->sortByDesc(fn (Sprint $sprint) => $sprint->updated_at?->timestamp ?? 0)
+            ->values();
+
+        $sprints = $activeSprints
+            ->concat($draftSprints)
+            ->concat($completedSprints)
+            ->values();
+
         $users   = User::orderBy('name')->get(['id', 'name', 'color', 'initials']);
         $columns = KanbanColumn::orderBy('position')->get(['slug', 'name']);
 

@@ -9,6 +9,7 @@ use App\Models\KanbanColumn;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskChangeRequest;
+use App\Models\TaskComponent;
 use App\Models\TaskStatusHistory;
 use App\Models\User;
 use App\Notifications\Helpers\SlackNotificationHelper;
@@ -97,13 +98,13 @@ class TaskController extends Controller
     {
         abort_unless(auth()->user()->hasPermission('tasks.edit_any'), 403);
 
-        $projects = Project::orderBy('name')->get(['id', 'name', 'components']);
+        $projects = Project::orderBy('name')->get(['id', 'name']);
         $users = User::orderBy('name')->get(['id', 'name']);
         $columns = KanbanColumn::orderBy('position')->get(['slug', 'name']);
-        $componentOptions = $projects
-            ->flatMap(fn (Project $project) => $project->components ?? [])
-            ->unique()
-            ->sort()
+        $componentOptions = TaskComponent::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->pluck('name')
             ->values();
         $agents = Agent::query()
             ->where('owner_id', auth()->id())

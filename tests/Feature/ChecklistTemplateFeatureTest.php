@@ -15,6 +15,7 @@ use App\Models\Role;
 use App\Models\Sprint;
 use App\Models\Task;
 use App\Models\TaskChecklist;
+use App\Models\TaskComponent;
 use App\Models\User;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
@@ -300,28 +301,23 @@ class ChecklistTemplateFeatureTest extends TestCase
 
     // ── Component field ─────────────────────────────────────────────────────
 
-    public function test_project_components_are_manager_configurable(): void
+    public function test_global_components_are_manager_configurable(): void
     {
         $manager = $this->createUserWithRole('manager');
-        [, $project] = $this->createCustomerAndProject();
 
         $this->actingAs($manager)
-            ->put(route('projects.update', $project), [
-                'name' => $project->name,
-                'status' => 'active',
-                'health' => 'on-track',
-                'components' => ['Mobile', ' Backend ', 'mobile'],
-            ])
+            ->post(route('task-components.store'), ['name' => 'Mobile'])
             ->assertRedirect();
 
-        $this->assertSame(['Mobile', 'Backend'], $project->fresh()->components);
+        $this->assertDatabaseHas('task_components', ['name' => 'Mobile']);
     }
 
     public function test_task_modal_saves_component_and_labels(): void
     {
         $manager = $this->createUserWithRole('manager');
         [, $project] = $this->createCustomerAndProject();
-        $project->update(['components' => ['Mobile', 'Backend']]);
+        TaskComponent::create(['name' => 'Mobile', 'sort_order' => 1]);
+        TaskComponent::create(['name' => 'Backend', 'sort_order' => 2]);
 
         Livewire::actingAs($manager)
             ->test(TaskModal::class)
@@ -337,8 +333,8 @@ class ChecklistTemplateFeatureTest extends TestCase
         $this->assertSame('Mobile', $task->component);
         $this->assertSame(['urgent', 'ios'], $task->labels);
 
-        // Changing the project to one without the component clears it
-        [, $otherProject] = $this->createCustomerAndProject('No Components Corp');
+        // Changing the project keeps the component (global list, not project-scoped)
+        [, $otherProject] = $this->createCustomerAndProject('Other Corp');
 
         Livewire::actingAs($manager)
             ->test(TaskModal::class)
@@ -346,7 +342,7 @@ class ChecklistTemplateFeatureTest extends TestCase
             ->set('projectId', $otherProject->id)
             ->call('saveField', 'projectId');
 
-        $this->assertNull($task->fresh()->component);
+        $this->assertSame('Mobile', $task->fresh()->component);
     }
 
     // ── Board filtering ─────────────────────────────────────────────────────
@@ -355,7 +351,8 @@ class ChecklistTemplateFeatureTest extends TestCase
     {
         $manager = $this->createUserWithRole('manager');
         [, $project] = $this->createCustomerAndProject();
-        $project->update(['components' => ['Mobile', 'Backend']]);
+        TaskComponent::create(['name' => 'Mobile', 'sort_order' => 1]);
+        TaskComponent::create(['name' => 'Backend', 'sort_order' => 2]);
 
         $mobileTask = $this->createTask($project, [
             'title' => 'Mobile task',

@@ -95,38 +95,13 @@
                            class="w-full px-3 py-2 text-[13px] border border-line rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
 
-                {{-- Components --}}
-                <div class="col-span-2"
-                     x-data="{
-                         items: {{ Js::from(array_values(old('components', $project->components ?? []) ?? [])) }},
-                         draft: '',
-                         add() {
-                             const value = this.draft.trim();
-                             if (!value) return;
-                             if (!this.items.some(i => i.toLowerCase() === value.toLowerCase())) this.items.push(value);
-                             this.draft = '';
-                         },
-                         remove(index) { this.items.splice(index, 1); }
-                     }">
-                    <label class="block text-[12px] font-medium text-dim mb-1">
-                        Components
-                        <x-tooltip text="Allowed Component/Platform values for tasks in this project (e.g. Mobile, Admin Panel, Backend). Shown as a dropdown on the task form and as a board filter." />
-                    </label>
-                    <div class="flex flex-wrap items-center gap-1.5 px-3 py-2 border border-line rounded-lg bg-white focus-within:ring-2 focus-within:ring-accent">
-                        <template x-for="(item, index) in items" :key="index">
-                            <span class="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 bg-hairline text-dim">
-                                <span x-text="item"></span>
-                                <button type="button" @click="remove(index)" class="text-muted hover:text-[#b94040] cursor-pointer leading-none">×</button>
-                                <input type="hidden" name="components[]" :value="item">
-                            </span>
-                        </template>
-                        <input type="text" x-model="draft"
-                               @keydown.enter.prevent="add()"
-                               @keydown.,.prevent="add()"
-                               @blur="add()"
-                               placeholder="Type and press Enter to add"
-                               class="flex-1 min-w-[140px] text-[13px] text-ink bg-transparent outline-none placeholder:text-muted">
-                    </div>
+                {{-- Components (centralized global list) --}}
+                <div class="col-span-2 rounded-lg border border-line bg-surface px-3 py-3">
+                    <p class="text-[12px] font-medium text-dim">Components</p>
+                    <p class="text-[12px] text-muted mt-1">
+                        Components are managed globally for all projects.
+                        <a href="{{ route('task-components.index') }}" class="text-accent hover:underline">Manage global components</a>.
+                    </p>
                 </div>
 
                 {{-- Slack Channel --}}

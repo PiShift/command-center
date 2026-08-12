@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InvalidTaskTransition;
 use App\Models\Customer;
 use App\Models\Project;
 use App\Models\Sprint;
@@ -10,6 +11,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\ProjectHealthChangedNotification;
+use App\Services\TaskStatusService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Gate;
@@ -151,16 +153,7 @@ class ProjectController extends Controller
             'deadline' => 'nullable|date',
             'budget' => 'nullable|numeric|min:0',
             'health' => 'required|in:on-track,at-risk,blocked',
-            'components' => 'nullable|array|max:50',
-            'components.*' => 'string|max:50',
         ]);
-
-        $data['components'] = collect($data['components'] ?? [])
-            ->map(fn (string $component) => trim($component))
-            ->filter(fn (string $component) => $component !== '')
-            ->unique(fn (string $component) => mb_strtolower($component))
-            ->values()
-            ->all();
 
         $project = Project::create($data);
 
@@ -213,6 +206,7 @@ class ProjectController extends Controller
                     ->where('status', 'open')
                     ->whereNull('assigned_to')
                     ->with('sprint')
+                    ->orderBy('sprint_id')
                     ->orderByDesc('weight')
                     ->get();
             }
@@ -223,6 +217,39 @@ class ProjectController extends Controller
                 ->get();
         }
 
+        $claimTaskGroups = collect();
+        if (! $canManage && $availableTasks->isNotEmpty()) {
+            $activeSprints = Sprint::query()
+                ->where('project_id', $project->id)
+                ->where('status', 'active')
+                ->orderBy('sort_order')
+                ->get(['id', 'name']);
+
+            $claimTaskGroups = $activeSprints
+                ->map(function (Sprint $sprint) use ($availableTasks) {
+                    $tasks = $availableTasks->where('sprint_id', $sprint->id)->values();
+
+                    return [
+                        'key' => (string) $sprint->id,
+                        'title' => $sprint->name,
+                        'sprint_id' => $sprint->id,
+                        'tasks' => $tasks,
+                    ];
+                })
+                ->filter(fn (array $group) => $group['tasks']->isNotEmpty())
+                ->values();
+
+            $unassignedTasks = $availableTasks->whereNull('sprint_id')->values();
+            if ($unassignedTasks->isNotEmpty()) {
+                $claimTaskGroups->push([
+                    'key' => 'unassigned',
+                    'title' => 'Unassigned to sprint',
+                    'sprint_id' => null,
+                    'tasks' => $unassignedTasks,
+                ]);
+            }
+        }
+
         $readyToBillCount = $canViewBilling
             ? Task::query()->whereBelongsTo($project)->readyToBill()->count()
             : null;
@@ -230,8 +257,110 @@ class ProjectController extends Controller
         return view('projects.show', compact(
             'project', 'totalTasks', 'openTasks', 'doneTasks', 'overdueTasks',
             'progressPercent', 'teamMembers', 'assignedTeams', 'recentTasks', 'allTeams',
-            'canManage', 'availableTasks', 'myTasks', 'canViewBilling', 'readyToBillCount'
+            'canManage', 'availableTasks', 'myTasks', 'canViewBilling', 'readyToBillCount', 'claimTaskGroups'
         ));
+    }
+
+    public function claimSelected(Request $request, Project $project)
+    {
+        $user = auth()->user();
+
+        $taskIds = collect($request->validate([
+            'task_ids' => ['required', 'array', 'min:1'],
+            'task_ids.*' => ['integer', 'exists:tasks,id'],
+        ])['task_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $tasks = $this->claimableTasksQuery($project)
+            ->whereIn('id', $taskIds)
+            ->get();
+
+        if ($tasks->isEmpty()) {
+            return back()->with('error', 'No claimable tasks were selected.');
+        }
+
+        $claimed = 0;
+        foreach ($tasks as $task) {
+            Gate::authorize('claim', $task);
+
+            $task->assigned_to = $user->id;
+            $task->save();
+
+            try {
+                app(TaskStatusService::class)->transition($task, 'todo');
+            } catch (InvalidTaskTransition) {
+                continue;
+            }
+
+            activity()
+                ->performedOn($task)
+                ->causedBy($user)
+                ->log('claimed task');
+
+            $claimed++;
+        }
+
+        return back()->with('success', $claimed.' '.\Illuminate\Support\Str::plural('task', $claimed).' claimed.');
+    }
+
+    public function claimAllInSprint(Project $project, Sprint $sprint)
+    {
+        $user = auth()->user();
+
+        abort_unless((int) $sprint->project_id === (int) $project->id, 404);
+
+        $tasks = $this->claimableTasksQuery($project)
+            ->where('sprint_id', $sprint->id)
+            ->get();
+
+        if ($tasks->isEmpty()) {
+            return back()->with('error', 'No claimable tasks found in this sprint.');
+        }
+
+        $claimed = 0;
+        foreach ($tasks as $task) {
+            Gate::authorize('claim', $task);
+
+            $task->assigned_to = $user->id;
+            $task->save();
+
+            try {
+                app(TaskStatusService::class)->transition($task, 'todo');
+            } catch (InvalidTaskTransition) {
+                continue;
+            }
+
+            activity()
+                ->performedOn($task)
+                ->causedBy($user)
+                ->log('claimed task');
+
+            $claimed++;
+        }
+
+        return back()->with('success', $claimed.' '.\Illuminate\Support\Str::plural('task', $claimed).' claimed from '.$sprint->name.'.');
+    }
+
+    private function claimableTasksQuery(Project $project)
+    {
+        $activeSprintIds = Sprint::query()
+            ->where('project_id', $project->id)
+            ->where('status', 'active')
+            ->pluck('id');
+
+        return Task::query()
+            ->where('project_id', $project->id)
+            ->where('status', 'open')
+            ->whereNull('assigned_to')
+            ->where(function ($query) use ($activeSprintIds) {
+                $query->whereNull('sprint_id');
+
+                if ($activeSprintIds->isNotEmpty()) {
+                    $query->orWhereIn('sprint_id', $activeSprintIds);
+                }
+            });
     }
 
     public function edit(Project $project)
@@ -261,16 +390,7 @@ class ProjectController extends Controller
             'deadline' => 'nullable|date',
             'budget' => 'nullable|numeric|min:0',
             'health' => 'required|in:on-track,at-risk,blocked',
-            'components' => 'nullable|array|max:50',
-            'components.*' => 'string|max:50',
         ]);
-
-        $data['components'] = collect($data['components'] ?? [])
-            ->map(fn (string $component) => trim($component))
-            ->filter(fn (string $component) => $component !== '')
-            ->unique(fn (string $component) => mb_strtolower($component))
-            ->values()
-            ->all();
 
         $oldHealth = $project->health;
         $project->update($data);

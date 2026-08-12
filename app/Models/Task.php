@@ -35,6 +35,7 @@ class Task extends Model implements HasMedia
         'component',
         'priority',
         'status',
+        'kanban_position',
         'due_date',
         'estimated_hours',
         'weight',
@@ -52,10 +53,21 @@ class Task extends Model implements HasMedia
         'overdue_notified_at' => 'datetime',
         'labels' => 'array',
         'weight' => 'integer',
+        'kanban_position' => 'integer',
     ];
 
     protected static function booted(): void
     {
+        static::creating(function (self $task): void {
+            if ($task->kanban_position !== null) {
+                return;
+            }
+
+            $status = (string) ($task->status ?: 'open');
+            $max = static::query()->where('status', $status)->max('kanban_position');
+            $task->kanban_position = ((int) $max) + 1;
+        });
+
         static::updating(function (self $task): void {
             if (! $task->isDirty('status')) {
                 return;
