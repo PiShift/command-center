@@ -15,15 +15,8 @@
     if ($user->hasPermission('projects.view')) {
         $nav[] = ['route' => 'projects.index', 'label' => 'Projects', 'icon' => 'folder', 'badge' => \App\Models\Project::count()];
     }
-    if ($user->hasPermission('projects.manage')) {
-        $nav[] = ['route' => 'checklist-templates.index', 'label' => 'Checklists', 'icon' => 'clipboard'];
-        $nav[] = ['route' => 'task-components.index', 'label' => 'Components', 'icon' => 'tag'];
-    }
-    if ($user->hasPermission('users.view')) {
-        $nav[] = ['route' => 'users.index', 'label' => 'Users', 'icon' => 'users'];
-    }
     if ($user->hasPermission('teams.view')) {
-        $nav[] = ['route' => 'teams.index', 'label' => 'Teams', 'icon' => 'layers', 'badge' => \App\Models\Team::count() ?: null];
+        $nav[] = ['route' => 'teams.index', 'label' => 'Teams', 'icon' => 'layers', 'badge' => \App\Models\Team::count() ?: null, 'activeWhen' => ['teams.*', 'team.accountability']];
     }
     if ($user->hasPermission('hr.view')) {
         $nav[] = ['_group' => 'HR'];
@@ -60,11 +53,23 @@
     if ($user->hasPermission('expenses.view')) {
         $nav[] = ['route' => 'expenses.monthly-overview', 'label' => 'Expenses', 'icon' => 'wallet'];
     }
-    if ($user->hasPermission('settings.manage')) {
+    if (
+        $user->hasPermission('users.view') ||
+        $user->hasPermission('projects.manage') ||
+        $user->hasPermission('settings.manage')
+    ) {
         $nav[] = ['_group' => 'Admin'];
-        $nav[] = ['route' => 'skills.index', 'label' => 'Skills', 'icon' => 'book'];
-        $nav[] = ['route' => 'runtimes.index', 'label' => 'Runtimes', 'icon' => 'play'];
-        $nav[] = ['route' => 'settings.notifications', 'label' => 'Settings', 'icon' => 'shield'];
+    }
+    if ($user->hasPermission('users.view')) {
+        $nav[] = ['route' => 'users.index', 'label' => 'Users', 'icon' => 'users'];
+    }
+    if ($user->hasPermission('projects.manage') || $user->hasPermission('settings.manage')) {
+        $nav[] = [
+            'route' => 'settings.index',
+            'label' => 'Settings',
+            'icon' => 'shield',
+            'activeWhen' => ['settings.*', 'skills.*', 'runtimes.*'],
+        ];
     }
     $projects = \App\Models\Project::orderBy('name')->get(['id', 'name', 'color']);
 @endphp
@@ -237,11 +242,15 @@
             @if(!empty($item['_group']))
                 <p class="sidebar-group-label text-[10px] font-semibold uppercase tracking-wider text-muted px-2 pb-1 pt-3">{{ $item['_group'] }}</p>
             @else
+            @php
+                $activePatterns = $item['activeWhen'] ?? [$item['route'], $item['route'].'.*'];
+                $isActive = collect($activePatterns)->contains(fn (string $pattern) => request()->routeIs($pattern));
+            @endphp
             <a href="{{ route($item['route']) }}"
                     @click="if (window.innerWidth < 1024) { Alpine.store('sidebar').close(); }"
                @mouseenter="$store.sidebarTip.open($el, '{{ $item['label'] }}')"
                @mouseleave="$store.sidebarTip.close()"
-               class="nav-item {{ request()->routeIs($item['route']) || request()->routeIs($item['route'].'.*') ? 'active' : '' }}">
+               class="nav-item {{ $isActive ? 'active' : '' }}">
                 @include('components.icon', ['name' => $item['icon']])
                 <span class="sidebar-label flex-1">{{ $item['label'] }}</span>
                 @if (!empty($item['badge']) && $item['badge'] > 0)

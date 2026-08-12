@@ -259,8 +259,9 @@ class KanbanBoard extends Component
             $query = $col->tasks()
                 ->with($relations)
                 ->withCount('comments')
-                ->orderBy('kanban_position')
-                ->orderBy('id');
+                ->orderByRaw("CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END")
+                ->orderByDesc('created_at')
+                ->orderByDesc('id');
 
             // Developers: only their own assigned tasks (not team-wide unclaimed tasks)
             if ($scopedToUser) {

@@ -1,11 +1,11 @@
-<x-layouts.app title="Checklist Templates">
+<x-layouts.settings title="Checklist Templates">
 
 <div class="flex items-center justify-between mb-5">
     <h1 style="font-size:24px;font-weight:600;color:#141413">
         Checklist Templates
         <span class="ml-2 text-muted font-normal" style="font-size:14px">{{ $templates->count() }}</span>
     </h1>
-    <a href="{{ route('checklist-templates.create') }}"
+    <a href="{{ route('settings.checklist-templates.create') }}"
        style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font-size:13px;font-weight:500;background:#D97757;color:#fff;border-radius:8px;transition:background 150ms ease;text-decoration:none"
        onmouseover="this.style.background='#c4684a'" onmouseout="this.style.background='#D97757'">
         + New Template
@@ -24,7 +24,7 @@
         <svg class="mx-auto mb-3" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8c8c8a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><polyline points="9 13 11 15 15 11"/></svg>
         <p class="font-medium text-dim" style="font-size:14px">No checklist templates yet</p>
         <p class="text-muted mt-1" style="font-size:13px">Create a template to give every new task a guaranteed baseline checklist.</p>
-        <a href="{{ route('checklist-templates.create') }}"
+        <a href="{{ route('settings.checklist-templates.create') }}"
            class="inline-block mt-4 font-medium rounded-lg px-4 py-2 text-white transition-colors bg-accent hover:bg-accent-hover"
            style="font-size:13px">
             + Create First Template
@@ -68,10 +68,10 @@
                 <td class="px-4 py-3.5 text-muted" style="font-size:12px">{{ $template->items_count }}</td>
                 <td class="px-4 py-3.5">
                     <div class="flex items-center justify-end gap-2">
-                        <a href="{{ route('checklist-templates.edit', $template) }}"
+                        <a href="{{ route('settings.checklist-templates.edit', $template) }}"
                            class="text-xs font-medium px-2.5 py-1 rounded-lg transition-colors"
                            style="background:#F5F4EF;border:1px solid #e5e4df;color:#141413">Edit</a>
-                        <form method="POST" action="{{ route('checklist-templates.destroy', $template) }}"
+                        <form method="POST" action="{{ route('settings.checklist-templates.destroy', $template) }}"
                               onsubmit="return confirm('Delete template {{ addslashes($template->name) }}? Items already attached to tasks are kept.')">
                             @csrf @method('DELETE')
                             <button type="submit" class="text-xs font-medium px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
@@ -86,4 +86,4 @@
     </div>
 @endif
 
-</x-layouts.app>
+</x-layouts.settings>

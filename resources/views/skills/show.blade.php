@@ -1,6 +1,6 @@
-<x-layouts.app :title="$skill->name">
+<x-layouts.settings :title="$skill->name">
 
-<div class="max-w-6xl mx-auto space-y-6" x-data="{ editing: false }">
+<div class="space-y-6" x-data="{ editing: false }">
 
     @include('components.flash')
 
@@ -135,4 +135,4 @@ Write your SKILL.md content here. Markdown is fully supported."
     </div>
 </div>
 
-</x-layouts.app>
+</x-layouts.settings>

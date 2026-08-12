@@ -1,4 +1,4 @@
-<x-layouts.app title="Runtimes">
+<x-layouts.settings title="Runtimes">
     <div class="flex flex-col gap-6">
         <div>
             <h1 class="text-[24px] font-semibold text-ink mb-1">Runtimes</h1>
@@ -122,4 +122,4 @@
             </div>
         @endif
     </div>
-</x-layouts.app>
+</x-layouts.settings>

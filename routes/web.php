@@ -173,15 +173,23 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
 
     // Checklist templates (Definition of Done baselines — manager/admin only)
     Route::middleware('permission:projects.manage')->group(function () {
-        Route::resource('checklist-templates', ChecklistTemplateController::class)
-            ->names('checklist-templates')
-            ->except(['show']);
+        Route::get('/team/accountability', function () {
+            return redirect()->route('teams.index', array_merge(request()->query(), ['tab' => 'accountability']));
+        })->name('team.accountability');
 
-        Route::get('/settings/task-components', [TaskComponentController::class, 'index'])->name('task-components.index');
-        Route::post('/settings/task-components', [TaskComponentController::class, 'store'])->name('task-components.store');
-        Route::patch('/settings/task-components/{taskComponent}', [TaskComponentController::class, 'update'])->name('task-components.update');
-        Route::delete('/settings/task-components/{taskComponent}', [TaskComponentController::class, 'destroy'])->name('task-components.destroy');
-        Route::post('/settings/task-components/bulk-reassign', [TaskComponentController::class, 'bulkReassign'])->name('task-components.bulk-reassign');
+        Route::prefix('settings')->name('settings.')->group(function () {
+            Route::get('/', fn () => redirect()->route('settings.checklist-templates.index'))->name('index');
+
+            Route::resource('checklist-templates', ChecklistTemplateController::class)
+                ->names('checklist-templates')
+                ->except(['show']);
+
+            Route::get('/task-components', [TaskComponentController::class, 'index'])->name('task-components.index');
+            Route::post('/task-components', [TaskComponentController::class, 'store'])->name('task-components.store');
+            Route::patch('/task-components/{taskComponent}', [TaskComponentController::class, 'update'])->name('task-components.update');
+            Route::delete('/task-components/{taskComponent}', [TaskComponentController::class, 'destroy'])->name('task-components.destroy');
+            Route::post('/task-components/bulk-reassign', [TaskComponentController::class, 'bulkReassign'])->name('task-components.bulk-reassign');
+        });
     });
 
     // Tasks

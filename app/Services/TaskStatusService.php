@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\InvalidTaskTransition;
 use App\Models\Task;
 use App\Models\TaskStatusHistory;
+use App\Models\User;
 use App\Notifications\Helpers\SlackNotificationHelper;
 use App\Notifications\TaskStatusChangedNotification;
 use App\Support\Workflow\TransitionActor;
@@ -52,30 +53,39 @@ class TaskStatusService
 
         // 1. Legality — explicit transition map, rejected outright otherwise
         if ($fromStatus !== $toStatus && ! $this->isLegal($fromStatus, $toStatus)) {
-            throw InvalidTaskTransition::illegal($fromStatus, $toStatus);
+            $exception = InvalidTaskTransition::illegal($fromStatus, $toStatus);
+            $this->recordBlockedTransition($task, $actor, $exception);
+
+            throw $exception;
         }
 
         // 2. Conditions — is this actor allowed to attempt this transition?
         foreach ($this->rules('conditions', $fromStatus, $toStatus) as $condition) {
             if (! ($condition['when'])($actor, $task, $fromStatus, $toStatus)) {
-                throw InvalidTaskTransition::conditionFailed(
+                $exception = InvalidTaskTransition::conditionFailed(
                     $fromStatus,
                     $toStatus,
                     $condition['message'] ?? 'You are not allowed to perform this status change.',
                 );
+                $this->recordBlockedTransition($task, $actor, $exception);
+
+                throw $exception;
             }
         }
 
         // 2b. Required input — transitions like changes-requested cannot run
         //     without their mandatory payload (reason, category, ...).
-        $this->assertRequiredInput($fromStatus, $toStatus, $input);
+        $this->assertRequiredInput($task, $actor, $fromStatus, $toStatus, $input);
 
         // 3. Validators — is the task's data valid for this transition?
         foreach ($this->rules('validators', $fromStatus, $toStatus) as $validator) {
             $error = ($validator['validate'])($task, $fromStatus, $toStatus);
 
             if ($error !== null) {
-                throw InvalidTaskTransition::validationFailed($fromStatus, $toStatus, $error);
+                $exception = InvalidTaskTransition::validationFailed($fromStatus, $toStatus, $error);
+                $this->recordBlockedTransition($task, $actor, $exception);
+
+                throw $exception;
             }
         }
 
@@ -204,19 +214,44 @@ class TaskStatusService
      * Transitions that require input must receive a payload satisfying the
      * configured field rules. Rejected before any persistence.
      */
-    private function assertRequiredInput(string $fromStatus, string $toStatus, array $input): void
+    private function assertRequiredInput(Task $task, TransitionActor $actor, string $fromStatus, string $toStatus, array $input): void
     {
         foreach ($this->rules('required_input', $fromStatus, $toStatus) as $requirement) {
             $validator = \Illuminate\Support\Facades\Validator::make($input, $requirement['fields']);
 
             if ($validator->fails()) {
-                throw InvalidTaskTransition::validationFailed(
+                $exception = InvalidTaskTransition::validationFailed(
                     $fromStatus,
                     $toStatus,
                     $requirement['message'] ?? 'This status change requires additional information: '.$validator->errors()->first(),
                 );
+                $this->recordBlockedTransition($task, $actor, $exception);
+
+                throw $exception;
             }
         }
+    }
+
+    private function recordBlockedTransition(Task $task, TransitionActor $actor, InvalidTaskTransition $exception): void
+    {
+        $entry = activity('task-workflow')
+            ->performedOn($task)
+            ->withProperties([
+                'stage' => $exception->stage,
+                'from_status' => $exception->fromStatus,
+                'to_status' => $exception->toStatus,
+                'message' => $exception->getMessage(),
+            ]);
+
+        if ($actor->isUser() && $actor->userId) {
+            $user = User::find($actor->userId);
+
+            if ($user) {
+                $entry->causedBy($user);
+            }
+        }
+
+        $entry->log('transition_blocked');
     }
 
     /**

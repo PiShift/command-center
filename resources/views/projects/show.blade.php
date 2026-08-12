@@ -384,7 +384,7 @@
                         <p class="text-[12px] text-muted mt-0.5">Task components are defined once globally across all projects.</p>
                     </div>
                     <div class="px-5 py-4">
-                        <a href="{{ route('task-components.index') }}" class="text-[13px] text-accent hover:underline">Open global component settings</a>
+                        <a href="{{ route('settings.task-components.index') }}" class="text-[13px] text-accent hover:underline">Open global component settings</a>
                     </div>
                 </div>
                 @endif

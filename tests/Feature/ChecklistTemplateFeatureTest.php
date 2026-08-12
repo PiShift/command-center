@@ -47,24 +47,24 @@ class ChecklistTemplateFeatureTest extends TestCase
         [, $project] = $this->createCustomerAndProject();
 
         $this->actingAs($developer)
-            ->get(route('checklist-templates.index'))
+            ->get(route('settings.checklist-templates.index'))
             ->assertForbidden();
 
         $this->actingAs($developer)
-            ->post(route('checklist-templates.store'), [
+            ->post(route('settings.checklist-templates.store'), [
                 'name' => 'Nope',
                 'items' => 'One',
             ])
             ->assertForbidden();
 
         $this->actingAs($manager)
-            ->post(route('checklist-templates.store'), [
+            ->post(route('settings.checklist-templates.store'), [
                 'name' => 'Web Feature DoD',
                 'project_id' => $project->id,
                 'type' => 'feature',
                 'items' => "Design reviewed\nTests written\nTests written\n",
             ])
-            ->assertRedirect(route('checklist-templates.index'));
+            ->assertRedirect(route('settings.checklist-templates.index'));
 
         $template = ChecklistTemplate::where('name', 'Web Feature DoD')->firstOrFail();
         $this->assertSame($project->id, $template->project_id);
@@ -72,20 +72,20 @@ class ChecklistTemplateFeatureTest extends TestCase
         $this->assertSame(['Design reviewed', 'Tests written'], $template->items->pluck('label')->all());
 
         $this->actingAs($manager)
-            ->put(route('checklist-templates.update', $template), [
+            ->put(route('settings.checklist-templates.update', $template), [
                 'name' => 'Web Feature DoD v2',
                 'project_id' => null,
                 'type' => null,
                 'items' => "Only item",
             ])
-            ->assertRedirect(route('checklist-templates.index'));
+            ->assertRedirect(route('settings.checklist-templates.index'));
 
         $this->assertNull($template->fresh()->project_id);
         $this->assertSame(['Only item'], $template->items()->pluck('label')->all());
 
         $this->actingAs($manager)
-            ->delete(route('checklist-templates.destroy', $template))
-            ->assertRedirect(route('checklist-templates.index'));
+            ->delete(route('settings.checklist-templates.destroy', $template))
+            ->assertRedirect(route('settings.checklist-templates.index'));
 
         $this->assertDatabaseMissing('checklist_templates', ['id' => $template->id]);
     }
@@ -306,7 +306,7 @@ class ChecklistTemplateFeatureTest extends TestCase
         $manager = $this->createUserWithRole('manager');
 
         $this->actingAs($manager)
-            ->post(route('task-components.store'), ['name' => 'Mobile'])
+            ->post(route('settings.task-components.store'), ['name' => 'Mobile'])
             ->assertRedirect();
 
         $this->assertDatabaseHas('task_components', ['name' => 'Mobile']);

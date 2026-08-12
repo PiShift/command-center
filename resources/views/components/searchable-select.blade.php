@@ -65,7 +65,7 @@
     <button
         type="button"
         x-ref="trigger"
-        x-on:click="toggle()"
+        x-on:click.stop="toggle()"
         x-on:keydown.down.prevent="openAndHighlightFirst()"
         class="w-full min-w-44 rounded-lg border border-line bg-surface px-3 py-2 text-left text-[13px] text-ink transition-colors hover:border-muted focus:border-accent focus:bg-card focus:outline-none"
     >

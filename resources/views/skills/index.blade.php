@@ -1,6 +1,6 @@
-<x-layouts.app title="Skills">
+<x-layouts.settings title="Skills">
 
-<div class="max-w-6xl mx-auto space-y-6">
+<div class="space-y-6">
 
     @include('components.flash')
 
@@ -64,4 +64,4 @@
     </div>
 </div>
 
-</x-layouts.app>
+</x-layouts.settings>

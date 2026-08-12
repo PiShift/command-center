@@ -100,7 +100,7 @@
                     <p class="text-[12px] font-medium text-dim">Components</p>
                     <p class="text-[12px] text-muted mt-1">
                         Components are managed globally for all projects.
-                        <a href="{{ route('task-components.index') }}" class="text-accent hover:underline">Manage global components</a>.
+                        <a href="{{ route('settings.task-components.index') }}" class="text-accent hover:underline">Manage global components</a>.
                     </p>
                 </div>
 

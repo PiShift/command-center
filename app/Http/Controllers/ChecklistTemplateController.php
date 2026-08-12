@@ -37,7 +37,7 @@ class ChecklistTemplateController extends Controller
 
         $this->syncItems($template, $data['items']);
 
-        return redirect()->route('checklist-templates.index')
+        return redirect()->route('settings.checklist-templates.index')
             ->with('success', 'Checklist template created. It will be attached to new matching tasks.');
     }
 
@@ -61,7 +61,7 @@ class ChecklistTemplateController extends Controller
 
         $this->syncItems($checklistTemplate, $data['items']);
 
-        return redirect()->route('checklist-templates.index')
+        return redirect()->route('settings.checklist-templates.index')
             ->with('success', 'Checklist template updated. Changes apply to newly created tasks only.');
     }
 
@@ -69,7 +69,7 @@ class ChecklistTemplateController extends Controller
     {
         $checklistTemplate->delete();
 
-        return redirect()->route('checklist-templates.index')
+        return redirect()->route('settings.checklist-templates.index')
             ->with('success', 'Checklist template deleted. Items already attached to tasks are kept.');
     }
 

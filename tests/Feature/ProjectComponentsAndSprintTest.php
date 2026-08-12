@@ -39,7 +39,7 @@ class ProjectComponentsAndSprintTest extends TestCase
         $manager = $this->createUserWithRole('manager');
 
         $this->actingAs($manager)
-            ->post(route('task-components.store'), ['name' => 'Backend'])
+            ->post(route('settings.task-components.store'), ['name' => 'Backend'])
             ->assertRedirect();
 
         $this->assertDatabaseHas('task_components', ['name' => 'Backend']);
@@ -47,7 +47,7 @@ class ProjectComponentsAndSprintTest extends TestCase
         $component = TaskComponent::where('name', 'Backend')->firstOrFail();
 
         $this->actingAs($manager)
-            ->patch(route('task-components.update', $component), ['name' => 'API'])
+            ->patch(route('settings.task-components.update', $component), ['name' => 'API'])
             ->assertRedirect();
 
         $this->assertDatabaseHas('task_components', ['id' => $component->id, 'name' => 'API']);
@@ -58,7 +58,7 @@ class ProjectComponentsAndSprintTest extends TestCase
         $developer = $this->createUserWithRole('developer');
 
         $this->actingAs($developer)
-            ->get(route('task-components.index'))
+            ->get(route('settings.task-components.index'))
             ->assertForbidden();
     }
 
@@ -72,7 +72,7 @@ class ProjectComponentsAndSprintTest extends TestCase
         $otherTask = $this->createTask($project, ['component' => 'Backend']);
 
         $this->actingAs($manager)
-            ->post(route('task-components.bulk-reassign'), [
+            ->post(route('settings.task-components.bulk-reassign'), [
                 'from_component' => 'iOS',
                 'to_component_id' => $target->id,
             ])

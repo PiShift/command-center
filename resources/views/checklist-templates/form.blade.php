@@ -1,8 +1,8 @@
-<x-layouts.app :title="isset($template) && $template ? 'Edit ' . $template->name : 'New Checklist Template'">
+<x-layouts.settings :title="isset($template) && $template ? 'Edit ' . $template->name : 'New Checklist Template'">
 
-<div class="max-w-2xl mx-auto">
+<div>
     <div class="flex items-center gap-3 mb-6 text-[13px]">
-        <a href="{{ route('checklist-templates.index') }}" class="text-muted hover:text-ink">Checklist Templates</a>
+        <a href="{{ route('settings.checklist-templates.index') }}" class="text-muted hover:text-ink">Checklist Templates</a>
         <span class="text-muted">/</span>
         <span class="text-ink">{{ isset($template) && $template ? 'Edit' : 'New template' }}</span>
     </div>
@@ -21,7 +21,7 @@
         @endif
 
         <form method="POST"
-              action="{{ isset($template) && $template ? route('checklist-templates.update', $template) : route('checklist-templates.store') }}"
+              action="{{ isset($template) && $template ? route('settings.checklist-templates.update', $template) : route('settings.checklist-templates.store') }}"
               class="space-y-5">
             @csrf
             @if(isset($template) && $template) @method('PUT') @endif
@@ -68,7 +68,7 @@
             </div>
 
             <div class="flex items-center justify-end gap-3 pt-4 border-t border-hairline">
-                <a href="{{ route('checklist-templates.index') }}" class="px-4 py-2 text-[13px] text-dim hover:text-ink">Cancel</a>
+                <a href="{{ route('settings.checklist-templates.index') }}" class="px-4 py-2 text-[13px] text-dim hover:text-ink">Cancel</a>
                 <button type="submit"
                         class="px-4 py-2 bg-accent hover:bg-accent-hover text-white text-[13px] font-semibold rounded-lg transition-colors">
                     {{ isset($template) && $template ? 'Save changes' : 'Create template' }}
@@ -78,4 +78,4 @@
     </div>
 </div>
 
-</x-layouts.app>
+</x-layouts.settings>

@@ -1,7 +1,6 @@
-<x-layouts.app>
-@section('title', 'Notification Settings')
+<x-layouts.settings title="Notification Settings">
 
-<div class="max-w-2xl mx-auto py-8 px-4">
+<div class="space-y-6">
     <h1 style="font-size:22px;font-weight:700;color:#141413;margin-bottom:24px">Notification Settings</h1>
 
     @include('components.flash')
@@ -46,4 +45,4 @@
         @endif
     </div>
 </div>
-</x-layouts.app>
+</x-layouts.settings>

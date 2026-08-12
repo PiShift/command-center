@@ -1,7 +1,6 @@
-<x-layouts.app>
-@section('title', 'Global Task Components')
+<x-layouts.settings title="Global Task Components">
 
-<div class="max-w-4xl mx-auto py-8 px-4 space-y-5">
+<div class="space-y-5">
     <h1 style="font-size:22px;font-weight:700;color:#141413;margin-bottom:4px">Global Task Components</h1>
     <p style="font-size:13px;color:#5c5c5a">One shared list used across all projects, task forms, and board filters.</p>
 
@@ -22,7 +21,7 @@
         <div class="space-y-2 mb-4">
             @foreach($components as $component)
                 <div class="flex items-center gap-2 rounded-lg px-3 py-2" style="background:#F5F4EF">
-                    <form method="POST" action="{{ route('task-components.update', $component) }}" class="flex items-center gap-2 flex-1 min-w-0">
+                    <form method="POST" action="{{ route('settings.task-components.update', $component) }}" class="flex items-center gap-2 flex-1 min-w-0">
                         @csrf
                         @method('PATCH')
                         <input type="text" name="name" value="{{ $component->name }}"
@@ -32,7 +31,7 @@
                         <button type="submit"
                                 style="padding:6px 10px;font-size:12px;font-weight:500;background:#fff;border:1px solid #e5e4df;color:#141413;border-radius:8px;cursor:pointer">Save</button>
                     </form>
-                    <form method="POST" action="{{ route('task-components.destroy', $component) }}" onsubmit="return confirm('Remove this global component option? Existing tasks keep their current value.');">
+                    <form method="POST" action="{{ route('settings.task-components.destroy', $component) }}" onsubmit="return confirm('Remove this global component option? Existing tasks keep their current value.');">
                         @csrf
                         @method('DELETE')
                         <button type="submit"
@@ -42,7 +41,7 @@
             @endforeach
         </div>
 
-        <form method="POST" action="{{ route('task-components.store') }}" class="flex items-center gap-2">
+        <form method="POST" action="{{ route('settings.task-components.store') }}" class="flex items-center gap-2">
             @csrf
             <input type="text" name="name" placeholder="Add component (e.g. Mobile)"
                    class="flex-1 min-w-0 px-3 py-2 text-[13px] border border-line rounded-lg bg-white"
@@ -64,7 +63,7 @@
         @else
             <div class="space-y-2">
                 @foreach($legacyValues as $legacy)
-                    <form method="POST" action="{{ route('task-components.bulk-reassign') }}"
+                    <form method="POST" action="{{ route('settings.task-components.bulk-reassign') }}"
                           class="flex items-center gap-2 rounded-lg px-3 py-2"
                           style="background:#fff8ef;border:1px solid #ffe0b8">
                         @csrf
@@ -85,4 +84,4 @@
         @endif
     </div>
 </div>
-</x-layouts.app>
+</x-layouts.settings>
