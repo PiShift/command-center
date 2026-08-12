@@ -17,6 +17,7 @@
     }
     if ($user->hasPermission('projects.manage')) {
         $nav[] = ['route' => 'checklist-templates.index', 'label' => 'Checklists', 'icon' => 'clipboard'];
+        $nav[] = ['route' => 'task-components.index', 'label' => 'Components', 'icon' => 'tag'];
     }
     if ($user->hasPermission('users.view')) {
         $nav[] = ['route' => 'users.index', 'label' => 'Users', 'icon' => 'users'];

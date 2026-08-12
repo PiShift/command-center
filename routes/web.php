@@ -48,6 +48,7 @@ use App\Http\Controllers\TaskAttachmentController;
 use App\Http\Controllers\TaskChecklistController;
 use App\Http\Controllers\TaskCommentAttachmentController;
 use App\Http\Controllers\TaskCommentController;
+use App\Http\Controllers\TaskComponentController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskInvoiceOverrideController;
 use App\Http\Controllers\TeamController;
@@ -175,6 +176,12 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
         Route::resource('checklist-templates', ChecklistTemplateController::class)
             ->names('checklist-templates')
             ->except(['show']);
+
+        Route::get('/settings/task-components', [TaskComponentController::class, 'index'])->name('task-components.index');
+        Route::post('/settings/task-components', [TaskComponentController::class, 'store'])->name('task-components.store');
+        Route::patch('/settings/task-components/{taskComponent}', [TaskComponentController::class, 'update'])->name('task-components.update');
+        Route::delete('/settings/task-components/{taskComponent}', [TaskComponentController::class, 'destroy'])->name('task-components.destroy');
+        Route::post('/settings/task-components/bulk-reassign', [TaskComponentController::class, 'bulkReassign'])->name('task-components.bulk-reassign');
     });
 
     // Tasks
@@ -183,6 +190,8 @@ Route::middleware(['auth', 'require-2fa'])->group(function () {
     Route::post('/tasks/{task}/change-requests', [TaskController::class, 'storeChangeRequest'])->name('tasks.change-requests.store');
     Route::get('/tasks/{task}/change-requests/{changeRequest}/attachments/{media}/download', [TaskController::class, 'downloadChangeRequestAttachment'])->name('tasks.change-requests.attachments.download');
     Route::post('/tasks/{task}/claim', [TaskController::class, 'claim'])->name('tasks.claim');
+    Route::post('/projects/{project}/claim-selected', [ProjectController::class, 'claimSelected'])->name('projects.claim-selected');
+    Route::post('/projects/{project}/sprints/{sprint}/claim-all', [ProjectController::class, 'claimAllInSprint'])->name('projects.sprints.claim-all');
     Route::post('/tasks/{task}/invoice-override', [TaskInvoiceOverrideController::class, 'store'])->name('task-invoice-overrides.store');
     Route::delete('/tasks/{task}/invoice-override', [TaskInvoiceOverrideController::class, 'destroy'])->name('task-invoice-overrides.destroy');
     // Checklists

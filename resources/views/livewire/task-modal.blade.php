@@ -803,7 +803,7 @@
                     @endif
                 </div>
 
-                {{-- Component (project-scoped list) --}}
+                {{-- Component (global list) --}}
                 <div class="py-3.5" wire:key="task-component-{{ $projectId ?? 'none' }}">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-muted mb-1.5">Component</p>
                     @if($canEdit['meta'])
@@ -815,7 +815,7 @@
                             :options="$componentOptions"
                         />
                         @else
-                        <p class="text-[12px] text-muted italic">No components configured for this project.</p>
+                        <p class="text-[12px] text-muted italic">No global components configured yet.</p>
                         @endif
                     @else
                     <p class="text-[12px] text-ink">{{ $this->component ?? '—' }}</p>

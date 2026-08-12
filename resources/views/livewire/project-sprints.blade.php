@@ -9,6 +9,7 @@
 
 <div class="space-y-4"
      x-data="{
+    sectionOpen: { active: true, draft: true, completed: false },
         completeModalOpen: false,
         completeSprintId: null,
         completeSprintName: '',
@@ -116,6 +117,12 @@
     @endif
 
     {{-- Sprint list --}}
+    @php
+        $activeCount = $sprints->where('status', 'active')->count();
+        $draftCount = $sprints->where('status', 'draft')->count();
+        $completedCount = $sprints->where('status', 'completed')->count();
+        $sectionPrinted = ['active' => false, 'draft' => false, 'completed' => false];
+    @endphp
     @forelse($sprints as $sprint)
     @php
         $isExpanded = in_array($sprint->id, $expandedSprints);
@@ -132,6 +139,30 @@
         $unfinishedTasks = $sprint->tasks->where('status', '!=', 'done')->count();
         $progress = $sprint->progress_percent;
     @endphp
+    @if(! $sectionPrinted[$sprint->status])
+    <button type="button"
+            @click="sectionOpen.{{ $sprint->status }} = !sectionOpen.{{ $sprint->status }}"
+            class="w-full flex items-center justify-between px-4 py-2 rounded-lg border border-line bg-canvas cursor-pointer hover:bg-hairline transition-colors">
+        <div class="flex items-center gap-2">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-muted">
+                {{ $sprint->status === 'active' ? 'Active' : ($sprint->status === 'draft' ? 'Draft' : 'Completed') }}
+            </span>
+            <span class="text-[11px] text-muted">
+                {{ $sprint->status === 'active' ? $activeCount : ($sprint->status === 'draft' ? $draftCount : $completedCount) }}
+            </span>
+            @if($sprint->status === 'completed')
+            <span class="text-[11px] text-muted" x-show="!sectionOpen.completed">completed sprints — click to expand</span>
+            @endif
+        </div>
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-muted transition-transform"
+             :class="sectionOpen.{{ $sprint->status }} ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+        </svg>
+    </button>
+    @php $sectionPrinted[$sprint->status] = true; @endphp
+    @endif
+
+    <div x-show="sectionOpen.{{ $sprint->status }}">
     <div class="bg-white border border-line rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
 
         {{-- Sprint header --}}
@@ -139,6 +170,7 @@
         {{-- Inline edit form --}}
         <div class="px-5 py-4 space-y-3 bg-canvas border-b border-hairline">
             <div>
+            </div>
                 <label class="block text-[11px] font-bold uppercase tracking-[0.05em] text-muted mb-1.5">Sprint Name <span class="text-[#b94040]">*</span></label>
                 <input wire:model="editSprintName" type="text"
                        class="w-full px-3 py-2 text-[13px] text-ink bg-white border border-line rounded-lg focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15 transition-all duration-150">

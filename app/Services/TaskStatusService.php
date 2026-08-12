@@ -88,6 +88,9 @@ class TaskStatusService
             $task->status = $toStatus;
             $task->save();
 
+            // Every status entry lands at the top of the destination column.
+            $this->placeAtTopOfStatus($task, $toStatus);
+
             // 5. Post-functions (strict order)
             $history = $this->writeHistory($task, $fromStatus, $toStatus, $actor);
             $this->syncCompletedAt($task, $toStatus);
@@ -101,6 +104,21 @@ class TaskStatusService
         }
 
         return $history;
+    }
+
+    private function placeAtTopOfStatus(Task $task, string $status): void
+    {
+        if (! Schema::hasColumn('tasks', 'kanban_position')) {
+            return;
+        }
+
+        $currentMin = Task::query()
+            ->where('status', $status)
+            ->whereKeyNot($task->id)
+            ->min('kanban_position');
+
+        $task->kanban_position = $currentMin !== null ? ((int) $currentMin - 1) : 0;
+        $task->saveQuietly();
     }
 
     /**

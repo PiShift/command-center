@@ -233,49 +233,86 @@
                         <p class="text-[13px] text-muted mt-1">Check back when the sprint has open tasks.</p>
                     </div>
                     @else
-                    <ul class="divide-y divide-hairline">
-                        @foreach($availableTasks as $task)
-                        <li class="flex items-center gap-3 px-6 py-3.5 hover:bg-canvas transition-colors">
-                            @if($task->weight)
-                            <span class="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded text-[10px] font-bold bg-surface text-muted border border-hairline" title="Complexity weight">{{ $task->weight }}</span>
-                            @else
-                            <span class="flex-shrink-0 w-6"></span>
-                            @endif
-                            <div class="flex-1 min-w-0">
-                                <button type="button"
-                                        onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $task->id }} } }))"
-                                        class="text-[13.5px] font-medium text-ink hover:text-accent transition-colors cursor-pointer text-left truncate block w-full">{{ $task->title }}</button>
-                                <div class="flex items-center gap-1.5 mt-1 flex-wrap">
-                                    @php
-                                        $pColors = ['critical' => ['#fdf0f0','#b94040'], 'high' => ['#fdf0f0','#b94040'], 'medium' => ['#fef9ec','#9a7a1a'], 'low' => ['#edf7f2','#2e7d55']];
-                                        $pc = $pColors[$task->priority] ?? ['#F5F4EF','#8c8c8a'];
-                                    @endphp
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold"
-                                          style="background:{{ $pc[0] }};color:{{ $pc[1] }}">{{ ucfirst($task->priority) }}</span>
-                                    @if($task->type)
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface text-dim border border-hairline">{{ ucfirst($task->type) }}</span>
-                                    @endif
-                                    @if($task->sprint)
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] text-muted">{{ $task->sprint->name }}</span>
-                                    @endif
+                    <div class="px-6 py-3 border-b border-hairline bg-canvas flex items-center justify-between gap-3">
+                        <p class="text-[12px] text-muted">Select multiple tasks and claim in one action.</p>
+                        <form id="bulk-claim-form" action="{{ route('projects.claim-selected', $project) }}" method="POST">
+                            @csrf
+                            <button type="submit"
+                                    class="inline-flex items-center gap-1 px-3 py-1.5 text-[12px] font-semibold rounded-lg border cursor-pointer transition-colors duration-150"
+                                    style="color:#2e7d55;background:#edf7f2;border-color:#b7e0ca"
+                                    onmouseover="this.style.background='#d6f0e4'"
+                                    onmouseout="this.style.background='#edf7f2'">
+                                Claim Selected
+                            </button>
+                        </form>
+                    </div>
+
+                    @foreach($claimTaskGroups as $group)
+                        <div class="{{ $loop->first ? '' : 'border-t border-hairline' }}">
+                            <div class="px-6 py-2.5 bg-canvas border-b border-hairline flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[11px] font-bold uppercase tracking-wider text-muted">{{ $group['title'] }}</span>
+                                    <span class="text-[11px] text-muted">({{ $group['tasks']->count() }})</span>
                                 </div>
+                                @if($group['sprint_id'])
+                                <form action="{{ route('projects.sprints.claim-all', [$project, $group['sprint_id']]) }}" method="POST">
+                                    @csrf
+                                    <button type="submit"
+                                            class="text-[11px] font-semibold text-accent hover:underline cursor-pointer">
+                                        Claim All in this Sprint
+                                    </button>
+                                </form>
+                                @endif
                             </div>
-                            <form action="{{ route('tasks.claim', $task) }}" method="POST" class="flex-shrink-0">
-                                @csrf
-                                <button type="submit"
-                                        class="inline-flex items-center gap-1 px-3 py-1.5 text-[12px] font-semibold rounded-lg border cursor-pointer transition-colors duration-150"
-                                        style="color:#2e7d55;background:#edf7f2;border-color:#b7e0ca"
-                                        onmouseover="this.style.background='#d6f0e4'"
-                                        onmouseout="this.style.background='#edf7f2'">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59"/>
-                                    </svg>
-                                    Claim
-                                </button>
-                            </form>
-                        </li>
-                        @endforeach
-                    </ul>
+
+                            <ul class="divide-y divide-hairline">
+                                @foreach($group['tasks'] as $task)
+                                <li class="flex items-center gap-3 px-6 py-3.5 hover:bg-canvas transition-colors">
+                                    <input type="checkbox"
+                                           name="task_ids[]"
+                                           value="{{ $task->id }}"
+                                           form="bulk-claim-form"
+                                           class="w-4 h-4 rounded border-line text-accent focus:ring-accent">
+
+                                    @if($task->weight)
+                                    <span class="flex-shrink-0 inline-flex items-center justify-center w-6 h-6 rounded text-[10px] font-bold bg-surface text-muted border border-hairline" title="Complexity weight">{{ $task->weight }}</span>
+                                    @else
+                                    <span class="flex-shrink-0 w-6"></span>
+                                    @endif
+                                    <div class="flex-1 min-w-0">
+                                        <button type="button"
+                                                onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $task->id }} } }))"
+                                                class="text-[13.5px] font-medium text-ink hover:text-accent transition-colors cursor-pointer text-left truncate block w-full">{{ $task->title }}</button>
+                                        <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                                            @php
+                                                $pColors = ['critical' => ['#fdf0f0','#b94040'], 'high' => ['#fdf0f0','#b94040'], 'medium' => ['#fef9ec','#9a7a1a'], 'low' => ['#edf7f2','#2e7d55']];
+                                                $pc = $pColors[$task->priority] ?? ['#F5F4EF','#8c8c8a'];
+                                            @endphp
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold"
+                                                  style="background:{{ $pc[0] }};color:{{ $pc[1] }}">{{ ucfirst($task->priority) }}</span>
+                                            @if($task->type)
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-surface text-dim border border-hairline">{{ ucfirst($task->type) }}</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <form action="{{ route('tasks.claim', $task) }}" method="POST" class="flex-shrink-0">
+                                        @csrf
+                                        <button type="submit"
+                                                class="inline-flex items-center gap-1 px-3 py-1.5 text-[12px] font-semibold rounded-lg border cursor-pointer transition-colors duration-150"
+                                                style="color:#2e7d55;background:#edf7f2;border-color:#b7e0ca"
+                                                onmouseover="this.style.background='#d6f0e4'"
+                                                onmouseout="this.style.background='#edf7f2'">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59"/>
+                                            </svg>
+                                            Claim
+                                        </button>
+                                    </form>
+                                </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endforeach
                     @endif
                 </div>
 
@@ -341,7 +378,15 @@
 
                 {{-- Components (inline management) --}}
                 @if($canManage)
-                <livewire:project-components :project="$project" />
+                <div class="bg-white border border-line rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
+                    <div class="px-5 py-4 border-b border-hairline">
+                        <h2 class="text-[13px] font-semibold text-ink">Components</h2>
+                        <p class="text-[12px] text-muted mt-0.5">Task components are defined once globally across all projects.</p>
+                    </div>
+                    <div class="px-5 py-4">
+                        <a href="{{ route('task-components.index') }}" class="text-[13px] text-accent hover:underline">Open global component settings</a>
+                    </div>
+                </div>
                 @endif
 
                 {{-- Teams --}}

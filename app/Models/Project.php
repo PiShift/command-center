@@ -17,7 +17,6 @@ class Project extends Model
         'github_repo',
         'website',
         'stack',
-        'components',
         'slack_channel',
         'color',
         'status',
@@ -31,7 +30,6 @@ class Project extends Model
         'start_date' => 'date',
         'deadline'   => 'date',
         'repos'      => 'array',
-        'components' => 'array',
     ];
 
     public function customer(): BelongsTo

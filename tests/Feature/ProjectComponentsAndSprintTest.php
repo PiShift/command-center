@@ -3,13 +3,13 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\RequiresTwoFactor;
-use App\Livewire\ProjectComponents;
 use App\Livewire\TaskModal;
 use App\Models\Customer;
 use App\Models\Project;
 use App\Models\Role;
 use App\Models\Sprint;
 use App\Models\Task;
+use App\Models\TaskComponent;
 use App\Models\User;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
@@ -32,82 +32,54 @@ class ProjectComponentsAndSprintTest extends TestCase
         ]);
     }
 
-    // ── Components on project detail page ───────────────────────────────────
+    // ── Global components settings ──────────────────────────────────────────
 
-    public function test_manager_can_add_component_from_project_detail_page(): void
+    public function test_manager_can_manage_global_components(): void
     {
         $manager = $this->createUserWithRole('manager');
-        [, $project] = $this->createCustomerAndProject();
 
-        Livewire::actingAs($manager)
-            ->test(ProjectComponents::class, ['project' => $project])
-            ->set('newComponent', 'Mobile')
-            ->call('addComponent')
-            ->set('newComponent', 'Backend')
-            ->call('addComponent');
+        $this->actingAs($manager)
+            ->post(route('task-components.store'), ['name' => 'Backend'])
+            ->assertRedirect();
 
-        // Same data source as the project edit form: projects.components
-        $this->assertSame(['Mobile', 'Backend'], $project->fresh()->components);
+        $this->assertDatabaseHas('task_components', ['name' => 'Backend']);
+
+        $component = TaskComponent::where('name', 'Backend')->firstOrFail();
+
+        $this->actingAs($manager)
+            ->patch(route('task-components.update', $component), ['name' => 'API'])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('task_components', ['id' => $component->id, 'name' => 'API']);
     }
 
-    public function test_duplicate_components_are_rejected(): void
-    {
-        $manager = $this->createUserWithRole('manager');
-        [, $project] = $this->createCustomerAndProject();
-        $project->update(['components' => ['Mobile']]);
-
-        Livewire::actingAs($manager)
-            ->test(ProjectComponents::class, ['project' => $project->fresh()])
-            ->set('newComponent', 'mobile')
-            ->call('addComponent')
-            ->assertHasErrors('newComponent');
-
-        $this->assertSame(['Mobile'], $project->fresh()->components);
-    }
-
-    public function test_unused_component_is_removed_immediately(): void
-    {
-        $manager = $this->createUserWithRole('manager');
-        [, $project] = $this->createCustomerAndProject();
-        $project->update(['components' => ['Mobile', 'Backend']]);
-
-        Livewire::actingAs($manager)
-            ->test(ProjectComponents::class, ['project' => $project->fresh()])
-            ->call('requestRemove', 0);
-
-        $this->assertSame(['Backend'], $project->fresh()->components);
-    }
-
-    public function test_removing_in_use_component_requires_confirmation_and_keeps_task_value(): void
-    {
-        $manager = $this->createUserWithRole('manager');
-        [, $project] = $this->createCustomerAndProject();
-        $project->update(['components' => ['Mobile', 'Backend']]);
-        $task = $this->createTask($project, ['component' => 'Mobile']);
-
-        $component = Livewire::actingAs($manager)
-            ->test(ProjectComponents::class, ['project' => $project->fresh()])
-            ->call('requestRemove', 0);
-
-        // In use — not removed yet, confirmation shown
-        $this->assertSame(['Mobile', 'Backend'], $project->fresh()->components);
-        $component->assertSet('confirmingRemoval', true);
-
-        $component->call('confirmRemove');
-
-        $this->assertSame(['Backend'], $project->fresh()->components);
-        // Existing task keeps its historical value
-        $this->assertSame('Mobile', $task->fresh()->component);
-    }
-
-    public function test_developers_cannot_manage_components(): void
+    public function test_developers_cannot_manage_global_components(): void
     {
         $developer = $this->createUserWithRole('developer');
-        [, $project] = $this->createCustomerAndProject();
 
-        Livewire::actingAs($developer)
-            ->test(ProjectComponents::class, ['project' => $project])
+        $this->actingAs($developer)
+            ->get(route('task-components.index'))
             ->assertForbidden();
+    }
+
+    public function test_manual_bulk_reassign_updates_only_selected_legacy_value(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        [, $project] = $this->createCustomerAndProject();
+        $target = TaskComponent::create(['name' => 'Mobile', 'sort_order' => 99]);
+
+        $legacyTask = $this->createTask($project, ['component' => 'iOS']);
+        $otherTask = $this->createTask($project, ['component' => 'Backend']);
+
+        $this->actingAs($manager)
+            ->post(route('task-components.bulk-reassign'), [
+                'from_component' => 'iOS',
+                'to_component_id' => $target->id,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame('Mobile', $legacyTask->fresh()->component);
+        $this->assertSame('Backend', $otherTask->fresh()->component);
     }
 
     // ── Sprint field on the board Task Modal ────────────────────────────────

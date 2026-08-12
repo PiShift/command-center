@@ -196,6 +196,8 @@
                      data-task-card="{{ $task->id }}"
                      wire:key="task-{{ $task->id }}"
                      x-on:dragstart.stop="$event.dataTransfer.setData('taskId', '{{ $task->id }}'); $event.dataTransfer.effectAllowed='move'"
+                     x-on:dragover.prevent
+                     x-on:drop.stop.prevent="const dragged = parseInt($event.dataTransfer.getData('taskId')); if (dragged && dragged !== {{ $task->id }}) { $wire.reorderTaskInColumn(dragged, {{ $task->id }}) }"
                      x-on:mouseenter="$el.style.borderColor='#e5e4df'"
                      x-on:mouseleave="$el.style.borderColor='#eeeee9'"
                      x-on:click="$wire.dispatch('open-task', { id: {{ $task->id }} })">
@@ -398,6 +400,13 @@
 
     {{-- ── Projects Tab ─────────────────────────────────────────────────────── --}}
     @if($activeTab === 'projects')
+    @if($scopedToUser && $projects->isEmpty())
+    <div class="bg-white border border-hairline rounded-xl p-8 text-center"
+         style="box-shadow: 0 1px 3px rgba(20,20,19,0.04)">
+        <p class="text-[14px] font-medium text-dim">No actionable project work right now</p>
+        <p class="text-[13px] text-muted mt-1">Projects appear here when you have assigned tasks or claimable open work.</p>
+    </div>
+    @else
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         @foreach($projects as $project)
         <div class="bg-white border border-hairline rounded-xl p-4"
@@ -422,18 +431,18 @@
                 </div>
             </div>
             @php
-                // For team projects: show all project tasks. For direct: show user's assigned tasks.
-                $displayTasks = ($scopedToUser && $project->is_team_project)
-                    ? $project->tasks
-                    : ($scopedToUser ? $project->my_tasks : $project->tasks);
+                $displayTasks = $scopedToUser ? ($project->preview_tasks ?? collect()) : $project->tasks;
                 $open  = $displayTasks->whereNotIn('status', ['done'])->count();
                 $total = $displayTasks->count();
                 $pct   = $total > 0 ? round(($total - $open) / $total * 100) : 0;
+                $modeText = ($project->preview_mode ?? 'assigned') === 'assigned'
+                    ? 'assigned to you'
+                    : 'available to claim';
             @endphp
             <div class="flex items-center justify-between text-[12px] text-muted mb-1.5">
                 <span>{{ $open }} open
                     @if($scopedToUser)
-                        {{ $project->is_team_project ? '— team project' : '— assigned to you' }}
+                        — {{ $modeText }}
                     @endif
                 </span>
                 <span>{{ $pct }}%</span>
@@ -450,7 +459,9 @@
                     @endphp
                     <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background:{{ $dotColors[$t->priority] ?? '#8c8c8a' }}"></span>
                     <a href="#" onclick="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $t->id }} } }))" class="text-[12px] text-ink hover:underline truncate flex-1 cursor-pointer">{{ $t->title }}</a>
-                    @if($project->is_team_project && $t->assignee)
+                    @if(($project->preview_mode ?? 'assigned') === 'claimable' && $t->sprint)
+                    <span class="text-[11px] text-muted shrink-0">{{ $t->sprint->name }}</span>
+                    @elseif($project->is_team_project && $t->assignee)
                     <span class="text-[11px] text-muted shrink-0">{{ $t->assignee->name }}</span>
                     @endif
                     @include('components.badge', ['type' => 'status', 'value' => $t->status])
@@ -466,6 +477,7 @@
         </div>
         @endforeach
     </div>
+    @endif
     @endif
 
     {{-- ── Team Tab ─────────────────────────────────────────────────────────── --}}
