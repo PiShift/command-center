@@ -19,6 +19,15 @@
 
         return max($minutes, 0).'m';
     };
+
+    $accountabilityQuery = request()->query();
+    unset($accountabilityQuery['start_date'], $accountabilityQuery['end_date']);
+    $accountabilityQuery['tab'] = 'accountability';
+
+    if (($rangePreset ?? null) === 'custom') {
+        $accountabilityQuery['start_date'] = request('start_date', $rangeStart->toDateString());
+        $accountabilityQuery['end_date'] = request('end_date', $rangeEnd->toDateString());
+    }
 @endphp
 
 <x-layouts.app title="Teams">
@@ -153,12 +162,13 @@
         @endif
     @else
         <div class="space-y-6">
-            <form method="GET" action="{{ route('teams.index') }}" class="flex flex-wrap items-end gap-2">
+            <form method="GET" action="{{ route('teams.index') }}" class="flex flex-wrap items-end gap-2" x-data="{ range: '{{ $rangePreset }}' }">
                 <input type="hidden" name="tab" value="accountability">
 
                 <div>
                     <label class="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-1">Range</label>
                     <select name="range"
+                            x-model="range"
                             class="px-3 py-2 rounded-lg border border-line bg-white text-[13px] text-ink focus:border-accent focus:outline-none">
                         <option value="this_month" @selected($rangePreset === 'this_month')>This month</option>
                         <option value="last_30_days" @selected($rangePreset === 'last_30_days')>Last 30 days</option>
@@ -169,13 +179,17 @@
 
                 <div>
                     <label class="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-1">Start</label>
-                    <input type="date" name="start_date" value="{{ request('start_date', $rangeStart->toDateString()) }}"
+                      <input type="date" name="start_date" value="{{ $rangePreset === 'custom' ? request('start_date', $rangeStart->toDateString()) : $rangeStart->toDateString() }}"
+                          :disabled="range !== 'custom'"
+                          :class="range !== 'custom' ? 'opacity-60 cursor-not-allowed' : ''"
                            class="px-3 py-2 rounded-lg border border-line bg-white text-[13px] text-ink focus:border-accent focus:outline-none">
                 </div>
 
                 <div>
                     <label class="block text-[11px] font-semibold text-muted uppercase tracking-wider mb-1">End</label>
-                    <input type="date" name="end_date" value="{{ request('end_date', $rangeEnd->toDateString()) }}"
+                      <input type="date" name="end_date" value="{{ $rangePreset === 'custom' ? request('end_date', $rangeEnd->toDateString()) : $rangeEnd->toDateString() }}"
+                          :disabled="range !== 'custom'"
+                          :class="range !== 'custom' ? 'opacity-60 cursor-not-allowed' : ''"
                            class="px-3 py-2 rounded-lg border border-line bg-white text-[13px] text-ink focus:border-accent focus:outline-none">
                 </div>
 
@@ -209,7 +223,7 @@
                                 @endphp
                                 @foreach($columns as $columnKey => $label)
                                     <th class="px-4 py-3 font-semibold uppercase tracking-wider whitespace-nowrap">
-                                        <a href="{{ route('teams.index', array_merge(request()->query(), ['tab' => 'accountability', 'sort' => $columnKey, 'dir' => $nextDir($columnKey)])) }}"
+                                        <a href="{{ route('teams.index', array_merge($accountabilityQuery, ['sort' => $columnKey, 'dir' => $nextDir($columnKey)])) }}"
                                            class="inline-flex items-center gap-1 hover:text-ink transition-colors">
                                             {{ $label }}
                                             @if($isSorted($columnKey))
@@ -224,7 +238,7 @@
                             @forelse($rows as $row)
                                 <tr class="hover:bg-canvas/60 transition-colors">
                                     <td class="px-4 py-3 font-medium text-ink whitespace-nowrap">
-                                        <a href="{{ route('teams.index', array_merge(request()->query(), ['tab' => 'accountability', 'developer_id' => $row['developer_id']])) }}" class="hover:underline">
+                                        <a href="{{ route('teams.index', array_merge($accountabilityQuery, ['developer_id' => $row['developer_id']])) }}" class="hover:underline">
                                             {{ $row['name'] }}
                                         </a>
                                     </td>
@@ -262,7 +276,7 @@
                 <div class="bg-white rounded-xl border border-line overflow-hidden shadow-card">
                     <div class="px-4 py-3 border-b border-line bg-canvas flex items-center justify-between gap-3">
                         <h2 class="text-[14px] font-semibold text-ink">{{ $selectedDeveloper->name }} — Task Drill-down</h2>
-                        <a href="{{ route('teams.index', array_merge(request()->except('developer_id'), ['tab' => 'accountability'])) }}" class="text-[12px] font-medium text-muted hover:text-ink transition-colors">Clear</a>
+                        <a href="{{ route('teams.index', array_merge($accountabilityQuery, ['sort' => $sort, 'dir' => $dir])) }}" class="text-[12px] font-medium text-muted hover:text-ink transition-colors">Clear</a>
                     </div>
 
                     @if($drilldownTasks->isEmpty())

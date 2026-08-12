@@ -45,6 +45,15 @@ class TeamController extends Controller
 
             [$start, $end, $preset] = $this->resolveRange($request);
 
+            if ($preset !== 'custom' && ($request->filled('start_date') || $request->filled('end_date'))) {
+                $query = $request->query();
+                unset($query['start_date'], $query['end_date']);
+                $query['tab'] = 'accountability';
+                $query['range'] = $preset;
+
+                return redirect()->route('teams.index', $query);
+            }
+
             $developers = User::query()
                 ->select(['id', 'name'])
                 ->whereHas('roleModel', fn ($query) => $query->where('slug', 'developer'))
