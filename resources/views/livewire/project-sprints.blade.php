@@ -432,8 +432,9 @@
                     {{ $task->weight ?? '—' }}
                 </span>
                 {{-- Title --}}
-                <button wire:click="openTask({{ $task->id }})"
-                        class="flex-1 text-[13px] font-medium text-ink hover:text-accent transition-colors text-left truncate cursor-pointer">
+                <button type="button"
+                    x-on:click="window.dispatchEvent(new CustomEvent('open-task', { detail: { id: {{ $task->id }} } }))"
+                    class="flex-1 text-[13px] font-medium text-ink hover:text-accent transition-colors text-left truncate cursor-pointer">
                     {{ $task->title }}
                 </button>
                 {{-- Type --}}
