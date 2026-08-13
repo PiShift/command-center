@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\TaskStatusHistoryLogger;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -36,6 +37,7 @@ class Task extends Model implements HasMedia
         'priority',
         'status',
         'kanban_position',
+        'customer_order',
         'due_date',
         'estimated_hours',
         'weight',
@@ -54,18 +56,28 @@ class Task extends Model implements HasMedia
         'labels' => 'array',
         'weight' => 'integer',
         'kanban_position' => 'integer',
+        'customer_order' => 'integer',
     ];
 
     protected static function booted(): void
     {
         static::creating(function (self $task): void {
             if ($task->kanban_position !== null) {
+            } else {
+                $status = (string) ($task->status ?: 'open');
+                $max = static::query()->where('status', $status)->max('kanban_position');
+                $task->kanban_position = ((int) $max) + 1;
+            }
+
+            if ($task->customer_order !== null || ! $task->project_id) {
                 return;
             }
 
-            $status = (string) ($task->status ?: 'open');
-            $max = static::query()->where('status', $status)->max('kanban_position');
-            $task->kanban_position = ((int) $max) + 1;
+            $max = static::query()
+                ->where('project_id', $task->project_id)
+                ->max('customer_order');
+
+            $task->customer_order = ((int) $max) + 1;
         });
 
         static::updating(function (self $task): void {
@@ -216,6 +228,39 @@ class Task extends Model implements HasMedia
         return $this->hasMany(TaskStatusHistory::class)
             ->orderBy('created_at')
             ->orderBy('id');
+    }
+
+    /**
+     * Move a task before the given target task in project customer ordering.
+     */
+    public static function moveBeforeInProjectOrder(int $projectId, int $taskId, int $targetTaskId): void
+    {
+        DB::transaction(function () use ($projectId, $taskId, $targetTaskId): void {
+            $orderedIds = static::query()
+                ->where('project_id', $projectId)
+                ->orderByRaw('CASE WHEN customer_order IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('customer_order')
+                ->orderBy('id')
+                ->pluck('id')
+                ->all();
+
+            if (! in_array($taskId, $orderedIds, true) || ! in_array($targetTaskId, $orderedIds, true)) {
+                return;
+            }
+
+            $orderedIds = array_values(array_filter($orderedIds, fn (int $id): bool => $id !== $taskId));
+            $targetIndex = array_search($targetTaskId, $orderedIds, true);
+
+            if ($targetIndex === false) {
+                $orderedIds[] = $taskId;
+            } else {
+                array_splice($orderedIds, $targetIndex, 0, [$taskId]);
+            }
+
+            foreach ($orderedIds as $index => $id) {
+                static::query()->whereKey($id)->update(['customer_order' => $index + 1]);
+            }
+        });
     }
 
     public function changeRequests(): HasMany

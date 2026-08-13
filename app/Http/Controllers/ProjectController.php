@@ -187,7 +187,14 @@ class ProjectController extends Controller
 
         $assignedTeams = $project->teams;
 
-        $recentTasks = $allTasks->sortByDesc('updated_at')->take(8)->values();
+        $recentTasks = $allTasks
+            ->sortBy(fn (Task $task) => [
+                $task->customer_order === null ? 1 : 0,
+                $task->customer_order ?? PHP_INT_MAX,
+                $task->id,
+            ])
+            ->take(8)
+            ->values();
 
         $allTeams = Team::orderBy('name')->get(['id', 'name']);
 
@@ -207,13 +214,17 @@ class ProjectController extends Controller
                     ->whereNull('assigned_to')
                     ->with('sprint')
                     ->orderBy('sprint_id')
-                    ->orderByDesc('weight')
+                    ->orderByRaw('CASE WHEN customer_order IS NULL THEN 1 ELSE 0 END')
+                    ->orderBy('customer_order')
+                    ->orderBy('id')
                     ->get();
             }
             $myTasks = Task::where('project_id', $project->id)
                 ->where('assigned_to', $user->id)
                 ->where('status', '!=', 'done')
-                ->orderByDesc('updated_at')
+                ->orderByRaw('CASE WHEN customer_order IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('customer_order')
+                ->orderBy('id')
                 ->get();
         }
 

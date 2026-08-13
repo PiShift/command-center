@@ -258,6 +258,39 @@ class ProjectBacklog extends Component
         $this->selectedItems = [];
     }
 
+    public function sortBacklogItemInGroup(int $itemId, int $position): void
+    {
+        abort_unless(auth()->user()->hasPermission('projects.edit'), 403);
+
+        $item = BacklogItem::query()
+            ->where('project_id', $this->project->id)
+            ->where('promoted', false)
+            ->findOrFail($itemId);
+
+        $items = BacklogItem::query()
+            ->where('project_id', $this->project->id)
+            ->where('promoted', false)
+            ->where(function ($query) use ($item): void {
+                if ($item->sprint_id === null) {
+                    $query->whereNull('sprint_id');
+                } else {
+                    $query->where('sprint_id', $item->sprint_id);
+                }
+            })
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->pluck('id')
+            ->all();
+
+        $items = array_values(array_filter($items, fn (int $id): bool => $id !== $item->id));
+        $targetIndex = max(0, min($position, count($items)));
+        array_splice($items, $targetIndex, 0, [$item->id]);
+
+        foreach ($items as $index => $id) {
+            BacklogItem::query()->whereKey($id)->update(['sort_order' => $index + 1]);
+        }
+    }
+
     // ── Bulk actions ─────────────────────────────────────────────────────────
 
     public function bulkAssignSprint(int $sprintId): void

@@ -1,4 +1,7 @@
-<li class="hover:bg-canvas transition-colors duration-150"
+<li class="hover:bg-canvas transition-colors duration-150 {{ $canManage ? 'cursor-grab' : '' }}"
+    @if($canManage)
+    wire:sort:item="{{ $item->id }}"
+    @endif
     :class="$wire.selectedItems.includes({{ $item->id }}) ? 'bg-accent-light' : ''">
 
     {{-- Main row --}}

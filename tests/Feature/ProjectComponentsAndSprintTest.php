@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\RequiresTwoFactor;
+use App\Livewire\ProjectBacklog;
 use App\Livewire\TaskModal;
 use App\Models\Customer;
 use App\Models\Project;
@@ -173,6 +174,106 @@ class ProjectComponentsAndSprintTest extends TestCase
         $availableIds = collect($response->viewData('availableTasks'))->pluck('id');
         $this->assertTrue($availableIds->contains($inSprint->id));
         $this->assertTrue($availableIds->contains($noSprint->id));
+    }
+
+    public function test_project_sprints_manual_reorder_updates_customer_order(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        [, $project] = $this->createCustomerAndProject();
+        $sprint = Sprint::create([
+            'project_id' => $project->id,
+            'name' => 'Sprint 1',
+            'status' => 'active',
+            'sort_order' => 0,
+        ]);
+
+        $first = $this->createTask($project, ['sprint_id' => $sprint->id, 'title' => 'First']);
+        $second = $this->createTask($project, ['sprint_id' => $sprint->id, 'title' => 'Second']);
+        $third = $this->createTask($project, ['sprint_id' => $sprint->id, 'title' => 'Third']);
+
+        $first->update(['customer_order' => 1]);
+        $second->update(['customer_order' => 2]);
+        $third->update(['customer_order' => 3]);
+
+        Livewire::actingAs($manager)
+            ->test(\App\Livewire\ProjectSprints::class, ['project' => $project])
+            ->call('sortTaskInSprint', $third->id, 0);
+
+        $orderedIds = Task::query()
+            ->where('project_id', $project->id)
+            ->orderBy('customer_order')
+            ->pluck('id')
+            ->all();
+
+        $this->assertSame([$third->id, $first->id, $second->id], $orderedIds);
+    }
+
+    public function test_backlog_manual_reorder_updates_sort_order_within_group(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        [, $project] = $this->createCustomerAndProject();
+        $sprint = Sprint::create([
+            'project_id' => $project->id,
+            'name' => 'Sprint 1',
+            'status' => 'active',
+            'sort_order' => 0,
+        ]);
+
+        $a = $project->backlogItems()->create([
+            'title' => 'A',
+            'status' => 'raw',
+            'promoted' => false,
+            'sprint_id' => $sprint->id,
+            'sort_order' => 1,
+        ]);
+        $b = $project->backlogItems()->create([
+            'title' => 'B',
+            'status' => 'raw',
+            'promoted' => false,
+            'sprint_id' => $sprint->id,
+            'sort_order' => 2,
+        ]);
+        $c = $project->backlogItems()->create([
+            'title' => 'C',
+            'status' => 'raw',
+            'promoted' => false,
+            'sprint_id' => $sprint->id,
+            'sort_order' => 3,
+        ]);
+
+        Livewire::actingAs($manager)
+            ->test(ProjectBacklog::class, ['project' => $project])
+            ->call('sortBacklogItemInGroup', $c->id, 0);
+
+        $orderedIds = $project->backlogItems()
+            ->where('promoted', false)
+            ->where('sprint_id', $sprint->id)
+            ->orderBy('sort_order')
+            ->pluck('id')
+            ->all();
+
+        $this->assertSame([$c->id, $a->id, $b->id], $orderedIds);
+    }
+
+    public function test_project_recent_tasks_follow_customer_order(): void
+    {
+        $manager = $this->createUserWithRole('manager');
+        [, $project] = $this->createCustomerAndProject();
+
+        $first = $this->createTask($project, ['title' => 'First']);
+        $second = $this->createTask($project, ['title' => 'Second']);
+        $third = $this->createTask($project, ['title' => 'Third']);
+
+        $first->update(['customer_order' => 30]);
+        $second->update(['customer_order' => 10]);
+        $third->update(['customer_order' => 20]);
+
+        $response = $this->actingAs($manager)->get(route('projects.show', $project));
+        $response->assertOk();
+
+        $recentIds = collect($response->viewData('recentTasks'))->pluck('id')->take(3)->all();
+
+        $this->assertSame([$second->id, $third->id, $first->id], $recentIds);
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────

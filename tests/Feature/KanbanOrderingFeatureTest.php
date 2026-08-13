@@ -31,7 +31,7 @@ class KanbanOrderingFeatureTest extends TestCase
         ]);
     }
 
-    public function test_task_moved_to_todo_lands_at_top_without_shuffling_remaining_open_tasks(): void
+    public function test_kanban_reorder_updates_project_customer_order_consistently(): void
     {
         $manager = $this->createUserWithRole('manager');
         [, $project] = $this->createCustomerAndProject();
@@ -43,29 +43,35 @@ class KanbanOrderingFeatureTest extends TestCase
         $second = $this->createTask($project, ['title' => 'Second', 'status' => 'open']);
         $third = $this->createTask($project, ['title' => 'Third', 'status' => 'open']);
 
-        // Establish known starting order: First, Second, Third
-        $first->update(['kanban_position' => 1]);
-        $second->update(['kanban_position' => 2]);
-        $third->update(['kanban_position' => 3]);
+        $first->update(['customer_order' => 1]);
+        $second->update(['customer_order' => 2]);
+        $third->update(['customer_order' => 3]);
 
+        // Move second task before first task within the same kanban column.
+        Livewire::actingAs($manager)
+            ->test(KanbanBoard::class)
+            ->call('reorderTaskInColumn', $second->id, $first->id);
+
+        $orderedIds = Task::query()
+            ->where('project_id', $project->id)
+            ->orderBy('customer_order')
+            ->pluck('id')
+            ->all();
+
+        $this->assertSame([$second->id, $first->id, $third->id], $orderedIds);
+
+        // Moving status should keep the custom order stable.
         Livewire::actingAs($manager)
             ->test(KanbanBoard::class)
             ->call('moveTask', $second->id, 'todo');
 
-        $todoTop = Task::query()
-            ->where('status', 'todo')
-            ->orderBy('kanban_position')
-            ->firstOrFail();
-
-        $this->assertSame($second->id, $todoTop->id, 'Moved task should land at top of destination column.');
-
-        $openIds = Task::query()
-            ->where('status', 'open')
-            ->orderBy('kanban_position')
+        $afterMoveIds = Task::query()
+            ->where('project_id', $project->id)
+            ->orderBy('customer_order')
             ->pluck('id')
             ->all();
 
-        $this->assertSame([$first->id, $third->id], $openIds, 'Remaining open tasks should keep their relative order.');
+        $this->assertSame([$second->id, $first->id, $third->id], $afterMoveIds);
     }
 
     private function createUserWithRole(string $roleSlug): User

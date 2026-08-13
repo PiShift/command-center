@@ -259,9 +259,9 @@ class KanbanBoard extends Component
             $query = $col->tasks()
                 ->with($relations)
                 ->withCount('comments')
-                ->orderByRaw("CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END")
-                ->orderByDesc('created_at')
-                ->orderByDesc('id');
+                ->orderByRaw('CASE WHEN customer_order IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('customer_order')
+                ->orderBy('id');
 
             // Developers: only their own assigned tasks (not team-wide unclaimed tasks)
             if ($scopedToUser) {
@@ -303,7 +303,11 @@ class KanbanBoard extends Component
                     $project->my_tasks = $project->tasks
                         ->where('assigned_to', $user->id)
                         ->where('status', '!=', 'done')
-                        ->sortByDesc('updated_at')
+                        ->sortBy(fn (Task $task) => [
+                            $task->customer_order === null ? 1 : 0,
+                            $task->customer_order ?? PHP_INT_MAX,
+                            $task->id,
+                        ])
                         ->values();
 
                     $activeSprintIds = $project->sprints
@@ -314,7 +318,11 @@ class KanbanBoard extends Component
                         ->where('status', 'open')
                         ->whereNull('assigned_to')
                         ->filter(fn (Task $task) => $task->sprint_id === null || $activeSprintIds->contains($task->sprint_id))
-                        ->sortByDesc('updated_at')
+                        ->sortBy(fn (Task $task) => [
+                            $task->customer_order === null ? 1 : 0,
+                            $task->customer_order ?? PHP_INT_MAX,
+                            $task->id,
+                        ])
                         ->values();
 
                     $project->claimable_count = $project->claimable_tasks->count();
@@ -408,9 +416,11 @@ class KanbanBoard extends Component
             return;
         }
 
-        $targetPosition = $target->kanban_position ?? 0;
-        $task->kanban_position = $targetPosition - 1;
-        $task->save();
+        if ($task->project_id !== $target->project_id) {
+            return;
+        }
+
+        Task::moveBeforeInProjectOrder((int) $task->project_id, $task->id, $target->id);
 
         $this->dispatch('$refresh');
     }

@@ -330,7 +330,8 @@
             </div>
 
             {{-- Task rows --}}
-            @foreach($sprint->tasks->sortBy('sort_order') as $task)
+            <div wire:sort="sortTaskInSprint">
+            @foreach($sprint->tasks as $task)
             @if($editingTask === $task->id)
             {{-- Inline edit row --}}
             <div class="px-5 py-3 bg-canvas border-b border-hairline space-y-2">
@@ -413,7 +414,10 @@
                 $checklistDone = $task->checklists->where('completed', true)->count();
                 $checklistTotal = $task->checklists->count();
             @endphp
-            <div class="flex items-center gap-3 px-5 py-2.5 hover:bg-canvas transition-colors duration-100 border-b border-hairline last:border-b-0">
+              <div class="flex items-center gap-3 px-5 py-2.5 hover:bg-canvas transition-colors duration-100 border-b border-hairline last:border-b-0 {{ $canManage ? 'cursor-grab' : '' }}"
+                  @if($canManage)
+                  wire:sort:item="{{ $task->id }}"
+                  @endif>
                 @if($canManage)
                 <span class="flex-shrink-0 w-6 flex items-center justify-center">
                     <input type="checkbox" wire:model="selectedTaskIds" value="{{ $task->id }}"
@@ -483,6 +487,7 @@
             </div>
             @endif
             @endforeach
+            </div>
             @endif
 
             @if($canManage)
