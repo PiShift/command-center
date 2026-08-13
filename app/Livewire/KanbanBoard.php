@@ -47,7 +47,13 @@ class KanbanBoard extends Component
 
     public function updatedProjectFilter(string $value): void
     {
-        $this->projectIds = $this->parseProjectIds($value);
+        $parsed = $this->parseProjectIds($value);
+
+        if ($this->projectIds === $parsed) {
+            return;
+        }
+
+        $this->projectIds = $parsed;
     }
 
     public function updatedProjectIds($value): void
@@ -59,9 +65,12 @@ class KanbanBoard extends Component
             ->values()
             ->all();
 
-        $this->projectIds = $normalized;
-
         $csv = implode(',', $normalized);
+
+        if ($this->projectIds !== $normalized) {
+            $this->projectIds = $normalized;
+        }
+
         if ($this->projectFilter !== $csv) {
             $this->projectFilter = $csv;
         }
@@ -87,8 +96,14 @@ class KanbanBoard extends Component
             return;
         }
 
-        $this->projectIds = $ids;
-        $this->projectFilter = implode(',', $ids);
+        if ($this->projectIds !== $ids) {
+            $this->projectIds = $ids;
+        }
+
+        $csv = implode(',', $ids);
+        if ($this->projectFilter !== $csv) {
+            $this->projectFilter = $csv;
+        }
     }
 
     /**
@@ -221,6 +236,12 @@ class KanbanBoard extends Component
 
     #[On('task-deleted')]
     public function onTaskDeleted(int $taskId): void
+    {
+        $this->dispatch('$refresh');
+    }
+
+    #[On('boardRealtimePulse')]
+    public function onBoardRealtimePulse(): void
     {
         $this->dispatch('$refresh');
     }
