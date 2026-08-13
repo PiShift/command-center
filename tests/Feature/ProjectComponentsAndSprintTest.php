@@ -197,7 +197,7 @@ class ProjectComponentsAndSprintTest extends TestCase
 
         Livewire::actingAs($manager)
             ->test(\App\Livewire\ProjectSprints::class, ['project' => $project])
-            ->call('sortTaskInSprint', $third->id, 0);
+            ->call('reorderTaskInSprint', $third->id, $first->id);
 
         $orderedIds = Task::query()
             ->where('project_id', $project->id)
@@ -243,7 +243,7 @@ class ProjectComponentsAndSprintTest extends TestCase
 
         Livewire::actingAs($manager)
             ->test(ProjectBacklog::class, ['project' => $project])
-            ->call('sortBacklogItemInGroup', $c->id, 0);
+            ->call('reorderBacklogItemInGroup', $c->id, $a->id);
 
         $orderedIds = $project->backlogItems()
             ->where('promoted', false)

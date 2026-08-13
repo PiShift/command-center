@@ -1,6 +1,10 @@
 <li class="hover:bg-canvas transition-colors duration-150 {{ $canManage ? 'cursor-grab' : '' }}"
     @if($canManage)
-    wire:sort:item="{{ $item->id }}"
+    draggable="true"
+    data-backlog-id="{{ $item->id }}"
+    x-on:dragstart.stop="$event.dataTransfer.setData('backlogId', '{{ $item->id }}'); $event.dataTransfer.effectAllowed='move'"
+    x-on:dragover.prevent
+    x-on:drop.stop.prevent="const dragged = parseInt($event.dataTransfer.getData('backlogId')); if (dragged && dragged !== {{ $item->id }}) { $wire.reorderBacklogItemInGroup(dragged, {{ $item->id }}) }"
     @endif
     :class="$wire.selectedItems.includes({{ $item->id }}) ? 'bg-accent-light' : ''">
 

@@ -258,14 +258,27 @@ class ProjectBacklog extends Component
         $this->selectedItems = [];
     }
 
-    public function sortBacklogItemInGroup(int $itemId, int $position): void
+    public function reorderBacklogItemInGroup(int $itemId, int $targetItemId): void
     {
         abort_unless(auth()->user()->hasPermission('projects.edit'), 403);
+
+        if ($itemId === $targetItemId) {
+            return;
+        }
 
         $item = BacklogItem::query()
             ->where('project_id', $this->project->id)
             ->where('promoted', false)
             ->findOrFail($itemId);
+
+        $target = BacklogItem::query()
+            ->where('project_id', $this->project->id)
+            ->where('promoted', false)
+            ->findOrFail($targetItemId);
+
+        if ((int) ($item->sprint_id ?? 0) !== (int) ($target->sprint_id ?? 0)) {
+            return;
+        }
 
         $items = BacklogItem::query()
             ->where('project_id', $this->project->id)
@@ -283,8 +296,13 @@ class ProjectBacklog extends Component
             ->all();
 
         $items = array_values(array_filter($items, fn (int $id): bool => $id !== $item->id));
-        $targetIndex = max(0, min($position, count($items)));
-        array_splice($items, $targetIndex, 0, [$item->id]);
+        $targetIndex = array_search($target->id, $items, true);
+
+        if ($targetIndex === false) {
+            $items[] = $item->id;
+        } else {
+            array_splice($items, $targetIndex, 0, [$item->id]);
+        }
 
         foreach ($items as $index => $id) {
             BacklogItem::query()->whereKey($id)->update(['sort_order' => $index + 1]);

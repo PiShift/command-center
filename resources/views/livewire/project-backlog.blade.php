@@ -238,7 +238,7 @@
                 <span class="text-[11px] font-bold uppercase tracking-wider text-muted">Unassigned</span>
                 <span class="text-[11px] text-muted">({{ $noSprintItems->count() }})</span>
             </div>
-            <ul class="divide-y divide-hairline" wire:sort="sortBacklogItemInGroup">
+            <ul class="divide-y divide-hairline">
                 @foreach($noSprintItems as $item)
                 @include('livewire._backlog_row', ['item' => $item, 'canManage' => $canManage, 'sprints' => $sprints, 'users' => $users])
                 @endforeach
@@ -263,7 +263,7 @@
                 <span class="text-[11px] font-bold uppercase tracking-wider text-muted">{{ $sprint->name }}</span>
                 <span class="text-[11px] text-muted">({{ $sprintItems->count() }})</span>
             </div>
-            <ul class="divide-y divide-hairline" wire:sort="sortBacklogItemInGroup">
+            <ul class="divide-y divide-hairline">
                 @foreach($sprintItems as $item)
                 @include('livewire._backlog_row', ['item' => $item, 'canManage' => $canManage, 'sprints' => $sprints, 'users' => $users])
                 @endforeach

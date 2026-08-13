@@ -330,7 +330,6 @@
             </div>
 
             {{-- Task rows --}}
-            <div wire:sort="sortTaskInSprint">
             @foreach($sprint->tasks as $task)
             @if($editingTask === $task->id)
             {{-- Inline edit row --}}
@@ -416,7 +415,11 @@
             @endphp
               <div class="flex items-center gap-3 px-5 py-2.5 hover:bg-canvas transition-colors duration-100 border-b border-hairline last:border-b-0 {{ $canManage ? 'cursor-grab' : '' }}"
                   @if($canManage)
-                  wire:sort:item="{{ $task->id }}"
+                  draggable="true"
+                  data-sprint-task-id="{{ $task->id }}"
+                  x-on:dragstart.stop="$event.dataTransfer.setData('taskId', '{{ $task->id }}'); $event.dataTransfer.effectAllowed='move'"
+                  x-on:dragover.prevent
+                  x-on:drop.stop.prevent="const dragged = parseInt($event.dataTransfer.getData('taskId')); if (dragged && dragged !== {{ $task->id }}) { $wire.reorderTaskInSprint(dragged, {{ $task->id }}) }"
                   @endif>
                 @if($canManage)
                 <span class="flex-shrink-0 w-6 flex items-center justify-center">
@@ -487,7 +490,6 @@
             </div>
             @endif
             @endforeach
-            </div>
             @endif
 
             @if($canManage)

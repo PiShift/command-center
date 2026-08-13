@@ -258,42 +258,27 @@ class ProjectSprints extends Component
         }
     }
 
-    public function sortTaskInSprint(int $taskId, int $position): void
+    public function reorderTaskInSprint(int $taskId, int $targetTaskId): void
     {
         Gate::authorize('manage', $this->project);
+
+        if ($taskId === $targetTaskId) {
+            return;
+        }
 
         $task = Task::query()
             ->where('project_id', $this->project->id)
             ->findOrFail($taskId);
 
-        if ($task->sprint_id === null) {
+        $target = Task::query()
+            ->where('project_id', $this->project->id)
+            ->findOrFail($targetTaskId);
+
+        if ((int) ($task->sprint_id ?? 0) !== (int) ($target->sprint_id ?? 0)) {
             return;
         }
 
-        $sprintTasks = Task::query()
-            ->where('project_id', $this->project->id)
-            ->where('sprint_id', $task->sprint_id)
-            ->orderByRaw('CASE WHEN customer_order IS NULL THEN 1 ELSE 0 END')
-            ->orderBy('customer_order')
-            ->orderBy('id')
-            ->get(['id', 'customer_order']);
-
-        $orderedIds = $sprintTasks->pluck('id')->all();
-        $orderedIds = array_values(array_filter($orderedIds, fn (int $id): bool => $id !== $taskId));
-
-        $targetIndex = max(0, min($position, count($orderedIds)));
-        array_splice($orderedIds, $targetIndex, 0, [$taskId]);
-
-        $slots = $sprintTasks
-            ->pluck('customer_order')
-            ->map(fn ($value) => (int) ($value ?? 0))
-            ->sort()
-            ->values()
-            ->all();
-
-        foreach ($orderedIds as $index => $id) {
-            Task::query()->whereKey($id)->update(['customer_order' => $slots[$index] ?? ($index + 1)]);
-        }
+        Task::moveBeforeInProjectOrder($this->project->id, $task->id, $target->id);
     }
 
     public function openTask(int $taskId): void

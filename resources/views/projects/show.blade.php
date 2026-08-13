@@ -1,18 +1,6 @@
 <x-layouts.app :title="$project->name">
 
-<div class="max-w-6xl mx-auto space-y-6"
-     x-data="{
-         tab: (() => {
-             const h = window.location.hash.replace('#', '');
-             return ['overview','sprints','backlog','guide','resources'].includes(h) ? h : 'overview';
-         })(),
-         setTab(t) {
-             this.tab = t;
-             window.location.hash = '#' + t;
-         }
-     }"
-     x-init="$dispatch('ai-project-hint', { projectId: {{ $project->id }} })"
-     x-on:switch-tab.window="setTab($event.detail.tab)">
+<div class="max-w-6xl mx-auto space-y-6">
 
     @include('components.flash')
 
@@ -71,41 +59,37 @@
 
     {{-- ── Tab bar ──────────────────────────────────────────────────────────── --}}
     <div class="bg-white border border-line rounded-xl p-1 inline-flex gap-0.5 shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
-        <button @click="setTab('overview')"
-                :class="tab === 'overview' ? 'bg-white text-ink shadow-[0_1px_3px_rgba(20,20,19,0.08)]' : 'text-muted hover:text-dim'"
-                class="px-4 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-150 cursor-pointer">
+        <a href="{{ route('projects.show', ['project' => $project, 'tab' => 'overview']) }}"
+           class="px-4 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-150 cursor-pointer {{ $activeTab === 'overview' ? 'bg-white text-ink shadow-[0_1px_3px_rgba(20,20,19,0.08)]' : 'text-muted hover:text-dim' }}">
             Overview
-        </button>
+        </a>
         @if($canManage)
-        <button @click="setTab('sprints')"
-                :class="tab === 'sprints' ? 'bg-white text-ink shadow-[0_1px_3px_rgba(20,20,19,0.08)]' : 'text-muted hover:text-dim'"
-                class="px-4 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-150 cursor-pointer">
+        <a href="{{ route('projects.show', ['project' => $project, 'tab' => 'sprints']) }}"
+           class="px-4 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-150 cursor-pointer {{ $activeTab === 'sprints' ? 'bg-white text-ink shadow-[0_1px_3px_rgba(20,20,19,0.08)]' : 'text-muted hover:text-dim' }}">
             Sprints & Tasks
-        </button>
-        <button @click="setTab('backlog')"
-                :class="tab === 'backlog' ? 'bg-white text-ink shadow-[0_1px_3px_rgba(20,20,19,0.08)]' : 'text-muted hover:text-dim'"
-                class="px-4 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-150 cursor-pointer">
+        </a>
+        <a href="{{ route('projects.show', ['project' => $project, 'tab' => 'backlog']) }}"
+           class="px-4 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-150 cursor-pointer {{ $activeTab === 'backlog' ? 'bg-white text-ink shadow-[0_1px_3px_rgba(20,20,19,0.08)]' : 'text-muted hover:text-dim' }}">
             Backlog
-        </button>
+        </a>
         @endif
-        <button @click="setTab('guide')"
-                :class="tab === 'guide' ? 'bg-white text-ink shadow-[0_1px_3px_rgba(20,20,19,0.08)]' : 'text-muted hover:text-dim'"
-                class="px-4 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-150 cursor-pointer">
+        <a href="{{ route('projects.show', ['project' => $project, 'tab' => 'guide']) }}"
+           class="px-4 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-150 cursor-pointer {{ $activeTab === 'guide' ? 'bg-white text-ink shadow-[0_1px_3px_rgba(20,20,19,0.08)]' : 'text-muted hover:text-dim' }}">
             Documents
-        </button>
+        </a>
         @if($canManage)
-        <button @click="setTab('resources')"
-                :class="tab === 'resources' ? 'bg-white text-ink shadow-[0_1px_3px_rgba(20,20,19,0.08)]' : 'text-muted hover:text-dim'"
-                class="px-4 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-150 cursor-pointer">
+        <a href="{{ route('projects.show', ['project' => $project, 'tab' => 'resources']) }}"
+           class="px-4 py-1.5 text-[13px] font-medium rounded-lg transition-colors duration-150 cursor-pointer {{ $activeTab === 'resources' ? 'bg-white text-ink shadow-[0_1px_3px_rgba(20,20,19,0.08)]' : 'text-muted hover:text-dim' }}">
             Resources
-        </button>
+        </a>
         @endif
     </div>
 
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
     {{-- Overview tab                                                          --}}
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
-    <div x-show="tab === 'overview'" class="space-y-6">
+    @if($activeTab === 'overview')
+    <div class="space-y-6">
 
         {{-- Stat cards --}}
         <div class="grid grid-cols-2 {{ $canViewBilling ? 'lg:grid-cols-5' : 'lg:grid-cols-4' }} gap-4">
@@ -479,7 +463,7 @@
                 <div class="bg-white border border-line rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(20,20,19,0.04)]">
                     <div class="flex items-center justify-between px-5 py-4 border-b border-hairline">
                         <h2 class="text-[13px] font-semibold text-ink">Project Documents</h2>
-                        <button @click="setTab('guide')" class="text-[12px] font-medium text-accent hover:underline cursor-pointer">Manage documents &rarr;</button>
+                        <a href="{{ route('projects.show', ['project' => $project, 'tab' => 'guide']) }}" class="text-[12px] font-medium text-accent hover:underline cursor-pointer">Manage documents &rarr;</a>
                     </div>
                     @if($project->projectDocuments->isNotEmpty())
                     <div class="px-5 py-4">
@@ -492,13 +476,13 @@
                             </div>
                             @endforeach
                         </div>
-                        <button @click="setTab('guide')" class="mt-3 text-[12px] font-medium text-accent hover:underline cursor-pointer">Open documents &rarr;</button>
+                        <a href="{{ route('projects.show', ['project' => $project, 'tab' => 'guide']) }}" class="mt-3 inline-block text-[12px] font-medium text-accent hover:underline cursor-pointer">Open documents &rarr;</a>
                     </div>
                     @else
                     <div class="px-5 py-6 text-center">
                         <p class="text-[13px] text-muted">No documents yet</p>
                         @if($canManage)
-                        <button @click="setTab('guide')" class="inline-block mt-2 text-[12px] font-medium text-accent hover:underline cursor-pointer">Add a document &rarr;</button>
+                        <a href="{{ route('projects.show', ['project' => $project, 'tab' => 'guide']) }}" class="inline-block mt-2 text-[12px] font-medium text-accent hover:underline cursor-pointer">Add a document &rarr;</a>
                         @endif
                     </div>
                     @endif
@@ -507,28 +491,33 @@
             </div>
         </div>
     </div>
+    @endif
 
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
     {{-- Sprints & Tasks tab (managers only)                                   --}}
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
     @if($canManage)
-    <div x-show="tab === 'sprints'">
+    @if($activeTab === 'sprints')
+    <div>
         <livewire:project-sprints :project="$project" />
     </div>
+    @endif
 
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
     {{-- Backlog tab (managers only)                                           --}}
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
-    <div x-show="tab === 'backlog'">
+    @if($activeTab === 'backlog')
+    <div>
         <livewire:project-backlog :project="$project" />
     </div>
+    @endif
     @endif
 
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
     {{-- Guide tab                                                             --}}
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
+    @if($activeTab === 'guide')
     <div
-        x-show="tab === 'guide'"
         x-data="{
             docs: {{ Js::from($project->projectDocuments->map(fn ($doc) => [
                 'id' => $doc->id,
@@ -791,14 +780,17 @@
             </div>
         </div>
     </div>
+    @endif
 
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
     {{-- Resources tab                                                          --}}
     {{-- ══════════════════════════════════════════════════════════════════════ --}}
     @if($canManage)
-    <div x-show="tab === 'resources'" class="space-y-6">
+    @if($activeTab === 'resources')
+    <div class="space-y-6">
         <livewire:project-resources :project="$project" />
     </div>
+    @endif
     @endif
 
 </div>

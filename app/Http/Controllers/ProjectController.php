@@ -160,10 +160,15 @@ class ProjectController extends Controller
         return redirect()->route('projects.show', $project)->with('success', 'Project created.');
     }
 
-    public function show(Project $project)
+    public function show(Request $request, Project $project)
     {
         $user = auth()->user();
         Gate::authorize('view', $project);
+
+        $activeTab = $request->string('tab')->toString();
+        if (! in_array($activeTab, ['overview', 'sprints', 'backlog', 'guide', 'resources'], true)) {
+            $activeTab = 'overview';
+        }
 
         $project->load(['customer', 'teams.members', 'tasks.assignee', 'projectDocuments']);
 
@@ -268,7 +273,7 @@ class ProjectController extends Controller
         return view('projects.show', compact(
             'project', 'totalTasks', 'openTasks', 'doneTasks', 'overdueTasks',
             'progressPercent', 'teamMembers', 'assignedTeams', 'recentTasks', 'allTeams',
-            'canManage', 'availableTasks', 'myTasks', 'canViewBilling', 'readyToBillCount', 'claimTaskGroups'
+            'canManage', 'availableTasks', 'myTasks', 'canViewBilling', 'readyToBillCount', 'claimTaskGroups', 'activeTab'
         ));
     }
 
