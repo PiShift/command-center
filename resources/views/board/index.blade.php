@@ -8,7 +8,28 @@ window.addEventListener('load', function () {
     if (!window.Echo || !window.Livewire) return;
 
     let refreshTimer = null;
+    let filtersOpenCount = 0;
+    let pendingRefreshWhileOpen = false;
+
+    window.addEventListener('searchable-select-open', () => {
+        filtersOpenCount++;
+    });
+
+    window.addEventListener('searchable-select-close', () => {
+        filtersOpenCount = Math.max(0, filtersOpenCount - 1);
+
+        if (filtersOpenCount === 0 && pendingRefreshWhileOpen) {
+            pendingRefreshWhileOpen = false;
+            queueBoardRefresh();
+        }
+    });
+
     const queueBoardRefresh = () => {
+        if (filtersOpenCount > 0) {
+            pendingRefreshWhileOpen = true;
+            return;
+        }
+
         if (refreshTimer !== null) {
             return;
         }

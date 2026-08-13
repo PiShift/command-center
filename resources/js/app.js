@@ -13,6 +13,7 @@ window.searchableSelect = function searchableSelect(config) {
         searchable: !!config.searchable,
         livewireModel: config.livewireModel || null,
         syncTimeoutId: null,
+        lastSyncedSignature: null,
 
         init() {
             if (!this.multiple && this.selectedValues.length > 1) {
@@ -23,6 +24,13 @@ window.searchableSelect = function searchableSelect(config) {
                 this.queueLivewireSync();
                 this.dispatchChange();
             });
+
+            this.lastSyncedSignature = this.payloadSignature();
+        },
+
+        payloadSignature() {
+            const value = this.multiple ? this.selectedValues : (this.selectedValues[0] ?? null);
+            return JSON.stringify(value);
         },
 
         queueLivewireSync() {
@@ -61,7 +69,13 @@ window.searchableSelect = function searchableSelect(config) {
                 ? this.selectedValues.map((value) => castValue(value))
                 : (this.selectedValues[0] ? castValue(this.selectedValues[0]) : null);
 
+            const signature = JSON.stringify(payload);
+            if (this.lastSyncedSignature === signature) {
+                return;
+            }
+
             this.$wire.set(this.livewireModel, payload);
+            this.lastSyncedSignature = signature;
         },
 
         dispatchChange() {
@@ -85,6 +99,7 @@ window.searchableSelect = function searchableSelect(config) {
             this.open = true;
             this.query = '';
             this.highlightedIndex = 0;
+            this.$dispatch('searchable-select-open', { id: this.componentId });
 
             this.$nextTick(() => {
                 if (this.searchable && this.$refs.search) {
@@ -96,6 +111,7 @@ window.searchableSelect = function searchableSelect(config) {
         close() {
             this.open = false;
             this.query = '';
+            this.$dispatch('searchable-select-close', { id: this.componentId });
         },
 
         filteredOptions() {
